@@ -10,9 +10,10 @@ load_dotenv()
 
 
 @dataclass(frozen=True)
-class OllamaConfig:
-    """Ollama embedding service configuration."""
-    base_url: str = field(default_factory=lambda: os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"))
+class EmbeddingConfig:
+    """Embedding service configuration (OpenAI-compatible, provider-agnostic)."""
+    base_url: str = field(default_factory=lambda: os.getenv("EMBEDDING_BASE_URL", "http://localhost:11434/v1"))
+    api_key: str = field(default_factory=lambda: os.getenv("EMBEDDING_API_KEY", "ollama"))
     model: str = field(default_factory=lambda: os.getenv("EMBEDDING_MODEL", "nomic-embed-text:latest"))
 
 
@@ -26,9 +27,9 @@ class QdrantConfig:
 @dataclass(frozen=True)
 class LLMConfig:
     """LLM (OpenRouter) configuration."""
-    api_key: str = field(default_factory=lambda: os.getenv("OPENROUTER_API_KEY", ""))
-    model: str = field(default_factory=lambda: os.getenv("OPENROUTER_MODEL", "google/gemini-3-flash-preview"))
-    base_url: str = "https://openrouter.ai/api/v1"
+    api_key: str = field(default_factory=lambda: os.getenv("LLM_API_KEY", ""))
+    model: str = field(default_factory=lambda: os.getenv("LLM_MODEL", "google/gemini-2.5-flash"))
+    base_url: str = field(default_factory=lambda: os.getenv("LLM_BASE_URL", "https://openrouter.ai/api/v1"))
 
 
 @dataclass(frozen=True)
@@ -47,7 +48,7 @@ class RetrievalConfig:
 @dataclass(frozen=True)
 class Settings:
     """Root settings aggregating all sub-configurations."""
-    ollama: OllamaConfig = field(default_factory=OllamaConfig)
+    embedding: EmbeddingConfig = field(default_factory=EmbeddingConfig)
     qdrant: QdrantConfig = field(default_factory=QdrantConfig)
     llm: LLMConfig = field(default_factory=LLMConfig)
     ingestion: IngestionConfig = field(default_factory=IngestionConfig)
