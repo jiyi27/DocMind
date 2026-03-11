@@ -7,7 +7,7 @@ RAG Knowledge Base powered by LangGraph — document ingestion, vector storage, 
 ### 1. Start infrastructure
 
 ```bash
-docker compose up -d
+make infra-up
 ```
 
 This starts Qdrant (vector DB) and Ollama (embedding model).
@@ -41,10 +41,19 @@ cp .env.example .env
 ### 5. Run the API server
 
 ```bash
-uv run dev
+make dev
 ```
 
 The server starts at http://localhost:8000. API docs at http://localhost:8000/docs.
+
+## Makefile Commands
+
+| Command | Description |
+|---|---|
+| `make dev` | Start API server with hot reload |
+| `make infra-up` | Start Qdrant + Ollama via Docker |
+| `make infra-down` | Stop infrastructure |
+| `make ingest FILE=doc.pdf TITLE="My Doc"` | Ingest a document via CLI |
 
 ## Usage
 
@@ -60,7 +69,7 @@ curl -X POST http://localhost:8000/ingest \
 Or via CLI:
 
 ```bash
-uv run python scripts/ingest_file.py document.pdf --title "My Document"
+make ingest FILE=document.pdf TITLE="My Document"
 ```
 
 ### Chat with your knowledge base

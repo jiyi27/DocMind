@@ -20,3 +20,4 @@ app.include_router(chat.router)
 async def health_check():
     """Simple health check endpoint."""
     return {"status": "ok"}
+
