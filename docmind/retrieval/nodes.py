@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 from langchain_core.messages import AIMessage, HumanMessage
-from langchain_openai import ChatOpenAI
 
 from docmind.core.config import settings
+from docmind.core.llm import get_llm
 from docmind.retrieval.prompts import rag_prompt
 from docmind.retrieval.state import RAGState
 from docmind.vectorstore.qdrant_store import get_vector_store
@@ -22,7 +22,7 @@ def retrieve_node(state: RAGState) -> dict:
     store = get_vector_store()
     docs = store.similarity_search(query, k=settings.retrieval.top_k)
 
-    # Build formatted context & sources — same logic as the n8n Code node
+    # Build formatted context & sources
     context_parts: list[str] = []
     sources: list[str] = []
 
@@ -52,13 +52,9 @@ def retrieve_node(state: RAGState) -> dict:
 def generate_node(state: RAGState) -> dict:
     """Generate an answer using the LLM with retrieved context.
 
-    Uses OpenRouter-compatible ChatOpenAI, matching the n8n AI Agent node.
+    Uses OpenRouter-compatible ChatOpenAI via get_llm() factory.
     """
-    llm = ChatOpenAI(
-        api_key=settings.llm.api_key,
-        base_url=settings.llm.base_url,
-        model=settings.llm.model,
-    )
+    llm = get_llm()
 
     # Build the prompt with context, sources, and conversation history
     chain = rag_prompt | llm

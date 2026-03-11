@@ -15,7 +15,6 @@ async def chat(request: ChatRequest):
     """Send a question to the RAG knowledge base.
 
     Supports multi-turn conversation via session_id.
-    Mirrors the n8n Webhook → RequestField → Qdrant → AI Agent flow.
     """
     result = rag_graph.invoke(
         {"query": request.chat_input},

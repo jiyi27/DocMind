@@ -25,3 +25,5 @@ Thumbs.db
 # Data
 data/
 *.db
+
+agentx/

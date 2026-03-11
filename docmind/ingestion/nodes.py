@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 from langchain_core.documents import Document
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 
+from docmind.core.config import settings
 from docmind.ingestion.loaders import load_document
-from docmind.ingestion.splitters import get_text_splitter
 from docmind.ingestion.state import IngestionState
 from docmind.vectorstore.qdrant_store import get_vector_store
 
@@ -24,7 +25,10 @@ def load_document_node(state: IngestionState) -> dict:
 
 def split_text_node(state: IngestionState) -> dict:
     """Split documents into smaller chunks."""
-    splitter = get_text_splitter()
+    splitter = RecursiveCharacterTextSplitter(
+        chunk_size=settings.ingestion.chunk_size,
+        chunk_overlap=settings.ingestion.chunk_overlap,
+    )
     chunks: list[Document] = splitter.split_documents(state["documents"])
     return {"chunks": chunks}
 
