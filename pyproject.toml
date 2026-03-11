@@ -1,0 +1,24 @@
+[project]
+name = "docmind"
+version = "0.1.0"
+description = "RAG Knowledge Base powered by LangGraph"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.135.1",
+    "langchain>=1.2.11",
+    "langchain-community>=0.4.1",
+    "langchain-openai>=1.1.11",
+    "langchain-qdrant>=1.1.0",
+    "langchain-text-splitters>=1.1.1",
+    "langgraph>=1.1.0",
+    "ollama>=0.6.1",
+    "pypdf>=6.8.0",
+    "python-dotenv>=1.2.2",
+    "python-multipart>=0.0.22",
+    "qdrant-client>=1.17.0",
+    "uvicorn>=0.41.0",
+]
+
+[project.scripts]
+dev = "uvicorn docmind.api.main:app --reload --host 0.0.0.0 --port 8000"
