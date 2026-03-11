@@ -25,7 +25,6 @@ async def ingest_document(
     """Upload and ingest a document into the knowledge base.
 
     Accepts .pdf and .md files, along with optional metadata.
-    Mirrors the n8n "On form submission" trigger.
     """
     metadata = IngestMetadata(
         title=title or file.filename or "",

@@ -14,7 +14,7 @@ from docmind.vectorstore.qdrant_store import get_vector_store
 def retrieve_node(state: RAGState) -> dict:
     """Retrieve relevant documents from Qdrant based on the user query.
 
-    Mirrors the n8n workflow:
+    Workflow:
     - Qdrant Vector Store (mode=load, topK=3)
     - Code node that formats context + sources
     """

@@ -10,7 +10,7 @@ from docmind.core.config import settings
 def get_embedding_model() -> OllamaEmbeddings:
     """Return the configured Ollama embedding model.
 
-    Uses nomic-embed-text by default, matching the n8n workflow.
+    Uses nomic-embed-text by default.
     """
     return OllamaEmbeddings(
         base_url=settings.ollama.base_url,
