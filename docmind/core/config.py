@@ -46,6 +46,14 @@ class RetrievalConfig:
 
 
 @dataclass(frozen=True)
+class LogConfig:
+    """Logging configuration."""
+    dir: str = field(default_factory=lambda: os.getenv("LOG_DIR", "logs"))
+    # Minimum level to write: "debug" | "info" | "error"
+    level: str = field(default_factory=lambda: os.getenv("LOG_LEVEL", "debug").lower())
+
+
+@dataclass(frozen=True)
 class Settings:
     """Root settings aggregating all sub-configurations."""
     embedding: EmbeddingConfig = field(default_factory=EmbeddingConfig)
@@ -53,6 +61,7 @@ class Settings:
     llm: LLMConfig = field(default_factory=LLMConfig)
     ingestion: IngestionConfig = field(default_factory=IngestionConfig)
     retrieval: RetrievalConfig = field(default_factory=RetrievalConfig)
+    log: LogConfig = field(default_factory=LogConfig)
 
 
 # Singleton — import `settings` wherever needed
