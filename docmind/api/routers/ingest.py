@@ -9,6 +9,7 @@ from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 
 from docmind.api.schemas import IngestMetadata, IngestResponse
 from docmind.core import logger
+from docmind.core.metadata_config import REQUIRED_FIELDS
 from docmind.ingestion.graph import ingestion_graph
 
 router = APIRouter(prefix="/ingest", tags=["ingestion"])
@@ -17,12 +18,28 @@ router = APIRouter(prefix="/ingest", tags=["ingestion"])
 @router.post("", response_model=IngestResponse)
 async def ingest_document(
     file: UploadFile = File(..., description="PDF or Markdown file to ingest"),
-    title: str = Form(default=""),
-    url: str = Form(default=""),
-    doc_type: str = Form(default="tech_spec", description="One of: requirement, postmortem, pitfall, sharing, tech_spec"),
-    business_line: str = Form(default="all", description="Comma-separated: india, pakistan, all"),
-    service: str = Form(default="all", description="Comma-separated: collection, risk, admin, all"),
-    department: str = Form(default="all", description="Comma-separated: backend, qa, ios, android, web, all"),
+    title: str = Form(default="") if "title" not in REQUIRED_FIELDS else Form(...),
+    url: str = Form(default="") if "url" not in REQUIRED_FIELDS else Form(...),
+    doc_type: str = (
+        Form(..., description="One of: requirement, postmortem, pitfall, sharing, tech_spec")
+        if "doc_type" in REQUIRED_FIELDS
+        else Form(default="tech_spec", description="One of: requirement, postmortem, pitfall, sharing, tech_spec")
+    ),
+    business_line: str = (
+        Form(..., description="Comma-separated: india, pakistan, all")
+        if "business_line" in REQUIRED_FIELDS
+        else Form(default="all", description="Comma-separated: india, pakistan, all")
+    ),
+    service: str = (
+        Form(..., description="Comma-separated: collection, risk, admin, all")
+        if "service" in REQUIRED_FIELDS
+        else Form(default="all", description="Comma-separated: collection, risk, admin, all")
+    ),
+    department: str = (
+        Form(..., description="Comma-separated: backend, qa, ios, android, web, all")
+        if "department" in REQUIRED_FIELDS
+        else Form(default="all", description="Comma-separated: backend, qa, ios, android, web, all")
+    ),
 ):
     """Upload and ingest a document into the knowledge base.
 

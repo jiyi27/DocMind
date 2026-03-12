@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
+from typing import Any
 
-from docmind.core.metadata_config import BUSINESS_LINES, DEPARTMENTS, DOC_TYPES, SERVICES
+from docmind.core.metadata_config import BUSINESS_LINES, DEPARTMENTS, DOC_TYPES, REQUIRED_FIELDS, SERVICES
 
 
 class IngestMetadata(BaseModel):
@@ -57,6 +58,26 @@ class IngestMetadata(BaseModel):
         if invalid:
             raise ValueError(f"Invalid department values {invalid}. Allowed: {DEPARTMENTS}")
         return v
+
+    @model_validator(mode="before")
+    @classmethod
+    def check_required_fields(cls, values: Any) -> Any:
+        """根据 metadata_config.REQUIRED_FIELDS 动态校验必填字段。"""
+        # 单值字段：值为空字符串视为未填
+        _SINGLE = {"title", "url", "doc_type"}
+        # 多值字段：值为空列表视为未填
+        _MULTI = {"business_line", "service", "department"}
+
+        missing = []
+        for field in REQUIRED_FIELDS:
+            val = values.get(field) if isinstance(values, dict) else getattr(values, field, None)
+            if field in _SINGLE and not val:
+                missing.append(field)
+            elif field in _MULTI and not val:
+                missing.append(field)
+        if missing:
+            raise ValueError(f"Missing required metadata fields: {missing}")
+        return values
 
 class IngestResponse(BaseModel):
     status: str

@@ -2,6 +2,7 @@
 
 Defines the allowed values for each metadata field.
 To add new values, simply extend the lists below.
+To make a field required, add its name to REQUIRED_FIELDS.
 """
 
 from __future__ import annotations
@@ -35,3 +36,16 @@ DEPARTMENTS: list[str] = [
     "web",
     "all",
 ]
+
+# -------------------------------------------------------
+# 必填字段控制 — 在此集合中添加/删除字段名即可
+# 可选值: "title", "url", "doc_type", "business_line", "service", "department"
+# -------------------------------------------------------
+REQUIRED_FIELDS: set[str] = {
+    "title",
+    "url",
+    "department",
+    "business_line",
+    "doc_type",
+    "service",
+}
