@@ -32,6 +32,8 @@ def build_rag_graph(checkpointer=None):
     graph.add_edge("retrieve", "generate")
     graph.add_edge("generate", END)
 
+    # Persists the full RAGState snapshot (messages, context, sources, answer, etc.)
+    # keyed by thread_id (= session_id).
     if checkpointer is None:
         checkpointer = MemorySaver()
 

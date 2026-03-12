@@ -36,5 +36,7 @@ class RAGState(TypedDict, total=False):
     retrieved_docs: list
     context: str
     sources: list[str]
+    # Reducer-backed field: LangGraph calls add_messages(old, new) on each state update, 
+    # appending new messages instead of overwriting the list.
     messages: Annotated[list[AnyMessage], add_messages]
     answer: str
