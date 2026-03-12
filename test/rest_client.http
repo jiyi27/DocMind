@@ -1,0 +1,41 @@
+# ==========================================
+# DocMind API — REST Client
+# ==========================================
+# 使用说明:
+# 1. 安装 VS Code 插件: REST Client (humao.rest-client)
+# 2. 点击请求上方的 "Send Request" 链接即可发送
+# 3. 快捷键: Cmd+Alt+R (macOS) / Ctrl+Alt+R (Windows/Linux)
+# 4. 每个请求之间用 "###" 分隔
+# ==========================================
+
+@baseUrl = http://localhost:8000
+
+###
+GET {{baseUrl}}/health
+
+###
+POST {{baseUrl}}/chat
+Content-Type: application/json
+
+{
+  "chatInput": "你好，请介绍一下这个知识库的内容"
+}
+
+###
+POST {{baseUrl}}/chat
+Content-Type: application/json
+
+{
+  "chatInput": "产品有哪些功能？",
+  "sessionId": "user-123"
+}
+
+###
+POST {{baseUrl}}/chat
+Content-Type: application/json
+
+{
+  "chatInput": "刚才说的第一个功能，能详细说说吗？",
+  "sessionId": "user-123"
+}
+
