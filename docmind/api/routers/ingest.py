@@ -22,24 +22,24 @@ async def ingest_document(
     title: str = Form(default="") if "title" not in REQUIRED_FIELDS else Form(...),
     url: str = Form(default="") if "url" not in REQUIRED_FIELDS else Form(...),
     doc_type: str = (
-        Form(..., description="One of: requirement, postmortem, pitfall, sharing, tech_spec")
+        Form(...)
         if "doc_type" in REQUIRED_FIELDS
-        else Form(default="tech_spec", description="One of: requirement, postmortem, pitfall, sharing, tech_spec")
+        else Form(default="all")
     ),
     business_line: str = (
-        Form(..., description="Comma-separated: india, pakistan, all")
+        Form(...)
         if "business_line" in REQUIRED_FIELDS
-        else Form(default="all", description="Comma-separated: india, pakistan, all")
+        else Form(default="all")
     ),
     service: str = (
-        Form(..., description="Comma-separated: collection, risk, admin, all")
+        Form(...)
         if "service" in REQUIRED_FIELDS
-        else Form(default="all", description="Comma-separated: collection, risk, admin, all")
+        else Form(default="all")
     ),
     department: str = (
-        Form(..., description="Comma-separated: backend, qa, ios, android, web, all")
+        Form(...)
         if "department" in REQUIRED_FIELDS
-        else Form(default="all", description="Comma-separated: backend, qa, ios, android, web, all")
+        else Form(default="all")
     ),
 ):
     """Upload and ingest a document into the knowledge base.

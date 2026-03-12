@@ -19,6 +19,7 @@ DOC_TYPES: list[str] = [
     "pitfall",       # 踩坑记录
     "sharing",       # 个人分享
     "tech_spec",     # 技术规范
+    "all",
 ]
 
 SERVICES: list[str] = [

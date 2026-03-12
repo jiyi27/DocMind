@@ -8,10 +8,10 @@ and replaced with a generic message so that internal details are never leaked.
 Hierarchy
 ---------
 AppException
-├── DocumentError      – file type not supported, parse failure, etc.
-├── VectorStoreError   – Qdrant unreachable or misconfigured
-├── LLMError           – LLM call failed (including context-window overflow)
-└── ConfigError        – missing API keys or invalid service configuration
+├── DocumentError      - file type not supported, parse failure, etc.
+├── VectorStoreError   - Qdrant unreachable or misconfigured
+├── LLMError           - LLM call failed (including context-window overflow)
+└── ConfigError        - missing API keys or invalid service configuration
 """
 
 from __future__ import annotations
@@ -53,6 +53,6 @@ class LLMError(AppException):
 
 
 class ConfigError(AppException):
-    """Raised when a required service cannot be initialised due to missing configuration."""
+    """Raised when a required service cannot be initialized due to missing configuration."""
 
     default_message = "A service configuration error occurred. Please contact the administrator."
