@@ -5,9 +5,10 @@ from __future__ import annotations
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 
-from fastapi import APIRouter, File, Form, UploadFile
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 
 from docmind.api.schemas import IngestMetadata, IngestResponse
+from docmind.core import logger
 from docmind.ingestion.graph import ingestion_graph
 
 router = APIRouter(prefix="/ingest", tags=["ingestion"])
@@ -26,8 +27,10 @@ async def ingest_document(
 
     Accepts .pdf and .md files, along with optional metadata.
     """
+    file_name = file.filename or "unknown"
+
     metadata = IngestMetadata(
-        title=title or file.filename or "",
+        title=title or file_name,
         url=url,
         category=category,
         business_line=business_line,
@@ -35,7 +38,7 @@ async def ingest_document(
     )
 
     # Write uploaded file to a temp location for processing
-    suffix = Path(file.filename or "doc.pdf").suffix
+    suffix = Path(file_name).suffix
     with NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
         content = await file.read()
         tmp.write(content)
@@ -46,11 +49,21 @@ async def ingest_document(
             "file_path": tmp_path,
             "metadata": metadata.model_dump(),
         })
+    except Exception as exc:
+        logger.error("ingest_failed", {
+            "file_name": file_name,
+            "error_type": type(exc).__name__,
+            "error": str(exc),
+        })
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to ingest the document. Please check the file and try again.",
+        ) from exc
     finally:
         Path(tmp_path).unlink(missing_ok=True)
 
     return IngestResponse(
         status=result.get("status", "unknown"),
         chunk_count=result.get("chunk_count", 0),
-        file_name=file.filename or "unknown",
+        file_name=file_name,
     )

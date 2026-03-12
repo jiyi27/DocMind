@@ -3,10 +3,25 @@
 from __future__ import annotations
 
 import os
+import sys
 from dataclasses import dataclass, field
 from dotenv import load_dotenv
 
 load_dotenv()
+
+
+def _safe_int(env_var: str, default: str) -> int:
+    """Parse an integer from an environment variable with a clear error message."""
+    raw = os.getenv(env_var, default)
+    try:
+        return int(raw)
+    except (ValueError, TypeError):
+        print(
+            f"[CONFIG ERROR] Environment variable {env_var}={raw!r} is not a valid integer. "
+            f"Falling back to default={default}.",
+            file=sys.stderr,
+        )
+        return int(default)
 
 
 @dataclass(frozen=True)
@@ -35,14 +50,14 @@ class LLMConfig:
 @dataclass(frozen=True)
 class IngestionConfig:
     """Document ingestion pipeline configuration."""
-    chunk_size: int = field(default_factory=lambda: int(os.getenv("CHUNK_SIZE", "500")))
-    chunk_overlap: int = field(default_factory=lambda: int(os.getenv("CHUNK_OVERLAP", "50")))
+    chunk_size: int = field(default_factory=lambda: _safe_int("CHUNK_SIZE", "500"))
+    chunk_overlap: int = field(default_factory=lambda: _safe_int("CHUNK_OVERLAP", "50"))
 
 
 @dataclass(frozen=True)
 class RetrievalConfig:
     """Retrieval pipeline configuration."""
-    top_k: int = field(default_factory=lambda: int(os.getenv("TOP_K", "3")))
+    top_k: int = field(default_factory=lambda: _safe_int("TOP_K", "3"))
 
 
 @dataclass(frozen=True)
@@ -50,7 +65,7 @@ class LogConfig:
     """Logging configuration."""
     dir: str = field(default_factory=lambda: os.getenv("LOG_DIR", "logs"))
     # Minimum level to write: "debug" | "info" | "error"
-    level: str = field(default_factory=lambda: os.getenv("LOG_LEVEL", "debug").lower())
+    level: str = field(default_factory=lambda: os.getenv("LOG_LEVEL", "error").lower())
 
 
 @dataclass(frozen=True)
@@ -62,6 +77,17 @@ class Settings:
     ingestion: IngestionConfig = field(default_factory=IngestionConfig)
     retrieval: RetrievalConfig = field(default_factory=RetrievalConfig)
     log: LogConfig = field(default_factory=LogConfig)
+
+    def validate(self) -> list[str]:
+        """Validate critical settings at startup. Returns a list of warnings."""
+        warnings: list[str] = []
+        if not self.llm.api_key:
+            warnings.append("LLM_API_KEY is empty — LLM calls will fail with AuthenticationError")
+        if not self.qdrant.url:
+            warnings.append("QDRANT_URL is empty — vector store operations will fail")
+        if not self.embedding.base_url:
+            warnings.append("EMBEDDING_BASE_URL is empty — embedding calls will fail")
+        return warnings
 
 
 # Singleton — import `settings` wherever needed

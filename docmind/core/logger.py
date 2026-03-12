@@ -77,8 +77,17 @@ def _write(level: str, topic: str, data: dict) -> None:
     }
 
     filepath = log_dir / filename
-    with open(filepath, "a", encoding="utf-8") as f:
-        f.write(json.dumps(record, ensure_ascii=False) + "\n")
+    try:
+        with open(filepath, "a", encoding="utf-8") as f:
+            f.write(json.dumps(record, ensure_ascii=False) + "\n")
+    except OSError as write_err:
+        # Fallback to stderr so a logging failure never crashes the caller
+        import sys as _sys
+        _sys.stderr.write(
+            f"[LOGGER FALLBACK] Failed to write log ({write_err}): "
+            + json.dumps(record, ensure_ascii=False)
+            + "\n"
+        )
 
 
 # ---------------------------------------------------------------------------

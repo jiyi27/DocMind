@@ -43,10 +43,14 @@ def main():
     print(f"Ingesting: {file_path.name}")
     print(f"Metadata:  {metadata}")
 
-    result = ingestion_graph.invoke({
-        "file_path": str(file_path),
-        "metadata": metadata,
-    })
+    try:
+        result = ingestion_graph.invoke({
+            "file_path": str(file_path),
+            "metadata": metadata,
+        })
+    except Exception as exc:
+        print(f"Error: Ingestion failed — {type(exc).__name__}: {exc}", file=sys.stderr)
+        sys.exit(1)
 
     print(f"Status:    {result.get('status', 'unknown')}")
     print(f"Chunks:    {result.get('chunk_count', 0)}")

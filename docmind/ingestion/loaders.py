@@ -7,17 +7,72 @@ from pathlib import Path
 from langchain_core.documents import Document
 from langchain_community.document_loaders import PyPDFLoader
 
+from docmind.core import logger
+
+
+class DocumentLoadError(Exception):
+    """Raised when a document cannot be loaded or parsed."""
+
+
+class UnsupportedFileTypeError(Exception):
+    """Raised when the uploaded file type is not supported.
+
+    This should be translated to HTTP 400 at the API layer.
+    """
+
 
 def load_pdf(file_path: str | Path) -> list[Document]:
-    """Load a PDF file and return a list of Documents (one per page)."""
-    loader = PyPDFLoader(str(file_path))
-    return loader.load()
+    """Load a PDF file and return a list of Documents (one per page).
+
+    Raises
+    ------
+    DocumentLoadError
+        If the PDF is corrupted or cannot be parsed.
+    """
+    try:
+        loader = PyPDFLoader(str(file_path))
+        docs = loader.load()
+        logger.debug("loader_pdf_success", {
+            "file_path": str(file_path),
+            "page_count": len(docs),
+        })
+        return docs
+    except Exception as exc:
+        logger.error("loader_pdf_failed", {
+            "file_path": str(file_path),
+            "error_type": type(exc).__name__,
+            "error": str(exc),
+        })
+        raise DocumentLoadError(
+            f"Failed to load PDF '{file_path}': {exc}"
+        ) from exc
 
 
 def load_markdown(file_path: str | Path) -> list[Document]:
-    """Load a Markdown file and return it as a single Document."""
+    """Load a Markdown file and return it as a single Document.
+
+    Raises
+    ------
+    DocumentLoadError
+        If the file cannot be read.
+    """
     path = Path(file_path)
-    content = path.read_text(encoding="utf-8")
+    try:
+        content = path.read_text(encoding="utf-8")
+    except Exception as exc:
+        logger.error("loader_markdown_failed", {
+            "file_path": str(file_path),
+            "error_type": type(exc).__name__,
+            "error": str(exc),
+        })
+        raise DocumentLoadError(
+            f"Failed to read Markdown file '{file_path}': {exc}"
+        ) from exc
+
+    logger.debug("loader_markdown_success", {
+        "file_path": str(file_path),
+        "content_length": len(content),
+    })
     return [
         Document(
             page_content=content,
@@ -30,7 +85,13 @@ def load_document(file_path: str | Path) -> list[Document]:
     """Auto-detect file type and load accordingly.
 
     Supported: .pdf, .md
-    Raises ValueError for unsupported types.
+
+    Raises
+    ------
+    UnsupportedFileTypeError
+        If the file extension is not supported (should map to HTTP 400).
+    DocumentLoadError
+        If the file exists but cannot be parsed.
     """
     path = Path(file_path)
     suffix = path.suffix.lower()
@@ -42,6 +103,13 @@ def load_document(file_path: str | Path) -> list[Document]:
 
     loader_fn = loaders.get(suffix)
     if loader_fn is None:
-        raise ValueError(f"Unsupported file type: {suffix}. Supported: {list(loaders.keys())}")
+        logger.error("loader_unsupported_type", {
+            "file_path": str(file_path),
+            "suffix": suffix,
+            "supported": list(loaders.keys()),
+        })
+        raise UnsupportedFileTypeError(
+            f"Unsupported file type: {suffix}. Supported: {list(loaders.keys())}"
+        )
 
     return loader_fn(path)

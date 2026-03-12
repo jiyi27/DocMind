@@ -5,6 +5,7 @@ from __future__ import annotations
 from langchain_core.messages import AIMessage, HumanMessage
 
 from docmind.core.config import settings
+from docmind.core import logger
 from docmind.core.llm import get_llm
 from docmind.retrieval.prompts import rag_prompt
 from docmind.retrieval.state import RAGState
@@ -19,8 +20,17 @@ def retrieve_node(state: RAGState) -> dict:
     - Code node that formats context + sources
     """
     query = state["query"]
-    store = get_vector_store()
-    docs = store.similarity_search(query, k=settings.retrieval.top_k)
+
+    try:
+        store = get_vector_store()
+        docs = store.similarity_search(query, k=settings.retrieval.top_k)
+    except Exception as exc:
+        logger.error("retrieval_search_failed", {
+            "query": query[:200],
+            "error_type": type(exc).__name__,
+            "error": str(exc),
+        })
+        raise
 
     # Build formatted context & sources
     context_parts: list[str] = []
@@ -54,20 +64,28 @@ def generate_node(state: RAGState) -> dict:
 
     Uses OpenRouter-compatible ChatOpenAI via get_llm() factory.
     """
-    llm = get_llm()
+    try:
+        llm = get_llm()
 
-    # Build the prompt with context, sources, and conversation history
-    chain = rag_prompt | llm
+        # Build the prompt with context, sources, and conversation history
+        chain = rag_prompt | llm
 
-    # The user's current query is appended to messages
-    messages = list(state.get("messages", []))
-    messages.append(HumanMessage(content=state["query"]))
+        # The user's current query is appended to messages
+        messages = list(state.get("messages", []))
+        messages.append(HumanMessage(content=state["query"]))
 
-    result = chain.invoke({
-        "context": state.get("context", ""),
-        "sources": "\n".join(state.get("sources", [])),
-        "messages": messages,
-    })
+        result = chain.invoke({
+            "context": state.get("context", ""),
+            "sources": "\n".join(state.get("sources", [])),
+            "messages": messages,
+        })
+    except Exception as exc:
+        logger.error("retrieval_generate_failed", {
+            "query": state["query"][:200],
+            "error_type": type(exc).__name__,
+            "error": str(exc),
+        })
+        raise
 
     return {
         "answer": result.content,
