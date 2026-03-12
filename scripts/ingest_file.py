@@ -13,7 +13,12 @@ from pathlib import Path
 # Ensure project root is importable
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from docmind.core.metadata_config import BUSINESS_LINES, DEPARTMENTS, DOC_TYPES, SERVICES
 from docmind.ingestion.graph import ingestion_graph
+
+
+def _choices(values: list[str]) -> str:
+    return " | ".join(values)
 
 
 def main():
@@ -23,19 +28,19 @@ def main():
     parser.add_argument("--url", type=str, default="", help="Source URL")
     parser.add_argument(
         "--doc-type", type=str, default="tech_spec",
-        help="Document type: requirement | postmortem | pitfall | sharing | tech_spec",
+        help=f"Document type ({_choices(DOC_TYPES)})",
     )
     parser.add_argument(
         "--business-line", type=str, default="all",
-        help="Comma-separated business lines: india, pakistan, all",
+        help=f"Business line ({_choices(BUSINESS_LINES)})",
     )
     parser.add_argument(
         "--service", type=str, default="all",
-        help="Comma-separated services: collection, risk, admin, all",
+        help=f"Service ({_choices(SERVICES)})",
     )
     parser.add_argument(
         "--department", type=str, default="all",
-        help="Comma-separated departments: backend, qa, ios, android, web, all",
+        help=f"Department ({_choices(DEPARTMENTS)})",
     )
 
     args = parser.parse_args()

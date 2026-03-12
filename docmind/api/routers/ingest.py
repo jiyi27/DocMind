@@ -57,7 +57,10 @@ async def ingest_document(
         department=department,
     )
 
-    # Write uploaded file to a temp location for processing
+    # Write uploaded file to disk temporarily because:
+    # 1. Document loaders (PDF/Markdown parsers) expect file paths, not byte streams
+    # 2. Avoids keeping large files in memory during multistep processing
+    # 3. Enables consistent handling across different file formats
     suffix = Path(file_name).suffix
     with NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
         content = await file.read()

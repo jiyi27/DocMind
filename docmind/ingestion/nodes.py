@@ -13,7 +13,12 @@ from docmind.vectorstore.qdrant_store import get_vector_store
 
 
 def load_document_node(state: IngestionState) -> dict:
-    """Load documents from the given file path."""
+    """Load documents from the given file path.
+
+    PDF → one Document per page; Markdown → one Document for the whole file.
+    User-supplied metadata (title, doc_type, department, etc.) is stamped onto
+    every Document here so all downstream chunks inherit it automatically.
+    """
     file_path = state["file_path"]
 
     try:
@@ -26,7 +31,8 @@ def load_document_node(state: IngestionState) -> dict:
         })
         raise
 
-    # Inject user-provided metadata into each document
+    # Stamp user-provided metadata onto every Document so that all chunks
+    # produced in the next step inherit fields like title, doc_type, department.
     metadata = state.get("metadata", {})
     for doc in docs:
         doc.metadata.update(metadata)

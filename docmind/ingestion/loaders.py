@@ -18,6 +18,9 @@ UnsupportedFileTypeError = DocumentError
 def load_pdf(file_path: str | Path) -> list[Document]:
     """Load a PDF file and return a list of Documents (one per page).
 
+    Each page becomes a separate Document with metadata["page"] = page index.
+    A 10-page PDF yields 10 Documents.
+
     Raises
     ------
     DocumentLoadError
@@ -44,6 +47,9 @@ def load_pdf(file_path: str | Path) -> list[Document]:
 
 def load_markdown(file_path: str | Path) -> list[Document]:
     """Load a Markdown file and return it as a single Document.
+
+    Unlike PDF, the entire file is treated as one Document regardless of length.
+    Returns a list for interface consistency with load_pdf.
 
     Raises
     ------

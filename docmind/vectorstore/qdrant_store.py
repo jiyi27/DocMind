@@ -45,10 +45,7 @@ def _ensure_collection(client: QdrantClient, col: str, embeddings: Embeddings) -
     no code changes — only an .env update.
 
     Note: dimension/distance mismatch on existing collections is already handled
-    by langchain-qdrant's `from_existing_collection` (validate_collection_config=True).
-
-    Logs an info entry when the collection is created, and a debug entry when
-    it already exists.
+    by langchain-qdrant `from_existing_collection` (validate_collection_config=True).
     """
     existing = {c.name for c in client.get_collections().collections}
     if col in existing:
@@ -60,13 +57,6 @@ def _ensure_collection(client: QdrantClient, col: str, embeddings: Embeddings) -
 
     vector_size = _probe_vector_size(embeddings)
 
-    logger.info("vectorstore_collection_creating", {
-        "qdrant_url": settings.qdrant.url,
-        "collection": col,
-        "vector_size": vector_size,
-        "distance": str(_DISTANCE),
-        "embedding_model": settings.embedding.model,
-    })
     client.create_collection(
         collection_name=col,
         vectors_config=VectorParams(size=vector_size, distance=_DISTANCE),
@@ -108,6 +98,8 @@ def get_vector_store(
     if cached is not None and embeddings is None:
         return cached
 
+    # Without locking, concurrent threads could all miss the cache and redundantly
+    # create multiple instances, causing unnecessary Qdrant connections.
     with _lock:
         # Double-check after acquiring lock
         if cache_key in _store_cache and embeddings is None:
