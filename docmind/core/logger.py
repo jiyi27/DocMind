@@ -57,9 +57,9 @@ def _write(level: str, topic: str, data: dict) -> None:
     log_dir = _log_dir()
     log_dir.mkdir(parents=True, exist_ok=True)
 
-    now = datetime.now(timezone.utc)
-    hour_prefix = now.strftime("%Y%m%d%H")            # e.g. "2026031119"
-    filename = f"{hour_prefix}.{level}.log"            # e.g. "2026031119.debug.log"
+    now = datetime.now()  # local time
+    hour_prefix = now.strftime("%Y%m%d%H")            # e.g. "2026031219"
+    filename = f"{hour_prefix}.{level}.log"            # e.g. "2026031219.debug.log"
 
     # Caller info (skip 2 frames: _write → debug/info/error → actual caller)
     frame = inspect.stack()[2]
@@ -70,7 +70,7 @@ def _write(level: str, topic: str, data: dict) -> None:
     }
 
     record = {
-        "ts": now.strftime("%Y-%m-%dT%H:%M:%S.") + f"{now.microsecond // 1000:03d}Z",
+        "ts": now.strftime("%Y-%m-%dT%H:%M:%S.") + f"{now.microsecond // 1000:03d}+08:00",
         "topic": topic,
         "data": data,
         "caller": caller,
