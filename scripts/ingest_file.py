@@ -21,9 +21,22 @@ def main():
     parser.add_argument("file", type=str, help="Path to the file (.pdf or .md)")
     parser.add_argument("--title", type=str, default="", help="Document title")
     parser.add_argument("--url", type=str, default="", help="Source URL")
-    parser.add_argument("--category", type=str, default="none", help="Document category")
-    parser.add_argument("--business-line", type=str, default="none", help="Business line")
-    parser.add_argument("--audience", type=str, default="all", help="Target audience")
+    parser.add_argument(
+        "--doc-type", type=str, default="tech_spec",
+        help="Document type: requirement | postmortem | pitfall | sharing | tech_spec",
+    )
+    parser.add_argument(
+        "--business-line", type=str, default="all",
+        help="Comma-separated business lines: india, pakistan, all",
+    )
+    parser.add_argument(
+        "--service", type=str, default="all",
+        help="Comma-separated services: collection, risk, admin, all",
+    )
+    parser.add_argument(
+        "--department", type=str, default="all",
+        help="Comma-separated departments: backend, qa, ios, android, web, all",
+    )
 
     args = parser.parse_args()
 
@@ -35,9 +48,10 @@ def main():
     metadata = {
         "title": args.title or file_path.stem,
         "url": args.url,
-        "category": args.category,
+        "doc_type": args.doc_type,
         "business_line": args.business_line,
-        "audience": args.audience,
+        "service": args.service,
+        "department": args.department,
     }
 
     print(f"Ingesting: {file_path.name}")

@@ -19,9 +19,10 @@ async def ingest_document(
     file: UploadFile = File(..., description="PDF or Markdown file to ingest"),
     title: str = Form(default=""),
     url: str = Form(default=""),
-    category: str = Form(default="none"),
-    business_line: str = Form(default="none"),
-    audience: str = Form(default="all"),
+    doc_type: str = Form(default="tech_spec", description="One of: requirement, postmortem, pitfall, sharing, tech_spec"),
+    business_line: str = Form(default="all", description="Comma-separated: india, pakistan, all"),
+    service: str = Form(default="all", description="Comma-separated: collection, risk, admin, all"),
+    department: str = Form(default="all", description="Comma-separated: backend, qa, ios, android, web, all"),
 ):
     """Upload and ingest a document into the knowledge base.
 
@@ -32,9 +33,10 @@ async def ingest_document(
     metadata = IngestMetadata(
         title=title or file_name,
         url=url,
-        category=category,
+        doc_type=doc_type,
         business_line=business_line,
-        audience=audience,
+        service=service,
+        department=department,
     )
 
     # Write uploaded file to a temp location for processing

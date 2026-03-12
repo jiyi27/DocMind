@@ -13,20 +13,52 @@
 ###
 GET {{baseUrl}}/health
 
+### 上传文档
+# doc_type:      requirement | postmortem | pitfall | sharing | tech_spec
+# business_line: india | pakistan | all  （逗号分隔多值）
+# service:       collection | risk | admin | all  （逗号分隔多值）
+# department:    backend | qa | ios | android | web | all  （逗号分隔多值）
+# @name ingest
+POST {{baseUrl}}/ingest
+Content-Type: multipart/form-data; boundary=----Boundary
+
+------Boundary
+Content-Disposition: form-data; name="file"; filename="需求开发流程规范.md"
+Content-Type: text/markdown
+
+< /Users/david/Downloads/需求开发流程规范.md
+------Boundary
+Content-Disposition: form-data; name="title"
+
+需求开发流程规范
+------Boundary
+Content-Disposition: form-data; name="url"
+
+https://ai-api.surfin.sg/
+------Boundary
+Content-Disposition: form-data; name="doc_type"
+
+requirement
+------Boundary
+Content-Disposition: form-data; name="business_line"
+
+india,pakistan
+------Boundary
+Content-Disposition: form-data; name="service"
+
+risk
+------Boundary
+Content-Disposition: form-data; name="department"
+
+backend,qa
+------Boundary--
+
 ###
 POST {{baseUrl}}/chat
 Content-Type: application/json
 
 {
-  "chatInput": "你好，请介绍一下这个知识库的内容"
-}
-
-###
-POST {{baseUrl}}/chat
-Content-Type: application/json
-
-{
-  "chatInput": "产品有哪些功能？",
+  "chatInput": "总结下需求流程开发规范",
   "sessionId": "user-123"
 }
 
@@ -35,7 +67,7 @@ POST {{baseUrl}}/chat
 Content-Type: application/json
 
 {
-  "chatInput": "刚才说的第一个功能，能详细说说吗？",
+  "chatInput": "刚才说的第三点，能详细说说吗？",
   "sessionId": "user-123"
 }
 
