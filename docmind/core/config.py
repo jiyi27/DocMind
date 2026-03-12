@@ -80,6 +80,7 @@ class IngestionConfig:
 class RetrievalConfig:
     """Retrieval pipeline configuration."""
     top_k: int
+    max_messages: int  # Max number of messages to keep in conversation history (oldest are dropped first).
 
 
 @dataclass(frozen=True)
@@ -128,6 +129,7 @@ def _build_settings() -> Settings:
         ),
         retrieval=RetrievalConfig(
             top_k=_require_int("TOP_K"),
+            max_messages=_require_int("MAX_MESSAGES"),
         ),
         log=LogConfig(
             dir=_require_str("LOG_DIR"),

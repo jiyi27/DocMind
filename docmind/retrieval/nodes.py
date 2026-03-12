@@ -87,10 +87,19 @@ def generate_node(state: RAGState) -> dict:
         })
         raise
 
+    new_messages = [
+        HumanMessage(content=state["query"]),
+        AIMessage(content=result.content),
+    ]
+
+    # Trim conversation history: keep only the most recent max_messages entries.
+    # Trimming is applied after appending so the latest exchange is always retained.
+    max_messages = settings.retrieval.max_messages
+    all_messages = list(state.get("messages", [])) + new_messages
+    if max_messages > 0 and len(all_messages) > max_messages:
+        all_messages = all_messages[-max_messages:]
+
     return {
         "answer": result.content,
-        "messages": [
-            HumanMessage(content=state["query"]),
-            AIMessage(content=result.content),
-        ],
+        "messages": all_messages,
     }
