@@ -6,8 +6,14 @@ RAG Knowledge Base powered by LangGraph — document ingestion, vector storage, 
 
 ### 1. Start infrastructure
 
+**First time** (creates and starts containers):
 ```bash
 make infra-up
+```
+
+**Subsequent runs** (containers already exist):
+```bash
+docker compose start
 ```
 
 This starts Qdrant (vector DB) and Ollama (embedding model).
@@ -48,12 +54,16 @@ The server starts at http://localhost:8000. API docs at http://localhost:8000/do
 
 ## Makefile Commands
 
-| Command | Description |
-|---|---|
-| `make dev` | Start API server with hot reload |
-| `make infra-up` | Start Qdrant + Ollama via Docker |
-| `make infra-down` | Stop infrastructure |
-| `make ingest FILE=doc.pdf TITLE="My Doc"` | Ingest a document via CLI |
+| Command                                   | Description                                        |
+| ----------------------------------------- | -------------------------------------------------- |
+| `make dev`                                | Start API server with hot reload                   |
+| `make infra-up`                           | Create and start Qdrant + Ollama (first time only) |
+| `docker compose start`                    | Start existing containers (subsequent runs)        |
+| `docker compose restart`                  | Restart existing containers                        |
+| `docker compose ps`                       | Check container status                             |
+| `make infra-down`                         | Stop and remove containers                         |
+| `docker compose stop`                     | Stop containers without removing them              |
+| `make ingest FILE=doc.pdf TITLE="My Doc"` | Ingest a document via CLI                          |
 
 ## Usage
 
