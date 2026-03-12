@@ -16,15 +16,15 @@ from qdrant_client.http.models import Distance, VectorParams
 from docmind.core.config import settings
 from docmind.core import logger
 from docmind.core.embedding import get_embedding_model
+from docmind.core.exceptions import VectorStoreError
 
 _DISTANCE = Distance.COSINE
 
 _store_cache: dict[str, QdrantVectorStore] = {}
 _lock = threading.Lock()
 
-
-class VectorStoreError(Exception):
-    """Raised when the vector store cannot be reached or is misconfigured."""
+# Re-export so external imports of VectorStoreError from this module still work.
+__all__ = ["VectorStoreError", "get_vector_store"]
 
 
 def _probe_vector_size(embeddings: Embeddings) -> int:

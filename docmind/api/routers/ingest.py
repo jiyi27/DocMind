@@ -5,17 +5,18 @@ from __future__ import annotations
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, File, Form, UploadFile
+from fastapi.responses import JSONResponse
 
-from docmind.api.schemas import IngestMetadata, IngestResponse
-from docmind.core import logger
+from docmind.api.schemas import IngestMetadata
+from docmind.api.response import ok
 from docmind.core.metadata_config import REQUIRED_FIELDS
 from docmind.ingestion.graph import ingestion_graph
 
 router = APIRouter(prefix="/ingest", tags=["ingestion"])
 
 
-@router.post("", response_model=IngestResponse)
+@router.post("")
 async def ingest_document(
     file: UploadFile = File(..., description="PDF or Markdown file to ingest"),
     title: str = Form(default="") if "title" not in REQUIRED_FIELDS else Form(...),
@@ -68,21 +69,11 @@ async def ingest_document(
             "file_path": tmp_path,
             "metadata": metadata.model_dump(),
         })
-    except Exception as exc:
-        logger.error("ingest_failed", {
-            "file_name": file_name,
-            "error_type": type(exc).__name__,
-            "error": str(exc),
-        })
-        raise HTTPException(
-            status_code=500,
-            detail="Failed to ingest the document. Please check the file and try again.",
-        ) from exc
     finally:
         Path(tmp_path).unlink(missing_ok=True)
 
-    return IngestResponse(
-        status=result.get("status", "unknown"),
-        chunk_count=result.get("chunk_count", 0),
-        file_name=file_name,
-    )
+    return ok({
+        "status": result.get("status", "unknown"),
+        "chunk_count": result.get("chunk_count", 0),
+        "file_name": file_name,
+    })

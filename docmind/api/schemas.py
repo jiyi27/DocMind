@@ -79,17 +79,6 @@ class IngestMetadata(BaseModel):
             raise ValueError(f"Missing required metadata fields: {missing}")
         return values
 
-class IngestResponse(BaseModel):
-    status: str
-    chunk_count: int
-    file_name: str
-
 class ChatRequest(BaseModel):
     chat_input: str = Field(..., alias="chatInput", description="The user's question")
     session_id: str = Field(default="default", alias="sessionId")
-
-
-class ChatResponse(BaseModel):
-    answer: str
-    sources: list[str] = []
-    session_id: str

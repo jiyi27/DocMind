@@ -11,13 +11,13 @@ from langchain_openai import ChatOpenAI
 
 from docmind.core.config import settings
 from docmind.core import logger
+from docmind.core.exceptions import LLMError, ConfigError
 
 _llm_instance: ChatOpenAI | None = None
 _lock = threading.Lock()
 
-
-class LLMConfigError(Exception):
-    """Raised when the LLM cannot be initialised due to missing configuration."""
+# Legacy alias kept for any existing catch sites.
+LLMConfigError = ConfigError
 
 
 def get_llm() -> ChatOpenAI:
@@ -39,8 +39,8 @@ def get_llm() -> ChatOpenAI:
 
         if not settings.llm.api_key:
             logger.error("llm_init_failed", {"reason": "LLM_API_KEY is not configured"})
-            raise LLMConfigError(
-                "LLM_API_KEY is not set. Please configure it in your environment."
+            raise ConfigError(
+                "LLM_API_KEY is not configured. Please set it in your environment."
             )
 
         _llm_instance = ChatOpenAI(

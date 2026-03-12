@@ -11,13 +11,13 @@ from langchain_openai import OpenAIEmbeddings
 
 from docmind.core.config import settings
 from docmind.core import logger
+from docmind.core.exceptions import ConfigError
 
 _embedding_instance: OpenAIEmbeddings | None = None
 _lock = threading.Lock()
 
-
-class EmbeddingConfigError(Exception):
-    """Raised when the embedding model cannot be initialised due to missing configuration."""
+# Legacy alias kept for any existing catch sites.
+EmbeddingConfigError = ConfigError
 
 
 def get_embedding_model() -> OpenAIEmbeddings:
@@ -48,8 +48,8 @@ def get_embedding_model() -> OpenAIEmbeddings:
 
         if not settings.embedding.base_url:
             logger.error("embedding_init_failed", {"reason": "EMBEDDING_BASE_URL is not configured"})
-            raise EmbeddingConfigError(
-                "EMBEDDING_BASE_URL is not set. Please configure it in your environment."
+            raise ConfigError(
+                "EMBEDDING_BASE_URL is not configured. Please set it in your environment."
             )
 
         _embedding_instance = OpenAIEmbeddings(

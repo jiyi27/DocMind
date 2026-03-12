@@ -8,17 +8,11 @@ from langchain_core.documents import Document
 from langchain_community.document_loaders import PyPDFLoader
 
 from docmind.core import logger
+from docmind.core.exceptions import DocumentError
 
-
-class DocumentLoadError(Exception):
-    """Raised when a document cannot be loaded or parsed."""
-
-
-class UnsupportedFileTypeError(Exception):
-    """Raised when the uploaded file type is not supported.
-
-    This should be translated to HTTP 400 at the API layer.
-    """
+# Re-export under legacy names so existing raise sites keep working.
+DocumentLoadError = DocumentError
+UnsupportedFileTypeError = DocumentError
 
 
 def load_pdf(file_path: str | Path) -> list[Document]:
@@ -43,7 +37,7 @@ def load_pdf(file_path: str | Path) -> list[Document]:
             "error_type": type(exc).__name__,
             "error": str(exc),
         })
-        raise DocumentLoadError(
+        raise DocumentError(
             f"Failed to load PDF '{file_path}': {exc}"
         ) from exc
 
@@ -65,7 +59,7 @@ def load_markdown(file_path: str | Path) -> list[Document]:
             "error_type": type(exc).__name__,
             "error": str(exc),
         })
-        raise DocumentLoadError(
+        raise DocumentError(
             f"Failed to read Markdown file '{file_path}': {exc}"
         ) from exc
 
@@ -108,8 +102,8 @@ def load_document(file_path: str | Path) -> list[Document]:
             "suffix": suffix,
             "supported": list(loaders.keys()),
         })
-        raise UnsupportedFileTypeError(
-            f"Unsupported file type: {suffix}. Supported: {list(loaders.keys())}"
+        raise DocumentError(
+            f"Unsupported file type '{suffix}'. Supported types: {list(loaders.keys())}"
         )
 
     return loader_fn(path)
