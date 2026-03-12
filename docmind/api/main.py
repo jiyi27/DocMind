@@ -18,17 +18,15 @@ from docmind.vectorstore.qdrant_store import VectorStoreError
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Run startup checks before accepting requests."""
-    warnings = settings.validate()
-    for w in warnings:
-        print(f"[STARTUP WARNING] {w}", file=sys.stderr)
-        logger.error("startup_config_warning", {"warning": w})
-
-    if warnings:
+    missing = settings.validate()
+    if missing:
         print(
-            f"[STARTUP] {len(warnings)} configuration warning(s) detected. "
-            "The app will start, but some features may fail.",
+            "[STARTUP ERROR] The following required environment variables are missing or invalid:\n"
+            + "".join(f"  - {var}\n" for var in missing)
+            + "Please set them in your .env file or environment and restart the application.",
             file=sys.stderr,
         )
+        sys.exit(1)
 
     yield  # App is running
 

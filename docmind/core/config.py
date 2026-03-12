@@ -1,94 +1,142 @@
-"""Application configuration loaded from environment variables."""
+"""Application configuration loaded from environment variables.
+
+All configuration values are required and must be provided via environment
+variables (or a .env file). There are no code-level defaults — missing
+variables are collected and reported at startup, then the process exits.
+"""
 
 from __future__ import annotations
 
 import os
 import sys
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from dotenv import load_dotenv
 
 load_dotenv()
 
+# ---------------------------------------------------------------------------
+# Internal helpers
+# ---------------------------------------------------------------------------
 
-def _safe_int(env_var: str, default: str) -> int:
-    """Parse an integer from an environment variable with a clear error message."""
-    raw = os.getenv(env_var, default)
+def _require_str(env_var: str) -> str:
+    """Return the value of *env_var*, recording it as missing if absent/empty."""
+    value = os.getenv(env_var, "").strip()
+    if not value:
+        _MISSING.append(env_var)
+    return value
+
+
+def _require_int(env_var: str) -> int:
+    """Return *env_var* parsed as int, recording it as missing/invalid if needed."""
+    raw = os.getenv(env_var, "").strip()
+    if not raw:
+        _MISSING.append(env_var)
+        return 0  # sentinel; process will exit before this value is used
     try:
         return int(raw)
     except (ValueError, TypeError):
-        print(
-            f"[CONFIG ERROR] Environment variable {env_var}={raw!r} is not a valid integer. "
-            f"Falling back to default={default}.",
-            file=sys.stderr,
-        )
-        return int(default)
+        _MISSING.append(f"{env_var} (value {raw!r} is not a valid integer)")
+        return 0
 
+
+# Accumulates names of missing / invalid env vars during module import.
+_MISSING: list[str] = []
+
+# ---------------------------------------------------------------------------
+# Config dataclasses — no defaults, every field reads from env
+# ---------------------------------------------------------------------------
 
 @dataclass(frozen=True)
 class EmbeddingConfig:
     """Embedding service configuration (OpenAI-compatible, provider-agnostic)."""
-    base_url: str = field(default_factory=lambda: os.getenv("EMBEDDING_BASE_URL", "http://localhost:11434/v1"))
-    api_key: str = field(default_factory=lambda: os.getenv("EMBEDDING_API_KEY", "ollama"))
-    model: str = field(default_factory=lambda: os.getenv("EMBEDDING_MODEL", "nomic-embed-text:latest"))
+    base_url: str
+    api_key: str
+    model: str
 
 
 @dataclass(frozen=True)
 class QdrantConfig:
     """Qdrant vector database configuration."""
-    url: str = field(default_factory=lambda: os.getenv("QDRANT_URL", "http://localhost:6333"))
-    collection: str = field(default_factory=lambda: os.getenv("QDRANT_COLLECTION", "knowledge_base"))
+    url: str
+    collection: str
 
 
 @dataclass(frozen=True)
 class LLMConfig:
-    """LLM (OpenRouter) configuration."""
-    api_key: str = field(default_factory=lambda: os.getenv("LLM_API_KEY", ""))
-    model: str = field(default_factory=lambda: os.getenv("LLM_MODEL", "google/gemini-2.5-flash"))
-    base_url: str = field(default_factory=lambda: os.getenv("LLM_BASE_URL", "https://openrouter.ai/api/v1"))
+    """LLM configuration."""
+    api_key: str
+    model: str
+    base_url: str
 
 
 @dataclass(frozen=True)
 class IngestionConfig:
     """Document ingestion pipeline configuration."""
-    chunk_size: int = field(default_factory=lambda: _safe_int("CHUNK_SIZE", "500"))
-    chunk_overlap: int = field(default_factory=lambda: _safe_int("CHUNK_OVERLAP", "50"))
+    chunk_size: int
+    chunk_overlap: int
 
 
 @dataclass(frozen=True)
 class RetrievalConfig:
     """Retrieval pipeline configuration."""
-    top_k: int = field(default_factory=lambda: _safe_int("TOP_K", "3"))
+    top_k: int
 
 
 @dataclass(frozen=True)
 class LogConfig:
     """Logging configuration."""
-    dir: str = field(default_factory=lambda: os.getenv("LOG_DIR", "logs"))
+    dir: str
     # Minimum level to write: "debug" | "info" | "error"
-    level: str = field(default_factory=lambda: os.getenv("LOG_LEVEL", "error").lower())
+    level: str
 
 
 @dataclass(frozen=True)
 class Settings:
     """Root settings aggregating all sub-configurations."""
-    embedding: EmbeddingConfig = field(default_factory=EmbeddingConfig)
-    qdrant: QdrantConfig = field(default_factory=QdrantConfig)
-    llm: LLMConfig = field(default_factory=LLMConfig)
-    ingestion: IngestionConfig = field(default_factory=IngestionConfig)
-    retrieval: RetrievalConfig = field(default_factory=RetrievalConfig)
-    log: LogConfig = field(default_factory=LogConfig)
+    embedding: EmbeddingConfig
+    qdrant: QdrantConfig
+    llm: LLMConfig
+    ingestion: IngestionConfig
+    retrieval: RetrievalConfig
+    log: LogConfig
 
     def validate(self) -> list[str]:
-        """Validate critical settings at startup. Returns a list of warnings."""
-        warnings: list[str] = []
-        if not self.llm.api_key:
-            warnings.append("LLM_API_KEY is empty — LLM calls will fail with AuthenticationError")
-        if not self.qdrant.url:
-            warnings.append("QDRANT_URL is empty — vector store operations will fail")
-        if not self.embedding.base_url:
-            warnings.append("EMBEDDING_BASE_URL is empty — embedding calls will fail")
-        return warnings
+        """Return the list of missing / invalid environment variables collected at import time."""
+        return list(_MISSING)
 
 
-# Singleton — import `settings` wherever needed
-settings = Settings()
+def _build_settings() -> Settings:
+    """Construct Settings by reading all required environment variables."""
+    return Settings(
+        embedding=EmbeddingConfig(
+            base_url=_require_str("EMBEDDING_BASE_URL"),
+            api_key=_require_str("EMBEDDING_API_KEY"),
+            model=_require_str("EMBEDDING_MODEL"),
+        ),
+        qdrant=QdrantConfig(
+            url=_require_str("QDRANT_URL"),
+            collection=_require_str("QDRANT_COLLECTION"),
+        ),
+        llm=LLMConfig(
+            api_key=_require_str("LLM_API_KEY"),
+            model=_require_str("LLM_MODEL"),
+            base_url=_require_str("LLM_BASE_URL"),
+        ),
+        ingestion=IngestionConfig(
+            chunk_size=_require_int("CHUNK_SIZE"),
+            chunk_overlap=_require_int("CHUNK_OVERLAP"),
+        ),
+        retrieval=RetrievalConfig(
+            top_k=_require_int("TOP_K"),
+        ),
+        log=LogConfig(
+            dir=_require_str("LOG_DIR"),
+            level=_require_str("LOG_LEVEL"),
+        ),
+    )
+
+
+# Singleton — import `settings` wherever needed.
+# Missing variables are recorded during construction; call settings.validate()
+# at startup and abort if the returned list is non-empty.
+settings = _build_settings()
