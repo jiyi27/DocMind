@@ -1,4 +1,4 @@
-.PHONY: dev ingest infra-up infra-down
+.PHONY: dev ingest infra-init infra-up infra-down
 
 ## Start the API server in development mode
 dev:
@@ -8,10 +8,15 @@ dev:
 ingest:
 	uv run python scripts/ingest_file.py $(FILE) --title "$(TITLE)"
 
-## Start infrastructure (Qdrant + Ollama)
-infra-up:
+## First-time setup: start infrastructure and pull embedding model
+infra-init:
 	docker compose up -d
+	docker exec ollama ollama pull nomic-embed-text:latest
 
-## Stop infrastructure
+## Start existing infrastructure containers (after first-time setup)
+infra-up:
+	docker compose start
+
+## Stop infrastructure (keeps containers and volumes intact)
 infra-down:
-	docker compose down
+	docker compose stop

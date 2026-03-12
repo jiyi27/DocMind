@@ -56,5 +56,9 @@ def get_embedding_model() -> OpenAIEmbeddings:
             base_url=settings.embedding.base_url,
             api_key=settings.embedding.api_key,
             model=settings.embedding.model,
+            # Disable tiktoken-based chunking: non-OpenAI providers (e.g. Ollama)
+            # only accept plain strings, not token-ID integer arrays.
+            check_embedding_ctx_length=False,
+            tiktoken_enabled=False,
         )
         return _embedding_instance
