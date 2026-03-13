@@ -28,10 +28,31 @@ import json
 import os
 import sys
 import traceback
+import uuid
+from contextvars import ContextVar
 from datetime import datetime, timezone
 from pathlib import Path
 
 from docmind.core.config import settings
+
+# ---------------------------------------------------------------------------
+# Request-scoped context — each async task (i.e. each HTTP request) gets its
+# own isolated value, just like PHP's per-process static variables.
+# ---------------------------------------------------------------------------
+
+#: Stores the current request ID.  Set by the RequestIdMiddleware at the
+#: start of every request; automatically included in every log record.
+_request_id_var: ContextVar[str] = ContextVar("request_id", default="")
+
+
+def set_request_id(request_id: str) -> None:
+    """Bind a request ID to the current async context (called by middleware)."""
+    _request_id_var.set(request_id)
+
+
+def get_request_id() -> str:
+    """Return the request ID bound to the current async context."""
+    return _request_id_var.get()
 
 # Level ordering — entries below the configured minimum are silently dropped
 _LEVELS = {"debug": 0, "info": 1, "warning": 2, "error": 3}
@@ -79,6 +100,7 @@ def _write(level: str, topic: str, data: dict) -> None:
 
     record: dict = {
         "ts": now.strftime("%Y-%m-%dT%H:%M:%S.") + f"{now.microsecond // 1000:03d}+08:00",
+        "request_id": _request_id_var.get() or "-",
         "topic": topic,
         "data": data,
         "caller": caller,
