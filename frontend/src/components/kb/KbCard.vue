@@ -63,7 +63,7 @@ const emit = defineEmits(['delete'])
 const router = useRouter()
 const authStore = useAuthStore()
 
-const isSuperAdmin = computed(() => authStore.user?.role === 'super_admin')
+const isSuperAdmin = computed(() => authStore.isSuperAdmin)
 
 function handleClick() {
   router.push(`/kb/${props.kb.id}`)

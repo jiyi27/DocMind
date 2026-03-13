@@ -64,7 +64,7 @@ const authStore = useAuthStore()
 const kbStore = useKbStore()
 
 const createDialogRef = ref(null)
-const isSuperAdmin = computed(() => authStore.user?.role === 'super_admin')
+const isSuperAdmin = computed(() => authStore.isSuperAdmin)
 
 onMounted(() => {
   kbStore.fetchKbs()

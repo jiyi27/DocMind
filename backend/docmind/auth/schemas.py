@@ -19,6 +19,7 @@ class LoginRequest(BaseModel):
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
+    is_super_admin: bool = False
 
 
 class UserOut(BaseModel):

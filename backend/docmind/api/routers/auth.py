@@ -11,6 +11,7 @@ from docmind.api.response import ok
 from docmind.auth.password import hash_password, verify_password
 from docmind.auth.jwt import create_access_token
 from docmind.auth.schemas import UserCreate, LoginRequest, TokenResponse, UserOut
+from docmind.core.config import settings
 from docmind.db.database import get_db
 from docmind.db.repositories import UserRepository, KBRepository
 
@@ -94,7 +95,12 @@ async def login(body: LoginRequest):
         "role": user["role"],
     })
 
+    is_super_admin = user["username"] in settings.admin.super_admin_usernames
+
     return ok(
-        data=TokenResponse(access_token=token).model_dump(),
+        data=TokenResponse(
+            access_token=token,
+            is_super_admin=is_super_admin,
+        ).model_dump(),
         message="Login successful",
     )
