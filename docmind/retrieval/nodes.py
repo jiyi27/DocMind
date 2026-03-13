@@ -9,7 +9,7 @@ from docmind.core import logger
 from docmind.core.llm import get_llm
 from docmind.retrieval.prompts import rag_prompt
 from docmind.retrieval.state import RAGState
-from docmind.vectorstore.qdrant_store import get_vector_store
+from docmind.vectorstore.qdrant_store import get_vector_store_for_kb
 
 
 def retrieve_node(state: RAGState) -> dict:
@@ -20,13 +20,15 @@ def retrieve_node(state: RAGState) -> dict:
     - Code node that formats context + sources
     """
     query = state["query"]
+    kb_name = state["kb_name"]
 
     try:
-        store = get_vector_store()
+        store = get_vector_store_for_kb(kb_name)
         docs = store.similarity_search(query, k=settings.retrieval.top_k)
     except Exception as exc:
         logger.error("retrieval_search_failed", {
             "query": query[:200],
+            "kb_name": kb_name,
             "error_type": type(exc).__name__,
             "error": str(exc),
         })

@@ -33,10 +33,11 @@ class RAGState(TypedDict, total=False):
 
     query: str
     session_id: str
+    kb_name: str   # knowledge base slug — selects the Qdrant collection to search
     retrieved_docs: list
     context: str
     sources: list[str]
-    # Reducer-backed field: LangGraph calls add_messages(old, new) on each state update, 
+    # Reducer-backed field: LangGraph calls add_messages(old, new) on each state update,
     # appending new messages instead of overwriting the list.
     messages: Annotated[list[AnyMessage], add_messages]
     answer: str

@@ -9,7 +9,7 @@ from docmind.core.config import settings
 from docmind.core import logger
 from docmind.ingestion.loaders import load_document
 from docmind.ingestion.state import IngestionState
-from docmind.vectorstore.qdrant_store import get_vector_store
+from docmind.vectorstore.qdrant_store import get_vector_store_for_kb
 
 
 def load_document_node(state: IngestionState) -> dict:
@@ -31,11 +31,17 @@ def load_document_node(state: IngestionState) -> dict:
         })
         raise
 
-    # Stamp user-provided metadata onto every Document so that all chunks
-    # produced in the next step inherit fields like title, doc_type, department.
+    # Stamp user-provided metadata + identity fields onto every Document so
+    # that all chunks produced in the next step inherit them.
     metadata = state.get("metadata", {})
+    doc_id = state.get("doc_id", "")
+    user_id = state.get("user_id", "")
+    kb_name = state.get("kb_name", "")
     for doc in docs:
         doc.metadata.update(metadata)
+        doc.metadata["doc_id"] = doc_id
+        doc.metadata["user_id"] = user_id
+        doc.metadata["kb_name"] = kb_name
 
     return {"documents": docs}
 
@@ -60,15 +66,17 @@ def split_text_node(state: IngestionState) -> dict:
 
 
 def embed_and_store_node(state: IngestionState) -> dict:
-    """Embed chunks and store them in Qdrant."""
+    """Embed chunks and store them in the knowledge base's Qdrant collection."""
     chunks = state["chunks"]
+    kb_name = state["kb_name"]
 
     try:
-        store = get_vector_store()
+        store = get_vector_store_for_kb(kb_name)
         store.add_documents(chunks)
     except Exception as exc:
         logger.error("ingest_embed_failed", {
             "chunk_count": len(chunks),
+            "kb_name": kb_name,
             "error_type": type(exc).__name__,
             "error": str(exc),
         })

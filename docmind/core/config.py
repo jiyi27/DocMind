@@ -92,6 +92,14 @@ class LogConfig:
 
 
 @dataclass(frozen=True)
+class JWTConfig:
+    """JWT authentication configuration."""
+    secret_key: str
+    algorithm: str
+    expire_minutes: int
+
+
+@dataclass(frozen=True)
 class Settings:
     """Root settings aggregating all sub-configurations."""
     embedding: EmbeddingConfig
@@ -100,6 +108,7 @@ class Settings:
     ingestion: IngestionConfig
     retrieval: RetrievalConfig
     log: LogConfig
+    jwt: JWTConfig
 
     def validate(self) -> list[str]:
         """Return the list of missing / invalid environment variables collected at import time."""
@@ -116,7 +125,12 @@ def _build_settings() -> Settings:
         ),
         qdrant=QdrantConfig(
             url=_require_str("QDRANT_URL"),
-            collection=_require_str("QDRANT_COLLECTION"),
+            collection="docmind",  # base prefix; actual collections are docmind_{kb_name}
+        ),
+        jwt=JWTConfig(
+            secret_key=_require_str("JWT_SECRET_KEY"),
+            algorithm=os.getenv("JWT_ALGORITHM", "HS256"),
+            expire_minutes=_require_int("JWT_EXPIRE_MINUTES"),
         ),
         llm=LLMConfig(
             api_key=_require_str("LLM_API_KEY"),

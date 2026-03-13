@@ -1,50 +1,45 @@
-"""Ingest router — file upload endpoint for document ingestion."""
+"""Ingest router — file upload, document listing, and document deletion."""
 
 from __future__ import annotations
 
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 
-from fastapi import APIRouter, File, Form, UploadFile
+import uuid
+
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from fastapi.responses import JSONResponse
 
+from docmind.api.dependencies import get_current_user
 from docmind.api.schemas import IngestMetadata
 from docmind.api.response import ok
-from docmind.core.metadata_config import REQUIRED_FIELDS
+from docmind.auth.schemas import UserContext
+from docmind.db.database import get_db
+from docmind.db.repositories import DocumentRepository
 from docmind.ingestion.graph import ingestion_graph
+from docmind.vectorstore.qdrant_store import delete_documents_by_doc_id
 
 router = APIRouter(prefix="/ingest", tags=["ingestion"])
 
 
-@router.post("")
+# ---------------------------------------------------------------------------
+# POST /ingest  — upload and ingest a document
+# ---------------------------------------------------------------------------
+
+@router.post("", status_code=status.HTTP_201_CREATED)
 async def ingest_document(
     file: UploadFile = File(..., description="PDF or Markdown file to ingest"),
-    title: str = Form(default="") if "title" not in REQUIRED_FIELDS else Form(...),
-    url: str = Form(default="") if "url" not in REQUIRED_FIELDS else Form(...),
-    doc_type: str = (
-        Form(...)
-        if "doc_type" in REQUIRED_FIELDS
-        else Form(default="all")
-    ),
-    business_line: str = (
-        Form(...)
-        if "business_line" in REQUIRED_FIELDS
-        else Form(default="all")
-    ),
-    service: str = (
-        Form(...)
-        if "service" in REQUIRED_FIELDS
-        else Form(default="all")
-    ),
-    department: str = (
-        Form(...)
-        if "department" in REQUIRED_FIELDS
-        else Form(default="all")
-    ),
+    title: str = Form(default=""),
+    url: str = Form(default=""),
+    doc_type: str = Form(default="tech_spec"),
+    service: str = Form(default="all"),
+    department: str = Form(default="all"),
+    current_user: UserContext = Depends(get_current_user),
 ):
-    """Upload and ingest a document into the knowledge base.
+    """Upload and ingest a document into the current user's knowledge base.
 
-    Accepts .pdf and .md files, along with optional metadata.
+    The knowledge base (Qdrant collection) is determined automatically from
+    the user's JWT — no need to specify business_line in the form.
     """
     file_name = file.filename or "unknown"
 
@@ -52,15 +47,16 @@ async def ingest_document(
         title=title or file_name,
         url=url,
         doc_type=doc_type,
-        business_line=business_line,
         service=service,
         department=department,
     )
 
-    # Write uploaded file to disk temporarily because:
-    # 1. Document loaders (PDF/Markdown parsers) expect file paths, not byte streams
-    # 2. Avoids keeping large files in memory during multistep processing
-    # 3. Enables consistent handling across different file formats
+    # Pre-generate doc_id so it can be stamped into every Qdrant chunk payload.
+    # This allows bulk-deleting all chunks of a document by filtering on doc_id.
+    doc_id = str(uuid.uuid4())
+
+    # Write uploaded file to disk temporarily because document loaders
+    # (PDF/Markdown parsers) expect file paths, not byte streams.
     suffix = Path(file_name).suffix
     with NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
         content = await file.read()
@@ -71,12 +67,85 @@ async def ingest_document(
         result = ingestion_graph.invoke({
             "file_path": tmp_path,
             "metadata": metadata.model_dump(),
+            "user_id": current_user.user_id,
+            "doc_id": doc_id,
+            "kb_name": current_user.kb_name,
         })
     finally:
         Path(tmp_path).unlink(missing_ok=True)
 
-    return ok({
-        "status": result.get("status", "unknown"),
-        "chunk_count": result.get("chunk_count", 0),
-        "file_name": file_name,
-    })
+    chunk_count = result.get("chunk_count", 0)
+
+    # Persist document record to SQLite using the pre-generated doc_id
+    async with get_db() as db:
+        doc_repo = DocumentRepository(db)
+        doc = await doc_repo.create(
+            user_id=current_user.user_id,
+            kb_id=current_user.kb_id,
+            file_name=file_name,
+            title=metadata.title,
+            doc_type=metadata.doc_type,
+            chunk_count=chunk_count,
+            doc_id=doc_id,
+        )
+
+    return ok(
+        data={
+            "doc_id": doc["id"],
+            "status": result.get("status", "unknown"),
+            "chunk_count": chunk_count,
+            "file_name": file_name,
+            "kb_name": current_user.kb_name,
+        },
+        message="Document ingested successfully",
+    )
+
+
+# ---------------------------------------------------------------------------
+# GET /ingest/documents  — list current user's documents
+# ---------------------------------------------------------------------------
+
+@router.get("/documents")
+async def list_documents(
+    current_user: UserContext = Depends(get_current_user),
+):
+    """Return all documents uploaded by the current user."""
+    async with get_db() as db:
+        doc_repo = DocumentRepository(db)
+        docs = await doc_repo.list_by_user(current_user.user_id)
+    return ok(data=docs)
+
+
+# ---------------------------------------------------------------------------
+# DELETE /ingest/{doc_id}  — delete a document and its vectors
+# ---------------------------------------------------------------------------
+
+@router.delete("/{doc_id}")
+async def delete_document(
+    doc_id: str,
+    current_user: UserContext = Depends(get_current_user),
+):
+    """Delete a document record and all its associated Qdrant vectors.
+
+    Only the document's owner can delete it.
+    """
+    async with get_db() as db:
+        doc_repo = DocumentRepository(db)
+        doc = await doc_repo.get_by_id(doc_id)
+
+        if not doc:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
+
+        if doc["user_id"] != current_user.user_id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not your document")
+
+        # Delete vectors from Qdrant first
+        delete_documents_by_doc_id(current_user.kb_name, doc_id)
+
+        # Delete DB record
+        await doc_repo.delete(doc_id)
+
+    return ok(
+        data={"doc_id": doc_id},
+        message="Document deleted successfully",
+    )

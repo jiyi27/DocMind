@@ -3,15 +3,12 @@
 Defines the allowed values for each metadata field.
 To add new values, simply extend the lists below.
 To make a field required, add its name to REQUIRED_FIELDS.
+
+Note: BUSINESS_LINES has been removed — knowledge bases are now dynamic
+entities managed via the /kb API and stored in the database.
 """
 
 from __future__ import annotations
-
-BUSINESS_LINES: list[str] = [
-    "india",
-    "pakistan",
-    "all",
-]
 
 DOC_TYPES: list[str] = [
     "requirement",   # 需求文档
@@ -40,13 +37,13 @@ DEPARTMENTS: list[str] = [
 
 # -------------------------------------------------------
 # 必填字段控制 — 在此集合中添加/删除字段名即可
-# 可选值: "title", "url", "doc_type", "business_line", "service", "department"
+# 可选值: "title", "url", "doc_type", "service", "department"
+# Note: "business_line" has been removed — it is now derived from the user's JWT.
 # -------------------------------------------------------
 REQUIRED_FIELDS: set[str] = {
     "title",
     "url",
-    "department",
-    "business_line",
     "doc_type",
     "service",
+    "department",
 }

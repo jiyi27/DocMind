@@ -1,22 +1,44 @@
-"""API dependencies — injectable via FastAPI's Depends().
-
-Currently minimal. Future additions:
-- get_current_user() for JWT/OAuth auth
-- get_db_session() for relational DB access
-- rate_limiter() for per-user throttling
-"""
+"""API dependencies — injectable via FastAPI's Depends()."""
 
 from __future__ import annotations
 
+import jwt
+from fastapi import Depends, HTTPException, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
-async def get_current_user():
-    """Placeholder for future authentication.
+from docmind.auth.jwt import decode_token
+from docmind.auth.schemas import UserContext
 
-    When auth is implemented, this will:
-    1. Extract JWT from Authorization header
-    2. Validate and decode the token
-    3. Return the user object
+_bearer = HTTPBearer()
 
-    For now, returns a default anonymous user dict.
+
+async def get_current_user(
+    credentials: HTTPAuthorizationCredentials = Depends(_bearer),
+) -> UserContext:
     """
-    return {"user_id": "anonymous", "role": "user"}
+    Extract and validate the JWT from the Authorization: Bearer <token> header.
+    Returns a UserContext with user identity and knowledge base info.
+    """
+    token = credentials.credentials
+    try:
+        payload = decode_token(token)
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token has expired",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    except jwt.InvalidTokenError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    return UserContext(
+        user_id=payload["sub"],
+        username=payload["username"],
+        kb_id=payload["kb_id"],
+        kb_name=payload["kb_name"],
+        role=payload["role"],
+    )

@@ -15,7 +15,14 @@ class IngestionState(TypedDict, total=False):
     file_path : str
         Path to the file to ingest.
     metadata : dict
-        User-provided metadata (title, url, category, business_line, audience).
+        User-provided metadata (title, url, doc_type, service, department).
+    user_id : str
+        ID of the user who uploaded the document.
+    doc_id : str
+        UUID assigned to this document record — stamped into every chunk's
+        payload so that all chunks can be deleted by filtering on doc_id.
+    kb_name : str
+        Knowledge base slug (e.g. "india") used to select the Qdrant collection.
     documents : list[Document]
         Raw loaded documents.
     chunks : list[Document]
@@ -28,6 +35,9 @@ class IngestionState(TypedDict, total=False):
 
     file_path: str
     metadata: dict
+    user_id: str
+    doc_id: str
+    kb_name: str
     documents: list[Document]
     chunks: list[Document]
     status: str

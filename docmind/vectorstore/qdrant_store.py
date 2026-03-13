@@ -24,7 +24,23 @@ _store_cache: dict[str, QdrantVectorStore] = {}
 _lock = threading.Lock()
 
 # Re-export so external imports of VectorStoreError from this module still work.
-__all__ = ["VectorStoreError", "get_vector_store"]
+__all__ = [
+    "VectorStoreError",
+    "get_vector_store",
+    "get_vector_store_for_kb",
+    "create_kb_collection",
+    "delete_kb_collection",
+    "delete_documents_by_doc_id",
+    "kb_collection_name",
+]
+
+
+def kb_collection_name(kb_name: str) -> str:
+    """Derive the Qdrant collection name from a knowledge base slug.
+
+    Example: "india" → "docmind_india"
+    """
+    return f"docmind_{kb_name}"
 
 
 def _probe_vector_size(embeddings: Embeddings) -> int:
@@ -68,6 +84,81 @@ def _ensure_collection(client: QdrantClient, col: str, embeddings: Embeddings) -
         "distance": str(_DISTANCE),
         "embedding_model": settings.embedding.model,
     })
+
+
+def get_vector_store_for_kb(
+    kb_name: str,
+    embeddings: Embeddings | None = None,
+) -> QdrantVectorStore:
+    """Return a cached QdrantVectorStore for the given knowledge base slug.
+
+    This is the primary entry point for production code.
+    The collection name is derived as ``docmind_{kb_name}``.
+    """
+    return get_vector_store(embeddings=embeddings, collection=kb_collection_name(kb_name))
+
+
+async def create_kb_collection(kb_name: str) -> None:
+    """Create a Qdrant collection for a new knowledge base.
+
+    Called when a knowledge base is created via POST /kb.
+    Raises VectorStoreError if the collection already exists or Qdrant is unreachable.
+    """
+    col = kb_collection_name(kb_name)
+    try:
+        emb = get_embedding_model()
+        client = QdrantClient(url=settings.qdrant.url)
+        _ensure_collection(client, col, emb)
+    except VectorStoreError:
+        raise
+    except Exception as exc:
+        raise VectorStoreError(f"Failed to create collection '{col}': {exc}") from exc
+
+
+async def delete_kb_collection(kb_name: str) -> None:
+    """Drop the Qdrant collection for a knowledge base.
+
+    Called when a knowledge base is deleted via DELETE /kb/{kb_id}.
+    Silently succeeds if the collection does not exist.
+    """
+    col = kb_collection_name(kb_name)
+    try:
+        client = QdrantClient(url=settings.qdrant.url)
+        existing = {c.name for c in client.get_collections().collections}
+        if col in existing:
+            client.delete_collection(col)
+            logger.info("vectorstore_collection_deleted", {"collection": col})
+        # Evict from cache
+        with _lock:
+            _store_cache.pop(col, None)
+    except Exception as exc:
+        raise VectorStoreError(f"Failed to delete collection '{col}': {exc}") from exc
+
+
+def delete_documents_by_doc_id(kb_name: str, doc_id: str) -> None:
+    """Delete all Qdrant points whose payload contains ``doc_id == doc_id``.
+
+    Called when a user deletes a document via DELETE /ingest/{doc_id}.
+    """
+    from qdrant_client.http.models import Filter, FieldCondition, MatchValue
+
+    col = kb_collection_name(kb_name)
+    try:
+        client = QdrantClient(url=settings.qdrant.url)
+        client.delete(
+            collection_name=col,
+            points_selector=Filter(
+                must=[
+                    FieldCondition(
+                        key="metadata.doc_id",
+                        match=MatchValue(value=doc_id),
+                    )
+                ]
+            ),
+        )
+        logger.info("vectorstore_doc_deleted", {"collection": col, "doc_id": doc_id})
+    except Exception as exc:
+        raise VectorStoreError(f"Failed to delete doc '{doc_id}' from '{col}': {exc}") from exc
 
 
 def get_vector_store(

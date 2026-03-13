@@ -14,7 +14,7 @@ from docmind.api.response import ok, err, register_exception_handlers
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Run startup checks before accepting requests."""
+    """Run startup checks and initialize resources before accepting requests."""
     missing = settings.validate()
     if missing:
         print(
@@ -24,6 +24,10 @@ async def lifespan(app: FastAPI):
             file=sys.stderr,
         )
         sys.exit(1)
+
+    # Initialize SQLite database (creates tables if they don't exist)
+    from docmind.db.database import init_db
+    await init_db()
 
     yield  # App is running
 
@@ -42,7 +46,11 @@ register_exception_handlers(app)
 # ── Routers ──
 
 from docmind.api.routers import chat, ingest  # noqa: E402
+from docmind.api.routers.auth import router as auth_router  # noqa: E402
+from docmind.api.routers.kb import router as kb_router  # noqa: E402
 
+app.include_router(auth_router)
+app.include_router(kb_router)
 app.include_router(ingest.router)
 app.include_router(chat.router)
 
