@@ -32,6 +32,10 @@
                 {{ doc.chunk_count }} Chunks
               </span>
               <span class="doc-date">{{ formatDate(doc.created_at) }}</span>
+              <span class="doc-uploader" v-if="doc.uploader_name">
+                <el-icon><User /></el-icon>
+                {{ doc.uploader_name }}
+              </span>
             </p>
           </div>
         </div>
@@ -52,7 +56,7 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
-import { Delete, Coin, Document, Memo } from '@element-plus/icons-vue'
+import { Delete, Coin, Document, Memo, User } from '@element-plus/icons-vue'
 import { ElMessageBox, ElMessage } from 'element-plus'
 import { getDocuments, getDocumentsByKb, deleteDocument } from '@/api/ingest'
 
@@ -225,6 +229,14 @@ onMounted(() => {
 .doc-date {
   font-size: 12px;
   color: #c0c4cc;
+}
+
+.doc-uploader {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 12px;
+  color: #909399;
 }
 
 .doc-item-right {

@@ -172,6 +172,32 @@ class DocumentRepository:
             rows = await cur.fetchall()
             return [dict(r) for r in rows]
 
+    async def list_by_kb_with_user_info(self, kb_id: str) -> list[dict[str, Any]]:
+        """Return all documents within a specific KB with uploader username."""
+        query = """
+            SELECT d.*, u.username AS uploader_name
+            FROM documents d
+            LEFT JOIN users u ON d.user_id = u.id
+            WHERE d.kb_id = ?
+            ORDER BY d.created_at DESC
+        """
+        async with self.db.execute(query, (kb_id,)) as cur:
+            rows = await cur.fetchall()
+            return [dict(r) for r in rows]
+
+    async def list_by_user_and_kb_with_user_info(self, user_id: str, kb_id: str) -> list[dict[str, Any]]:
+        """Return all documents uploaded by a specific user within a specific KB with uploader username."""
+        query = """
+            SELECT d.*, u.username AS uploader_name
+            FROM documents d
+            LEFT JOIN users u ON d.user_id = u.id
+            WHERE d.user_id = ? AND d.kb_id = ?
+            ORDER BY d.created_at DESC
+        """
+        async with self.db.execute(query, (user_id, kb_id)) as cur:
+            rows = await cur.fetchall()
+            return [dict(r) for r in rows]
+
     async def delete(self, doc_id: str) -> bool:
         cur = await self.db.execute("DELETE FROM documents WHERE id = ?", (doc_id,))
         await self.db.commit()

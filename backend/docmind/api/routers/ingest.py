@@ -138,11 +138,21 @@ async def list_documents_by_kb(
 ):
     """Return documents uploaded by the current user within a specific knowledge base.
 
+    If the user is a super admin or an admin of the requested KB, returns
+    all documents in the KB with their uploaders. Otherwise, returns only
+    documents uploaded by the current user.
     Also returns the total count of matching documents.
     """
+    is_super_admin = (current_user.role == "super_admin")
+    is_kb_admin = (current_user.role == "admin" and current_user.kb_id == kb_id)
+
     async with get_db() as db:
         doc_repo = DocumentRepository(db)
-        docs = await doc_repo.list_by_user_and_kb(current_user.user_id, kb_id)
+        if is_super_admin or is_kb_admin:
+            docs = await doc_repo.list_by_kb_with_user_info(kb_id)
+        else:
+            docs = await doc_repo.list_by_user_and_kb_with_user_info(current_user.user_id, kb_id)
+
     return ok(data={"total": len(docs), "documents": docs})
 
 # ---------------------------------------------------------------------------
@@ -207,7 +217,7 @@ async def delete_document(
 ):
     """Delete a document record and all its associated Qdrant vectors.
 
-    Only the document's owner can delete it.
+    A document can be deleted by its owner, a super_admin, or the admin of its KB.
     """
     async with get_db() as db:
         doc_repo = DocumentRepository(db)
@@ -216,8 +226,12 @@ async def delete_document(
         if not doc:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
 
-        if doc["user_id"] != current_user.user_id:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not your document")
+        is_super_admin = current_user.role == "super_admin"
+        is_kb_admin = current_user.role == "admin" and current_user.kb_id == doc["kb_id"]
+        is_owner = doc["user_id"] == current_user.user_id
+
+        if not (is_owner or is_super_admin or is_kb_admin):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to delete this document")
 
         # Delete vectors from Qdrant first
         delete_documents_by_doc_id(current_user.kb_name, doc_id)
