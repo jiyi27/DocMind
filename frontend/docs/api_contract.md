@@ -11,10 +11,19 @@ Authorization: Bearer <your_access_token>
 ```
 
 ### 全局响应结构 (Response Envelope)
-DocMind 后端的绝大多数接口（包括成功和被统一拦截的业务异常）都会返回 **HTTP Status 200**，并通过 JSON 内部的 `code` 区分成功与否：
 
-*   **成功响应**: `{"code": 0, "message": "ok", "data": {...}}`
-*   **失败响应**: `{"code": -1, "message": "error description", "data": null}`
+> **统一响应格式说明**：所有接口无论成功或失败，HTTP 状态码均为 `200`，通过响应体中的 `code` 字段判断结果。
+>
+> - `code: 0` → 成功，业务数据在 `data` 字段
+> - `code: -1` → 失败，错误描述在 `message` 字段，`data` 为 `null`
+
+```json
+// 成功
+{ "code": 0, "message": "ok", "data": { ... } }
+
+// 失败
+{ "code": -1, "message": "错误原因", "data": null }
+```
 
 **注意：** 部分直接抛出 `HTTPException` 的错误（如 401 Unauthorized, 404 Not Found 等），可能会直接返回对应的 HTTP 状态码及 `{"detail": "..."}` 结构。前端封装 Axios Interceptor 时需要同时兼容检查 HTTP Status Code 和 `response.data.code`。
 
@@ -61,10 +70,14 @@ DocMind 后端的绝大多数接口（包括成功和被统一拦截的业务异
     ```json
     {
       "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-      "token_type": "bearer"
+      "token_type": "bearer",
+      "is_super_admin": false
     }
     ```
-    *说明：登录成功后，前端需将 `access_token` 保存，并在后续请求中通过 Header 携带。*
+    > **说明**：
+    >
+    > - 登录成功后，前端需将 `access_token` 持久化保存（localStorage 或 store），后续所有需要鉴权的请求必须在 Header 中携带：`Authorization: Bearer <access_token>`。
+    > - `is_super_admin` 为布尔值，前端 Auth Store 需保存此字段，用于控制"创建知识库"、"删除知识库"等危险操作的 UI 显示与隐藏。**注意：此字段仅用于 UI 层体验优化，后端接口本身有独立的权限校验，前端不可依赖此字段做安全判断。**
 
 ---
 

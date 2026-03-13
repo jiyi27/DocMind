@@ -42,16 +42,20 @@
 
 ## 🟠 阶段三：控制台布局与知识库管理模块 (Phase 3: Layout & KB Management)
 
-**目标**：开发登录成功后的主发区域，展示用户所有的知识库。
+**目标**：开发登录成功后的主界面，展示所有知识库列表，并根据权限显示管理操作。
 
 1.  **全局布局组件 (`src/components/layout/`)**：
     *   开发 `AppHeader.vue` (显示当前登录用户名、登出按钮)。
     *   开发 `BaseLayout.vue`，作为带导航栏的基础布局容器。
-2.  **API 定义 (`src/api/kb.js`)**：实现 `getKbs()`, `createKb(data)`, `deleteKb(id)` 接口函数。
-3.  **状态管理 (`src/stores/kb.js`)**：管理用户的知识库列表及当前选中的知识库。
-4.  **开发主页面 (`src/views/DashboardView.vue` 对应路由 `/`)**：
+2.  **Auth Store (`src/stores/auth.js`)** 需保存以下字段：
+    *   `token`：JWT access token，持久化至 localStorage。
+    *   `isSuperAdmin`：来自登录响应的 `is_super_admin` 布尔值，持久化至 localStorage，用于 UI 权限控制。
+3.  **API 定义 (`src/api/kb.js`)**：实现 `getKbs()`, `createKb(data)`, `deleteKb(id)` 接口函数。
+4.  **状态管理 (`src/stores/kb.js`)**：管理用户的知识库列表及当前选中的知识库。
+5.  **开发主页面 (`src/views/DashboardView.vue` 对应路由 `/`)**：
     *   进入页面时请求当前用户的知识库列表并渲染为卡片 (`KbCard.vue`)。
-    *   若当前用户角色包含超管权限 (根据 Auth store判断)，显示“创建知识库”按钮，唤出相应表单或弹窗。
+    *   **仅当 Auth Store 中 `isSuperAdmin === true` 时**，显示"创建知识库"按钮，点击唤出表单或弹窗。
+    *   **仅当 `isSuperAdmin === true` 时**，每张 `KbCard.vue` 上显示"删除"操作入口。
     *   点击任意知识库卡片，路由跳转至 `/kb/:id`。
 
 ---
