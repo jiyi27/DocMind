@@ -168,6 +168,14 @@ class DocumentRepository:
         await self.db.commit()
         return cur.rowcount > 0
 
+    async def sum_chunk_count_by_kb(self, kb_id: str) -> int:
+        """Return the total number of vector points (chunks) across all documents in a KB."""
+        async with self.db.execute(
+            "SELECT COALESCE(SUM(chunk_count), 0) FROM documents WHERE kb_id = ?", (kb_id,)
+        ) as cur:
+            row = await cur.fetchone()
+            return int(row[0]) if row else 0
+
     async def delete_by_kb(self, kb_id: str) -> int:
         """Delete all documents belonging to a knowledge base. Returns count deleted."""
         cur = await self.db.execute("DELETE FROM documents WHERE kb_id = ?", (kb_id,))

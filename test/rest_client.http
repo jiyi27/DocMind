@@ -26,6 +26,35 @@ Content-Type: application/json
 # 登录成功后，token 自动从响应中提取，后续请求直接使用 {{token}}
 @token = {{login.response.body.data.access_token}}
 
+### 列出所有知识库
+GET {{baseUrl}}/kb
+Authorization: Bearer {{token}}
+
+### 获取知识库详情（含文档数量）
+# 将 {kb_id} 替换为知识库 ID
+GET {{baseUrl}}/kb/61a27f13-5797-4713-9d2a-837fd4db9e14
+Authorization: Bearer {{token}}
+
+### 创建知识库（Super-admin only）
+POST {{baseUrl}}/kb
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "india",
+  "display_name": "India",
+  "description": "Knowledge base for India team"
+}
+
+### 删除知识库（Super-admin only）
+# 将 {kb_id} 替换为要删除的知识库 ID
+DELETE {{baseUrl}}/kb/{kb_id}
+Authorization: Bearer {{token}}
+
+# ==========================================
+# Documents
+# ==========================================
+
 ### 列出当前用户的文档列表
 GET {{baseUrl}}/ingest/documents
 Authorization: Bearer {{token}}

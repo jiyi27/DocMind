@@ -103,8 +103,9 @@ async def get_knowledge_base(kb_id: str):
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Knowledge base not found")
 
         docs = await doc_repo.list_by_kb(kb_id)
+        total_points = await doc_repo.sum_chunk_count_by_kb(kb_id)
 
-    return ok(data={**kb, "document_count": len(docs)})
+    return ok(data={**kb, "document_count": len(docs), "total_points": total_points})
 
 
 # ---------------------------------------------------------------------------
