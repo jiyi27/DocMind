@@ -1,7 +1,7 @@
 <template>
   <el-dialog
     v-model="visible"
-    title="创建知识库"
+    title="Create Knowledge Base"
     width="480px"
     :close-on-click-modal="false"
     @closed="resetForm"
@@ -13,37 +13,37 @@
       label-position="top"
       @submit.prevent="handleSubmit"
     >
-      <el-form-item label="知识库标识 (Slug)" prop="name">
+      <el-form-item label="Slug" prop="name">
         <el-input
           v-model="form.name"
-          placeholder="例如: tech-docs 或 hr_manual"
+          placeholder="e.g. tech-docs or hr_manual"
           clearable
         />
-        <div class="form-hint">只允许字母、数字、横杠和下划线</div>
+        <div class="form-hint">Only letters, numbers, hyphens, and underscores allowed</div>
       </el-form-item>
 
-      <el-form-item label="显示名称" prop="display_name">
+      <el-form-item label="Display Name" prop="display_name">
         <el-input
           v-model="form.display_name"
-          placeholder="例如: 技术文档库"
+          placeholder="e.g. Tech Docs"
           clearable
         />
       </el-form-item>
 
-      <el-form-item label="描述" prop="description">
+      <el-form-item label="Description" prop="description">
         <el-input
           v-model="form.description"
           type="textarea"
           :rows="3"
-          placeholder="可选，简要描述该知识库的用途"
+          placeholder="Optional. Briefly describe the purpose of this knowledge base."
         />
       </el-form-item>
     </el-form>
 
     <template #footer>
-      <el-button @click="visible = false">取消</el-button>
+      <el-button @click="visible = false">Cancel</el-button>
       <el-button type="primary" :loading="loading" @click="handleSubmit">
-        创建
+        Create
       </el-button>
     </template>
   </el-dialog>
@@ -66,17 +66,17 @@ const form = reactive({
 
 const rules = {
   name: [
-    { required: true, message: '请输入知识库标识', trigger: 'blur' },
+    { required: true, message: 'Please enter a slug', trigger: 'blur' },
     {
       pattern: /^[a-zA-Z0-9_-]+$/,
-      message: '只允许字母、数字、横杠和下划线',
+      message: 'Only letters, numbers, hyphens, and underscores allowed',
       trigger: 'blur',
     },
-    { min: 2, max: 64, message: '长度在 2 到 64 个字符', trigger: 'blur' },
+    { min: 2, max: 64, message: 'Length must be between 2 and 64 characters', trigger: 'blur' },
   ],
   display_name: [
-    { required: true, message: '请输入显示名称', trigger: 'blur' },
-    { min: 1, max: 128, message: '长度在 1 到 128 个字符', trigger: 'blur' },
+    { required: true, message: 'Please enter a display name', trigger: 'blur' },
+    { min: 1, max: 128, message: 'Length must be between 1 and 128 characters', trigger: 'blur' },
   ],
 }
 

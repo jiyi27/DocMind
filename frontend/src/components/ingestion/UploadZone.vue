@@ -15,10 +15,10 @@
     >
       <el-icon class="el-icon--upload"><UploadFilled /></el-icon>
       <div class="el-upload__text">
-        拖拽文件到此处，或 <em>点击上传</em>
+        Drop file here, or <em>click to upload</em>
       </div>
       <template #tip>
-        <div class="el-upload__tip">支持 PDF 或 Markdown 文件</div>
+        <div class="el-upload__tip">Supports PDF and Markdown files</div>
       </template>
     </el-upload>
 
@@ -30,27 +30,27 @@
       class="upload-form"
       size="default"
     >
-      <el-form-item label="文档标题">
+      <el-form-item label="Document Title">
         <el-input
           v-model="form.title"
-          placeholder="留空则使用文件名"
+          placeholder="Leave blank to use filename"
           clearable
         />
       </el-form-item>
 
       <el-row :gutter="12">
         <el-col :span="12">
-          <el-form-item label="文档类型 (doc_type)">
-            <el-select v-model="form.doc_type" placeholder="选择类型" style="width: 100%">
-              <el-option label="全部 (all)" value="all" />
-              <el-option label="手册 (manual)" value="manual" />
+          <el-form-item label="Doc Type">
+              <el-select v-model="form.doc_type" placeholder="Select type" style="width: 100%">
+              <el-option label="All" value="all" />
+              <el-option label="Manual" value="manual" />
               <el-option label="FAQ" value="faq" />
-              <el-option label="政策 (policy)" value="policy" />
+              <el-option label="Policy" value="policy" />
             </el-select>
           </el-form-item>
         </el-col>
         <el-col :span="12">
-          <el-form-item label="适用服务 (service)">
+          <el-form-item label="Service">
             <el-input
               v-model="form.service"
               placeholder="例如: all 或 service1,service2"
@@ -60,7 +60,7 @@
         </el-col>
       </el-row>
 
-      <el-form-item label="适用部门 (department)">
+      <el-form-item label="Department">
         <el-input
           v-model="form.department"
           placeholder="例如: all 或 dept1,dept2"
@@ -68,7 +68,7 @@
         />
       </el-form-item>
 
-      <el-form-item label="来源 URL（选填）">
+      <el-form-item label="Source URL (optional)">
         <el-input
           v-model="form.url"
           placeholder="https://..."
@@ -84,7 +84,7 @@
           style="width: 100%"
           @click="handleUpload"
         >
-          {{ uploading ? '上传中...' : '开始上传' }}
+          {{ uploading ? 'Uploading...' : 'Upload' }}
         </el-button>
       </el-form-item>
     </el-form>
@@ -129,12 +129,12 @@ function handleFileChange(file) {
 }
 
 function handleExceed() {
-  ElMessage.warning('每次只能上传一个文件，请先移除已选文件')
+  ElMessage.warning('Only one file at a time. Please remove the current file first.')
 }
 
 async function handleUpload() {
   if (!selectedFile.value) {
-    ElMessage.warning('请先选择一个文件')
+    ElMessage.warning('Please select a file first.')
     return
   }
 
@@ -149,7 +149,7 @@ async function handleUpload() {
   uploading.value = true
   try {
     const result = await uploadDocument(props.kbId, formData)
-    ElMessage.success(`上传成功！共切分 ${result.chunk_count} 个 Chunk`)
+    ElMessage.success(`Upload successful! ${result.chunk_count} chunks created.`)
     // Reset form and file list
     resetForm()
     emit('uploaded', result)

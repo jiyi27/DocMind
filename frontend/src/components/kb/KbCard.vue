@@ -4,7 +4,7 @@
       <div class="kb-icon-wrap">
         <el-icon class="kb-icon"><Collection /></el-icon>
       </div>
-      <el-tooltip v-if="!canAccess" content="您无权访问此知识库" placement="top">
+      <el-tooltip v-if="!canAccess" content="You don't have access to this knowledge base" placement="top">
         <el-icon class="lock-icon"><Lock /></el-icon>
       </el-tooltip>
       <el-dropdown
@@ -25,7 +25,7 @@
           <el-dropdown-menu>
             <el-dropdown-item command="delete" class="danger-item">
               <el-icon><Delete /></el-icon>
-              删除知识库
+              Delete
             </el-dropdown-item>
           </el-dropdown-menu>
         </template>
@@ -35,7 +35,7 @@
     <div class="kb-card-body">
       <h3 class="kb-display-name">{{ kb.display_name }}</h3>
       <p class="kb-name">{{ kb.name }}</p>
-      <p class="kb-description">{{ kb.description || '暂无描述' }}</p>
+      <p class="kb-description">{{ kb.description || 'No description' }}</p>
     </div>
 
     <div class="kb-card-footer">
@@ -72,10 +72,10 @@ const canAccess = computed(() => isSuperAdmin.value || authStore.kbId === props.
 function handleClick() {
   if (!canAccess.value) {
     ElMessageBox.alert(
-      '您没有权限访问该知识库，只能进入您所属的知识库。',
-      '访问受限',
+      'You do not have permission to access this knowledge base.',
+      'Access Denied',
       {
-        confirmButtonText: '我知道了',
+        confirmButtonText: 'OK',
         type: 'warning',
         icon: Lock,
       }
@@ -89,11 +89,11 @@ async function handleCommand(command) {
   if (command === 'delete') {
     try {
       await ElMessageBox.confirm(
-        `确定要删除知识库「${props.kb.display_name}」吗？此操作将同时删除所有相关文档和向量数据，且不可恢复。`,
-        '删除确认',
+        `Are you sure you want to delete "${props.kb.display_name}"? This will permanently remove all related documents and vector data.`,
+        'Confirm Deletion',
         {
-          confirmButtonText: '确认删除',
-          cancelButtonText: '取消',
+          confirmButtonText: 'Delete',
+          cancelButtonText: 'Cancel',
           type: 'warning',
           confirmButtonClass: 'el-button--danger',
         }
@@ -108,7 +108,7 @@ async function handleCommand(command) {
 function formatDate(dateStr) {
   if (!dateStr) return ''
   const date = new Date(dateStr)
-  return date.toLocaleDateString('zh-CN', {
+  return date.toLocaleDateString('en-US', {
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',

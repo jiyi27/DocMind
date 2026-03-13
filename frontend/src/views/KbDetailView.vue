@@ -5,12 +5,12 @@
       <div class="header-left">
         <el-button :icon="ArrowLeft" text @click="router.push('/')" />
         <div class="kb-title-info">
-          <h1 class="kb-display-name">{{ kbDetail?.display_name || '知识库详情' }}</h1>
+          <h1 class="kb-display-name">{{ kbDetail?.display_name || 'Knowledge Base' }}</h1>
           <span class="kb-slug">{{ kbDetail?.name }}</span>
         </div>
       </div>
       <div v-if="kbDetail" class="kb-stats">
-        <el-tag type="info">{{ kbDetail.document_count ?? 0 }} 篇文档</el-tag>
+        <el-tag type="info">{{ kbDetail.document_count ?? 0 }} Documents</el-tag>
         <el-tag type="success">{{ kbDetail.total_points ?? 0 }} Chunks</el-tag>
       </div>
     </div>
@@ -22,7 +22,7 @@
         <div class="column-card">
           <h3 class="column-title">
             <el-icon><Upload /></el-icon>
-            上传文档
+            Upload Documents
           </h3>
           <el-divider />
           <UploadZone :kb-id="kbId" @uploaded="handleUploaded" />
@@ -34,7 +34,7 @@
         <div class="column-card">
           <h3 class="column-title">
             <el-icon><Files /></el-icon>
-            本知识库的文档
+            My Documents
           </h3>
           <el-divider />
           <DocumentList ref="docListRef" :kb-id="kbId" @deleted="handleDeleted" />

@@ -8,7 +8,7 @@
     <!-- Empty -->
     <el-empty
       v-else-if="documents.length === 0"
-      description="暂无文档，请上传第一个文档"
+      description="No documents yet. Upload your first document."
       :image-size="80"
     />
 
@@ -80,7 +80,7 @@ function getFileIcon(fileName) {
 function formatDate(dateStr) {
   if (!dateStr) return '-'
   const d = new Date(dateStr)
-  return d.toLocaleDateString('zh-CN', {
+  return d.toLocaleDateString('en-US', {
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
@@ -105,11 +105,11 @@ async function fetchDocuments() {
 async function handleDelete(doc) {
   try {
     await ElMessageBox.confirm(
-      `确定要删除文档「${doc.title || doc.file_name}」及其所有向量数据吗？此操作不可撤销。`,
-      '删除确认',
+      `Are you sure you want to delete "${doc.title || doc.file_name}" and all its vector data? This cannot be undone.`,
+      'Confirm Deletion',
       {
-        confirmButtonText: '确认删除',
-        cancelButtonText: '取消',
+        confirmButtonText: 'Delete',
+        cancelButtonText: 'Cancel',
         type: 'warning',
         confirmButtonClass: 'el-button--danger',
       }
@@ -122,7 +122,7 @@ async function handleDelete(doc) {
   try {
     await deleteDocument(doc.id)
     documents.value = documents.value.filter((d) => d.id !== doc.id)
-    ElMessage.success('文档已删除')
+    ElMessage.success('Document deleted')
     emit('deleted', doc.id)
   } catch (err) {
     // Error handled by interceptor

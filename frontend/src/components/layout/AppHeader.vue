@@ -21,7 +21,7 @@
             </el-dropdown-item>
             <el-dropdown-item divided command="logout">
               <el-icon><SwitchButton /></el-icon>
-              退出登录
+              Sign Out
             </el-dropdown-item>
           </el-dropdown-menu>
         </template>

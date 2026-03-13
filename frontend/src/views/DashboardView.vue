@@ -3,8 +3,8 @@
     <!-- Page Header -->
     <div class="page-header">
       <div class="page-title-wrap">
-        <h1 class="page-title">知识库</h1>
-        <el-tag type="info" size="small">{{ kbStore.kbCount }} 个</el-tag>
+        <h1 class="page-title">Knowledge Bases</h1>
+        <el-tag type="info" size="small">{{ kbStore.kbCount }}</el-tag>
       </div>
       <el-button
         v-if="isSuperAdmin"
@@ -12,7 +12,7 @@
         :icon="Plus"
         @click="openCreateDialog"
       >
-        创建知识库
+        Create Knowledge Base
       </el-button>
     </div>
 
@@ -24,11 +24,11 @@
     <!-- Empty State -->
     <el-empty
       v-else-if="!kbStore.loading && kbStore.kbList.length === 0"
-      description="暂无知识库"
+      description="No knowledge bases yet"
       :image-size="120"
     >
       <el-button v-if="isSuperAdmin" type="primary" @click="openCreateDialog">
-        立即创建
+        Create Now
       </el-button>
     </el-empty>
 
