@@ -41,7 +41,7 @@ export const useKbStore = defineStore('kb', () => {
     async function addKb(formData) {
         const data = await createKb(formData)
         kbList.value.unshift(data)
-        ElMessage.success('知识库创建成功')
+        ElMessage.success('Knowledge base created successfully')
         return data
     }
 
@@ -51,7 +51,7 @@ export const useKbStore = defineStore('kb', () => {
         if (currentKb.value?.id === kbId) {
             currentKb.value = null
         }
-        ElMessage.success('知识库已删除')
+        ElMessage.success('Knowledge base deleted')
     }
 
     function setCurrentKb(kb) {

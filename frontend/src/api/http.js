@@ -44,7 +44,7 @@ http.interceptors.response.use(
     // Handle specific HTTP Status Codes (e.g., 401 Unauthorized)
     if (error.response) {
       if (error.response.status === 401) {
-        ElMessage.error('登录已过期，请重新登录')
+        ElMessage.error('Session expired, please login again')
         localStorage.removeItem('token')
         localStorage.removeItem('user')
         window.location.href = '/login'

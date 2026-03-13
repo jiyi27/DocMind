@@ -1,7 +1,7 @@
 import http from './http'
 
 /**
- * 获取知识库列表
+ * Get Knowledge Base list
  * GET /kb
  */
 export function getKbs() {
@@ -9,7 +9,7 @@ export function getKbs() {
 }
 
 /**
- * 获取单个知识库详情
+ * Get single Knowledge Base details
  * GET /kb/{kb_id}
  */
 export function getKbDetail(kbId) {
@@ -17,7 +17,7 @@ export function getKbDetail(kbId) {
 }
 
 /**
- * 创建知识库 (Super-Admin Only)
+ * Create Knowledge Base (Super-Admin Only)
  * POST /kb
  * @param {{ name: string, display_name: string, description?: string }} data
  */
@@ -26,7 +26,7 @@ export function createKb(data) {
 }
 
 /**
- * 删除知识库 (Super-Admin Only)
+ * Delete Knowledge Base (Super-Admin Only)
  * DELETE /kb/{kb_id}
  */
 export function deleteKb(kbId) {

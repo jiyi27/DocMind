@@ -53,7 +53,7 @@
           <el-form-item label="Service">
             <el-input
               v-model="form.service"
-              placeholder="例如: all 或 service1,service2"
+              placeholder="e.g. all or service1,service2"
               clearable
             />
           </el-form-item>
@@ -63,7 +63,7 @@
       <el-form-item label="Department">
         <el-input
           v-model="form.department"
-          placeholder="例如: all 或 dept1,dept2"
+          placeholder="e.g. all or dept1,dept2"
           clearable
         />
       </el-form-item>

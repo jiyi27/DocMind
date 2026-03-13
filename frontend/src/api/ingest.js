@@ -1,10 +1,10 @@
 import http from './http'
 
 /**
- * 上传并注入文档
+ * Upload and ingest document
  * POST /ingest/{kb_id}
- * @param {string} kbId - 目标知识库 UUID
- * @param {FormData} formData - 包含 file, title, url, doc_type, service, department
+ * @param {string} kbId - Target Knowledge Base UUID
+ * @param {FormData} formData - Contains file, title, url, doc_type, service, department
  */
 export function uploadDocument(kbId, formData) {
     return http.post(`/ingest/${kbId}`, formData, {
@@ -15,7 +15,7 @@ export function uploadDocument(kbId, formData) {
 }
 
 /**
- * 获取当前用户的文档列表
+ * Get current user's document list
  * GET /ingest/documents
  */
 export function getDocuments() {
@@ -23,7 +23,7 @@ export function getDocuments() {
 }
 
 /**
- * 获取当前用户在指定知识库的文档列表
+ * Get current user's document list in specified KB
  * GET /ingest/documents/kb/{kb_id}
  * @param {string} kbId
  */
@@ -32,7 +32,7 @@ export function getDocumentsByKb(kbId) {
 }
 
 /**
- * 删除文档及向量数据
+ * Delete document and vector data
  * DELETE /ingest/{doc_id}
  * @param {string} docId
  */
@@ -41,7 +41,7 @@ export function deleteDocument(docId) {
 }
 
 /**
- * 检查文档 Chunk 列表
+ * Check document chunk list
  * GET /ingest/{doc_id}/chunks
  * @param {string} docId
  * @param {number} offset
