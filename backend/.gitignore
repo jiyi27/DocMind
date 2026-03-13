@@ -8,6 +8,8 @@ build/
 .pytest_cache/
 coverage/
 htmlcov/
+.mypy_cache/
+.ruff_cache/
 
 # Virtual environment
 .venv/
@@ -17,17 +19,7 @@ htmlcov/
 .env.local
 .env.*.local
 
-# IDE
-.idea/
-.vscode/
-*.swp
-*.swo
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Data
+# Data & Database
 data/
 *.db
 
@@ -35,8 +27,5 @@ data/
 logs/
 *.log
 
-# Frontend
-node_modules/
-
-agentx/
-rag-web/
+# uv
+# uv.lock is intentionally committed to lock dependencies
