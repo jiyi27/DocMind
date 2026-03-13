@@ -71,7 +71,6 @@ class UserRepository:
     async def create(
         self,
         username: str,
-        email: str,
         hashed_password: str,
         kb_id: str,
         role: str = "user",
@@ -79,14 +78,13 @@ class UserRepository:
         user_id = str(uuid.uuid4())
         now = _now()
         await self.db.execute(
-            "INSERT INTO users (id, username, email, hashed_password, kb_id, role, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (user_id, username, email, hashed_password, kb_id, role, now),
+            "INSERT INTO users (id, username, hashed_password, kb_id, role, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+            (user_id, username, hashed_password, kb_id, role, now),
         )
         await self.db.commit()
         return {
             "id": user_id,
             "username": username,
-            "email": email,
             "kb_id": kb_id,
             "role": role,
             "created_at": now,
@@ -98,10 +96,6 @@ class UserRepository:
 
     async def get_by_username(self, username: str) -> dict[str, Any] | None:
         async with self.db.execute("SELECT * FROM users WHERE username = ?", (username,)) as cur:
-            return _row_to_dict(await cur.fetchone())
-
-    async def get_by_email(self, email: str) -> dict[str, Any] | None:
-        async with self.db.execute("SELECT * FROM users WHERE email = ?", (email,)) as cur:
             return _row_to_dict(await cur.fetchone())
 
 

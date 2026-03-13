@@ -2,12 +2,11 @@
 Pydantic schemas for authentication and user management.
 """
 
-from pydantic import BaseModel, EmailStr, field_validator
+from pydantic import BaseModel
 
 
 class UserCreate(BaseModel):
     username: str
-    email: EmailStr
     password: str
     kb_id: str  # UUID of the chosen knowledge base
 
@@ -25,7 +24,6 @@ class TokenResponse(BaseModel):
 class UserOut(BaseModel):
     id: str
     username: str
-    email: str
     kb_id: str
     kb_name: str
     role: str

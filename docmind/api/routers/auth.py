@@ -35,22 +35,16 @@ async def register(body: UserCreate):
                 detail=f"Knowledge base '{body.kb_id}' not found",
             )
 
-        # Check username / email uniqueness
+        # Check username uniqueness
         if await user_repo.get_by_username(body.username):
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail="Username already taken",
             )
-        if await user_repo.get_by_email(body.email):
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="Email already registered",
-            )
 
         hashed = hash_password(body.password)
         user = await user_repo.create(
             username=body.username,
-            email=body.email,
             hashed_password=hashed,
             kb_id=body.kb_id,
         )
@@ -59,7 +53,6 @@ async def register(body: UserCreate):
         data=UserOut(
             id=user["id"],
             username=user["username"],
-            email=body.email,
             kb_id=user["kb_id"],
             kb_name=kb["name"],
             role=user["role"],

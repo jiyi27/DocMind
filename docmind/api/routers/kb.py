@@ -10,7 +10,7 @@ DELETE /kb/{kb_id}      — delete knowledge base (drops Qdrant collection + all
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel
 
-from docmind.api.response import ok, fail
+from docmind.api.response import ok
 from docmind.db.database import get_db
 from docmind.db.repositories import KBRepository, DocumentRepository
 from docmind.vectorstore.qdrant_store import create_kb_collection, delete_kb_collection

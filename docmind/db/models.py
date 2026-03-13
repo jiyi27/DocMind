@@ -16,7 +16,6 @@ CREATE_USERS_TABLE = """
 CREATE TABLE IF NOT EXISTS users (
     id              TEXT PRIMARY KEY,
     username        TEXT UNIQUE NOT NULL,
-    email           TEXT UNIQUE NOT NULL,
     hashed_password TEXT NOT NULL,
     kb_id           TEXT NOT NULL REFERENCES knowledge_bases(id),
     role            TEXT NOT NULL DEFAULT 'user',
