@@ -8,6 +8,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from docmind.auth.jwt import decode_token
 from docmind.auth.schemas import UserContext
+from docmind.core.config import settings
 
 _bearer = HTTPBearer()
 
@@ -42,3 +43,18 @@ async def get_current_user(
         kb_name=payload["kb_name"],
         role=payload["role"],
     )
+
+
+async def require_super_admin(
+    current_user: UserContext = Depends(get_current_user),
+) -> UserContext:
+    """
+    Dependency that ensures the caller is both authenticated and listed in
+    SUPER_ADMIN_USERNAMES.  Raises 403 Forbidden otherwise.
+    """
+    if current_user.username not in settings.admin.super_admin_usernames:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Super-admin privileges required",
+        )
+    return current_user

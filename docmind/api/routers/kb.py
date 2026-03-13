@@ -7,10 +7,12 @@ GET    /kb/{kb_id}      — get knowledge base detail + document count
 DELETE /kb/{kb_id}      — delete knowledge base (drops Qdrant collection + all doc records)
 """
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 
+from docmind.api.dependencies import require_super_admin
 from docmind.api.response import ok
+from docmind.auth.schemas import UserContext
 from docmind.db.database import get_db
 from docmind.db.repositories import KBRepository, DocumentRepository
 from docmind.vectorstore.qdrant_store import create_kb_collection, delete_kb_collection
@@ -37,7 +39,10 @@ class KBOut(BaseModel):
 # ---------------------------------------------------------------------------
 
 @router.post("", status_code=status.HTTP_201_CREATED)
-async def create_knowledge_base(body: KBCreate):
+async def create_knowledge_base(
+    body: KBCreate,
+    _: UserContext = Depends(require_super_admin),
+):
     # Validate slug format
     if not body.name.replace("_", "").replace("-", "").isalnum():
         raise HTTPException(
@@ -104,7 +109,10 @@ async def get_knowledge_base(kb_id: str):
 # ---------------------------------------------------------------------------
 
 @router.delete("/{kb_id}")
-async def delete_knowledge_base(kb_id: str):
+async def delete_knowledge_base(
+    kb_id: str,
+    _: UserContext = Depends(require_super_admin),
+):
     async with get_db() as db:
         kb_repo = KBRepository(db)
         doc_repo = DocumentRepository(db)

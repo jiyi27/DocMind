@@ -100,6 +100,21 @@ class JWTConfig:
 
 
 @dataclass(frozen=True)
+class AdminConfig:
+    """
+    Super-admin access control configuration.
+
+    super_admin_usernames: Comma-separated list of usernames that are granted
+        super-admin privileges (e.g. creating / deleting knowledge bases and
+        other privileged operations).  These users must still authenticate via
+        JWT — this list only controls *what* they are allowed to do after login.
+
+        Example env value:  SUPER_ADMIN_USERNAMES=super_admin,alice,bob
+    """
+    super_admin_usernames: frozenset[str]
+
+
+@dataclass(frozen=True)
 class Settings:
     """Root settings aggregating all sub-configurations."""
     embedding: EmbeddingConfig
@@ -109,6 +124,7 @@ class Settings:
     retrieval: RetrievalConfig
     log: LogConfig
     jwt: JWTConfig
+    admin: AdminConfig
 
     def validate(self) -> list[str]:
         """Return the list of missing / invalid environment variables collected at import time."""
@@ -148,6 +164,13 @@ def _build_settings() -> Settings:
         log=LogConfig(
             dir=_require_str("LOG_DIR"),
             level=_require_str("LOG_LEVEL"),
+        ),
+        admin=AdminConfig(
+            super_admin_usernames=frozenset(
+                name.strip()
+                for name in os.getenv("SUPER_ADMIN_USERNAMES", "").split(",")
+                if name.strip()
+            ),
         ),
     )
 
