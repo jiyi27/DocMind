@@ -14,17 +14,23 @@ const routes = [
     component: () => import('../views/RegisterView.vue'),
     meta: { requiresGuest: true }
   },
+  // Authenticated routes wrapped in BaseLayout
   {
     path: '/',
-    name: 'Dashboard',
-    component: () => import('../views/DashboardView.vue'),
-    meta: { requiresAuth: true }
-  },
-  {
-    path: '/kb/:id',
-    name: 'KbDetail',
-    component: () => import('../views/KbDetailView.vue'),
-    meta: { requiresAuth: true }
+    component: () => import('../components/layout/BaseLayout.vue'),
+    meta: { requiresAuth: true },
+    children: [
+      {
+        path: '',
+        name: 'Dashboard',
+        component: () => import('../views/DashboardView.vue'),
+      },
+      {
+        path: 'kb/:id',
+        name: 'KbDetail',
+        component: () => import('../views/KbDetailView.vue'),
+      }
+    ]
   }
 ]
 
@@ -36,14 +42,14 @@ const router = createRouter({
 // Phase 2: Navigation Guards
 router.beforeEach((to, from, next) => {
   const authStore = useAuthStore()
-  
+
   // Determine if the route requires authentication. 
   // We use explicitly matched meta, and also fallback to checking if it's not a guest route.
-  const isAuthRequired = to.matched.some(record => record.meta.requiresAuth) || 
-                         (!['Login', 'Register'].includes(to.name))
+  const isAuthRequired = to.matched.some(record => record.meta.requiresAuth) ||
+    (!['Login', 'Register'].includes(to.name))
 
   const isGuestOnly = to.matched.some(record => record.meta.requiresGuest)
-  
+
   if (isAuthRequired && !authStore.isAuthenticated) {
     // Redirect unauthenticated users to login page
     next({ name: 'Login' })

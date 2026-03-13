@@ -29,8 +29,8 @@ http.interceptors.response.use(
     // DocMind Success Envelope
     if (res.code === 0) {
       return res.data
-    } 
-    
+    }
+
     // DocMind Handled Business Error Envelope
     if (res.code === -1) {
       ElMessage.error(res.message || 'Business Error')
@@ -44,9 +44,10 @@ http.interceptors.response.use(
     // Handle specific HTTP Status Codes (e.g., 401 Unauthorized)
     if (error.response) {
       if (error.response.status === 401) {
-        ElMessage.error('Session expired or unauthorized. Please login.')
-        // Phase 2: Redirect to login
-        // window.location.href = '/login'
+        ElMessage.error('登录已过期，请重新登录')
+        localStorage.removeItem('token')
+        localStorage.removeItem('user')
+        window.location.href = '/login'
       } else {
         const detail = error.response.data?.detail || error.message
         ElMessage.error(`Request Failed: ${detail}`)
@@ -54,7 +55,7 @@ http.interceptors.response.use(
     } else {
       ElMessage.error(error.message || 'Network Error')
     }
-    
+
     return Promise.reject(error)
   }
 )
