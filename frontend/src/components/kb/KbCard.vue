@@ -8,7 +8,7 @@
         <el-icon class="lock-icon"><Lock /></el-icon>
       </el-tooltip>
       <el-dropdown
-        v-if="isSuperAdmin"
+        v-if="canManage"
         trigger="click"
         @command="handleCommand"
         @click.stop
@@ -67,7 +67,8 @@ const router = useRouter()
 const authStore = useAuthStore()
 
 const isSuperAdmin = computed(() => authStore.isSuperAdmin)
-const canAccess = computed(() => isSuperAdmin.value || authStore.kbId === props.kb.id)
+const canAccess = computed(() => authStore.canAccessKb(props.kb.id))
+const canManage = computed(() => authStore.canManageKb(props.kb.id))
 
 function handleClick() {
   if (!canAccess.value) {

@@ -14,6 +14,7 @@
       >
         Create Knowledge Base
       </el-button>
+      <!-- Only super admins can create KBs; KB admins manage their own KB from within -->
     </div>
 
     <!-- Loading State -->
@@ -30,6 +31,7 @@
       <el-button v-if="isSuperAdmin" type="primary" @click="openCreateDialog">
         Create Now
       </el-button>
+      <!-- KB admins see the empty state but cannot create new KBs -->
     </el-empty>
 
     <!-- KB Grid -->

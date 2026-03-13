@@ -102,6 +102,7 @@ async def login(body: LoginRequest):
             access_token=token,
             is_super_admin=is_super_admin,
             kb_id=user["kb_id"],
+            role=user["role"],
         ).model_dump(),
         message="Login successful",
     )
