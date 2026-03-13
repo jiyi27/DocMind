@@ -1,9 +1,9 @@
 <template>
   <el-header class="app-header">
-    <div class="header-left">
+    <router-link to="/" class="header-left">
       <el-icon class="logo-icon"><Reading /></el-icon>
       <span class="logo-text">DocMind</span>
-    </div>
+    </router-link>
     <div class="header-right">
       <el-dropdown trigger="click" @command="handleCommand">
         <span class="user-info">
@@ -73,6 +73,8 @@ function handleCommand(command) {
   display: flex;
   align-items: center;
   gap: 10px;
+  cursor: pointer;
+  text-decoration: none;
 }
 
 .logo-icon {
