@@ -13,24 +13,47 @@
 ###
 GET {{baseUrl}}/health
 
+### Login
+# @name login
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "username": "super_admin",
+  "password": "super_admin"
+}
+
+# 登录成功后，token 自动从响应中提取，后续请求直接使用 {{token}}
+@token = {{login.response.body.data.access_token}}
+
+### 列出当前用户的文档列表
+GET {{baseUrl}}/ingest/documents
+Authorization: Bearer {{token}}
+
+### 删除文档
+# 将 {doc_id} 替换为要删除的文档 ID（从文档列表中获取）
+DELETE {{baseUrl}}/ingest/{doc_id}
+Authorization: Bearer {{token}}
+
 ### 上传文档
-# doc_type:      requirement | postmortem | pitfall | sharing | tech_spec
-# business_line: india | pakistan | all  （逗号分隔多值）
-# service:       collection | risk | admin | all  （逗号分隔多值）
-# department:    backend | qa | ios | android | web | all  （逗号分隔多值）
+# doc_type:   requirement | postmortem | pitfall | sharing | tech_spec
+# service:    collection | risk | admin | all  （逗号分隔多值）
+# department: backend | qa | ios | android | web | all  （逗号分隔多值）
+# 知识库由登录用户的 JWT 自动决定，无需手动指定
 # @name ingest
 POST {{baseUrl}}/ingest
 Content-Type: multipart/form-data; boundary=----Boundary
+Authorization: Bearer {{token}}
 
 ------Boundary
-Content-Disposition: form-data; name="file"; filename="需求开发流程规范.md"
+Content-Disposition: form-data; name="file"; filename="常见行为错误前期汇总.md"
 Content-Type: text/markdown
 
-< /Users/david/Downloads/需求开发流程规范.md
+< /Users/david/Downloads/常见行为错误前期汇总.md
 ------Boundary
 Content-Disposition: form-data; name="title"
 
-需求开发流程规范
+常见行为错误前期汇总
 ------Boundary
 Content-Disposition: form-data; name="url"
 
@@ -38,19 +61,15 @@ https://ai-api.surfin.sg/
 ------Boundary
 Content-Disposition: form-data; name="doc_type"
 
-requirement
-------Boundary
-Content-Disposition: form-data; name="business_line"
-
-india,pakistan
+all
 ------Boundary
 Content-Disposition: form-data; name="service"
 
-risk
+all
 ------Boundary
 Content-Disposition: form-data; name="department"
 
-backend,qa
+all
 ------Boundary--
 
 ###

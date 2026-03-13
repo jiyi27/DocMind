@@ -43,6 +43,7 @@ async def create_knowledge_base(
     body: KBCreate,
     _: UserContext = Depends(require_super_admin),
 ):
+    """Create a new knowledge base and its corresponding Qdrant vector collection. Super-admin only."""
     # Validate slug format
     if not body.name.replace("_", "").replace("-", "").isalnum():
         raise HTTPException(
@@ -79,6 +80,7 @@ async def create_knowledge_base(
 
 @router.get("")
 async def list_knowledge_bases():
+    """Return a list of all available knowledge bases."""
     async with get_db() as db:
         repo = KBRepository(db)
         kbs = await repo.list_all()
@@ -91,6 +93,7 @@ async def list_knowledge_bases():
 
 @router.get("/{kb_id}")
 async def get_knowledge_base(kb_id: str):
+    """Get details of a specific knowledge base, including its document count."""
     async with get_db() as db:
         kb_repo = KBRepository(db)
         doc_repo = DocumentRepository(db)
@@ -113,6 +116,7 @@ async def delete_knowledge_base(
     kb_id: str,
     _: UserContext = Depends(require_super_admin),
 ):
+    """Delete a knowledge base along with all its documents and Qdrant vectors. Super-admin only."""
     async with get_db() as db:
         kb_repo = KBRepository(db)
         doc_repo = DocumentRepository(db)

@@ -31,7 +31,7 @@ async def ingest_document(
     file: UploadFile = File(..., description="PDF or Markdown file to ingest"),
     title: str = Form(default=""),
     url: str = Form(default=""),
-    doc_type: str = Form(default="tech_spec"),
+    doc_type: str = Form(default="all"),
     service: str = Form(default="all"),
     department: str = Form(default="all"),
     current_user: UserContext = Depends(get_current_user),
