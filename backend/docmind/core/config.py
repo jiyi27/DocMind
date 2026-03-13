@@ -115,6 +115,19 @@ class AdminConfig:
 
 
 @dataclass(frozen=True)
+class CORSConfig:
+    """
+    CORS configuration.
+
+    allowed_origins: Comma-separated list of allowed origins.
+        Use "*" to allow all origins (not recommended for production).
+
+        Example env value:  CORS_ORIGINS=http://localhost:3000,https://app.example.com
+    """
+    allowed_origins: list[str]
+
+
+@dataclass(frozen=True)
 class Settings:
     """Root settings aggregating all sub-configurations."""
     embedding: EmbeddingConfig
@@ -125,6 +138,7 @@ class Settings:
     log: LogConfig
     jwt: JWTConfig
     admin: AdminConfig
+    cors: CORSConfig
 
     def validate(self) -> list[str]:
         """Return the list of missing / invalid environment variables collected at import time."""
@@ -171,6 +185,13 @@ def _build_settings() -> Settings:
                 for name in os.getenv("SUPER_ADMIN_USERNAMES", "").split(",")
                 if name.strip()
             ),
+        ),
+        cors=CORSConfig(
+            allowed_origins=[
+                origin.strip()
+                for origin in os.getenv("CORS_ORIGINS", "*").split(",")
+                if origin.strip()
+            ],
         ),
     )
 

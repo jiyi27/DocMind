@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from docmind.api.lifespan import lifespan
 from docmind.api.middleware.request_id import RequestIdMiddleware
 from docmind.api.response import register_exception_handlers
 from docmind.api.routers import auth, chat, ingest, kb, health
+from docmind.core.config import settings
 
 app = FastAPI(
     title="DocMind",
@@ -17,7 +19,16 @@ app = FastAPI(
 )
 
 # ── Middleware ──
+# NOTE: Middleware is applied in reverse order of registration.
+# CORSMiddleware must be added last so it runs first (outermost layer).
 app.add_middleware(RequestIdMiddleware)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors.allowed_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # ── Global Exception Handlers ──
 register_exception_handlers(app)
