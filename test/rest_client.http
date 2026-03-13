@@ -59,6 +59,13 @@ Authorization: Bearer {{token}}
 GET {{baseUrl}}/ingest/documents
 Authorization: Bearer {{token}}
 
+### 查看文档 Chunks（分页）
+# 将 {doc_id} 替换为文档 ID（从文档列表中获取）
+# offset: 跳过的 chunk 数量（默认 0）
+# limit:  返回的最大 chunk 数量，范围 1-100（默认 20）
+GET {{baseUrl}}/ingest/4bd3715d-99f7-4a2c-815d-fdaea68381e1/chunks?offset=0&limit=20
+Authorization: Bearer {{token}}
+
 ### 删除文档
 # 将 {doc_id} 替换为要删除的文档 ID（从文档列表中获取）
 DELETE {{baseUrl}}/ingest/{doc_id}

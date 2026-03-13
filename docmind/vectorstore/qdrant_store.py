@@ -31,6 +31,7 @@ __all__ = [
     "create_kb_collection",
     "delete_kb_collection",
     "delete_documents_by_doc_id",
+    "get_chunks_by_doc_id",
     "kb_collection_name",
 ]
 
@@ -133,6 +134,80 @@ async def delete_kb_collection(kb_name: str) -> None:
             _store_cache.pop(col, None)
     except Exception as exc:
         raise VectorStoreError(f"Failed to delete collection '{col}': {exc}") from exc
+
+
+def get_chunks_by_doc_id(
+    kb_name: str,
+    doc_id: str,
+    offset: int = 0,
+    limit: int = 20,
+) -> dict:
+    """Fetch paginated chunks (points) for a given document from Qdrant.
+
+    Returns a dict with:
+    - ``items``: list of chunk dicts (point_id, content, metadata, char_count)
+    - ``total``: total number of points matching this doc_id
+    - ``offset`` / ``limit``: echo back for client pagination
+
+    Vectors are intentionally excluded — this is for content inspection only.
+    """
+    from qdrant_client.http.models import Filter, FieldCondition, MatchValue
+
+    col = kb_collection_name(kb_name)
+    # Fields to strip from payload before returning — internal/redundant fields
+    _STRIP_KEYS = {"doc_id", "user_id", "kb_name"}
+
+    try:
+        client = QdrantClient(url=settings.qdrant.url)
+
+        # Count total matching points
+        total = client.count(
+            collection_name=col,
+            count_filter=Filter(
+                must=[
+                    FieldCondition(
+                        key="metadata.doc_id",
+                        match=MatchValue(value=doc_id),
+                    )
+                ]
+            ),
+            exact=True,
+        ).count
+
+        # Scroll paginated results (no vectors)
+        points, _ = client.scroll(
+            collection_name=col,
+            scroll_filter=Filter(
+                must=[
+                    FieldCondition(
+                        key="metadata.doc_id",
+                        match=MatchValue(value=doc_id),
+                    )
+                ]
+            ),
+            offset=offset,
+            limit=limit,
+            with_payload=True,
+            with_vectors=False,
+        )
+
+        items = []
+        for p in points:
+            payload = p.payload or {}
+            # langchain-qdrant stores text in payload["page_content"] and metadata in payload["metadata"]
+            content: str = payload.get("page_content", "")
+            meta: dict = {k: v for k, v in payload.get("metadata", {}).items() if k not in _STRIP_KEYS}
+            items.append({
+                "point_id": str(p.id),
+                "content": content,
+                "char_count": len(content),
+                "metadata": meta,
+            })
+
+        return {"items": items, "total": total, "offset": offset, "limit": limit}
+
+    except Exception as exc:
+        raise VectorStoreError(f"Failed to fetch chunks for doc '{doc_id}' from '{col}': {exc}") from exc
 
 
 def delete_documents_by_doc_id(kb_name: str, doc_id: str) -> None:

@@ -17,7 +17,7 @@ from docmind.auth.schemas import UserContext
 from docmind.db.database import get_db
 from docmind.db.repositories import DocumentRepository
 from docmind.ingestion.graph import ingestion_graph
-from docmind.vectorstore.qdrant_store import delete_documents_by_doc_id
+from docmind.vectorstore.qdrant_store import delete_documents_by_doc_id, get_chunks_by_doc_id
 
 router = APIRouter(prefix="/ingest", tags=["ingestion"])
 
@@ -119,6 +119,57 @@ async def list_documents(
 # ---------------------------------------------------------------------------
 # DELETE /ingest/{doc_id}  — delete a document and its vectors
 # ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# GET /ingest/{doc_id}/chunks  — inspect chunks of a document
+# ---------------------------------------------------------------------------
+
+@router.get("/{doc_id}/chunks")
+async def get_document_chunks(
+    doc_id: str,
+    offset: int = 0,
+    limit: int = 20,
+    current_user: UserContext = Depends(get_current_user),
+):
+    """Return paginated chunks (vector store points) for a specific document.
+
+    Useful for verifying that a document was correctly split and ingested.
+    Vectors are not returned — only text content and metadata.
+
+    Query params:
+    - ``offset``: number of chunks to skip (default 0)
+    - ``limit``: max chunks to return, 1-100 (default 20)
+    """
+    if not (1 <= limit <= 100):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="limit must be between 1 and 100",
+        )
+    if offset < 0:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="offset must be >= 0",
+        )
+
+    async with get_db() as db:
+        doc_repo = DocumentRepository(db)
+        doc = await doc_repo.get_by_id(doc_id)
+
+    if not doc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
+
+    if doc["user_id"] != current_user.user_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not your document")
+
+    result = get_chunks_by_doc_id(
+        kb_name=current_user.kb_name,
+        doc_id=doc_id,
+        offset=offset,
+        limit=limit,
+    )
+
+    return ok(data=result)
+
 
 @router.delete("/{doc_id}")
 async def delete_document(
