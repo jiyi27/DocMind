@@ -97,6 +97,13 @@ import { UploadFilled } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { uploadDocument } from '@/api/ingest'
 
+const props = defineProps({
+  kbId: {
+    type: String,
+    required: true,
+  },
+})
+
 const emit = defineEmits(['uploaded'])
 
 const uploadRef = ref(null)
@@ -141,7 +148,7 @@ async function handleUpload() {
 
   uploading.value = true
   try {
-    const result = await uploadDocument(formData)
+    const result = await uploadDocument(props.kbId, formData)
     ElMessage.success(`上传成功！共切分 ${result.chunk_count} 个 Chunk`)
     // Reset form and file list
     resetForm()

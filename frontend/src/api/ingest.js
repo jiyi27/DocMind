@@ -2,11 +2,12 @@ import http from './http'
 
 /**
  * 上传并注入文档
- * POST /ingest
+ * POST /ingest/{kb_id}
+ * @param {string} kbId - 目标知识库 UUID
  * @param {FormData} formData - 包含 file, title, url, doc_type, service, department
  */
-export function uploadDocument(formData) {
-    return http.post('/ingest', formData, {
+export function uploadDocument(kbId, formData) {
+    return http.post(`/ingest/${kbId}`, formData, {
         headers: {
             'Content-Type': 'multipart/form-data',
         },

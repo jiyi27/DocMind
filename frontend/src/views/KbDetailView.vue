@@ -45,7 +45,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ArrowLeft, Upload, Files } from '@element-plus/icons-vue'
 import { useKbStore } from '@/stores/kb'
@@ -56,25 +56,25 @@ const route = useRoute()
 const router = useRouter()
 const kbStore = useKbStore()
 
-const kbId = route.params.id
+const kbId = computed(() => route.params.id)
 const kbDetail = ref(null)
 const docListRef = ref(null)
 
 onMounted(async () => {
-  kbDetail.value = await kbStore.fetchKbDetail(kbId)
+  kbDetail.value = await kbStore.fetchKbDetail(kbId.value)
 })
 
 function handleUploaded() {
   // Refresh document list and KB stats after upload
   docListRef.value?.refresh()
-  kbStore.fetchKbDetail(kbId).then((data) => {
+  kbStore.fetchKbDetail(kbId.value).then((data) => {
     kbDetail.value = data
   })
 }
 
 function handleDeleted() {
   // Refresh KB stats after deletion
-  kbStore.fetchKbDetail(kbId).then((data) => {
+  kbStore.fetchKbDetail(kbId.value).then((data) => {
     kbDetail.value = data
   })
 }

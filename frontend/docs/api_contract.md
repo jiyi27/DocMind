@@ -140,7 +140,8 @@ Authorization: Bearer <your_access_token>
 
 ### 3.1 上传并注入文档
 *   **Method**: `POST`
-*   **Path**: `/ingest`
+*   **Path**: `/ingest/{kb_id}`
+*   **Path Params**: `kb_id` — 目标知识库 UUID
 *   **Content-Type**: `multipart/form-data`
 *   **Request Payload (Form Data)**:
     *   `file`: `(File)` *必填, PDF 或 Markdown 文件*
@@ -149,6 +150,7 @@ Authorization: Bearer <your_access_token>
     *   `doc_type`: `(String)` *选填, 例如: "all"*
     *   `service`: `(String)` *选填, 逗号分隔的字符, 例如: "all"*
     *   `department`: `(String)` *选填, 逗号分隔的字符, 例如: "all"*
+*   **说明**: 目标知识库由路径参数 `kb_id` 指定，任何已登录用户均可向任意已存在的知识库上传文档。
 *   **Response `data` (code: 0)**:
     ```json
     {

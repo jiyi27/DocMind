@@ -15,7 +15,7 @@ from docmind.api.schemas import IngestMetadata
 from docmind.api.response import ok
 from docmind.auth.schemas import UserContext
 from docmind.db.database import get_db
-from docmind.db.repositories import DocumentRepository
+from docmind.db.repositories import DocumentRepository, KBRepository
 from docmind.ingestion.graph import ingestion_graph
 from docmind.vectorstore.qdrant_store import delete_documents_by_doc_id, get_chunks_by_doc_id
 
@@ -23,11 +23,12 @@ router = APIRouter(prefix="/ingest", tags=["ingestion"])
 
 
 # ---------------------------------------------------------------------------
-# POST /ingest  — upload and ingest a document
+# POST /ingest/{kb_id}  — upload and ingest a document into a specific KB
 # ---------------------------------------------------------------------------
 
-@router.post("", status_code=status.HTTP_201_CREATED)
+@router.post("/{kb_id}", status_code=status.HTTP_201_CREATED)
 async def ingest_document(
+    kb_id: str,
     file: UploadFile = File(..., description="PDF or Markdown file to ingest"),
     title: str = Form(default=""),
     url: str = Form(default=""),
@@ -36,11 +37,21 @@ async def ingest_document(
     department: str = Form(default="all"),
     current_user: UserContext = Depends(get_current_user),
 ):
-    """Upload and ingest a document into the current user's knowledge base.
+    """Upload and ingest a document into the specified knowledge base.
 
-    The knowledge base (Qdrant collection) is determined automatically from
-    the user's JWT — no need to specify business_line in the form.
+    The target knowledge base is identified by ``kb_id`` in the path.
+    The caller must be authenticated; any authenticated user may upload
+    to any existing knowledge base.
     """
+    # Resolve KB name (Qdrant collection slug) from the provided kb_id
+    async with get_db() as db:
+        kb_repo = KBRepository(db)
+        kb = await kb_repo.get_by_id(kb_id)
+
+    if not kb:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Knowledge base not found")
+
+    kb_name = kb["name"]
     file_name = file.filename or "unknown"
 
     metadata = IngestMetadata(
@@ -69,7 +80,7 @@ async def ingest_document(
             "metadata": metadata.model_dump(),
             "user_id": current_user.user_id,
             "doc_id": doc_id,
-            "kb_name": current_user.kb_name,
+            "kb_name": kb_name,
         })
     finally:
         Path(tmp_path).unlink(missing_ok=True)
@@ -81,7 +92,7 @@ async def ingest_document(
         doc_repo = DocumentRepository(db)
         doc = await doc_repo.create(
             user_id=current_user.user_id,
-            kb_id=current_user.kb_id,
+            kb_id=kb_id,
             file_name=file_name,
             title=metadata.title,
             doc_type=metadata.doc_type,
@@ -95,7 +106,7 @@ async def ingest_document(
             "status": result.get("status", "unknown"),
             "chunk_count": chunk_count,
             "file_name": file_name,
-            "kb_name": current_user.kb_name,
+            "kb_name": kb_name,
         },
         message="Document ingested successfully",
     )
