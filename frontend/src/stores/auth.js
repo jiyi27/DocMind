@@ -12,6 +12,9 @@ export const useAuthStore = defineStore('auth', () => {
   // Initialize isSuperAdmin from localStorage
   const isSuperAdmin = ref(localStorage.getItem('isSuperAdmin') === 'true')
 
+  // Initialize kbId from localStorage
+  const kbId = ref(localStorage.getItem('kbId') || null)
+
   // Getters
   const isAuthenticated = computed(() => !!token.value)
 
@@ -22,12 +25,17 @@ export const useAuthStore = defineStore('auth', () => {
    * @param {boolean} [superAdmin] - Whether the user is a super admin
    * @param {Object} [userInfo] - Optional user information
    */
-  function setAuth(newToken, superAdmin = false, userInfo = null) {
+  function setAuth(newToken, superAdmin = false, userInfo = null, userKbId = null) {
     token.value = newToken
     localStorage.setItem('token', newToken)
 
     isSuperAdmin.value = superAdmin
     localStorage.setItem('isSuperAdmin', String(superAdmin))
+
+    if (userKbId) {
+      kbId.value = userKbId
+      localStorage.setItem('kbId', userKbId)
+    }
 
     if (userInfo) {
       user.value = userInfo
@@ -42,15 +50,18 @@ export const useAuthStore = defineStore('auth', () => {
     token.value = null
     user.value = null
     isSuperAdmin.value = false
+    kbId.value = null
     localStorage.removeItem('token')
     localStorage.removeItem('user')
     localStorage.removeItem('isSuperAdmin')
+    localStorage.removeItem('kbId')
   }
 
   return {
     token,
     user,
     isSuperAdmin,
+    kbId,
     isAuthenticated,
     setAuth,
     clearAuth

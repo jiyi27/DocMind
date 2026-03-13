@@ -94,8 +94,8 @@ const handleLogin = async () => {
           password: loginForm.password
         })
         
-        // Save the token and super admin flag to Pinia store (persists to localStorage)
-        authStore.setAuth(response.access_token, response.is_super_admin === true)
+        // Save the token, super admin flag and kb_id to Pinia store (persists to localStorage)
+        authStore.setAuth(response.access_token, response.is_super_admin === true, null, response.kb_id)
         
         ElMessage.success('Login successful')
         

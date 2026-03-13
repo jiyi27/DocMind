@@ -101,6 +101,7 @@ async def login(body: LoginRequest):
         data=TokenResponse(
             access_token=token,
             is_super_admin=is_super_admin,
+            kb_id=user["kb_id"],
         ).model_dump(),
         message="Login successful",
     )

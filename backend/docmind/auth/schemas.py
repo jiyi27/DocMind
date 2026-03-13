@@ -20,6 +20,7 @@ class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
     is_super_admin: bool = False
+    kb_id: str = ""
 
 
 class UserOut(BaseModel):

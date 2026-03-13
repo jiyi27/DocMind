@@ -1,9 +1,12 @@
 <template>
-  <el-card class="kb-card" shadow="hover" @click="handleClick">
+  <el-card class="kb-card" :class="{ 'kb-card--locked': !canAccess }" shadow="hover" @click="handleClick">
     <div class="kb-card-header">
       <div class="kb-icon-wrap">
         <el-icon class="kb-icon"><Collection /></el-icon>
       </div>
+      <el-tooltip v-if="!canAccess" content="您无权访问此知识库" placement="top">
+        <el-icon class="lock-icon"><Lock /></el-icon>
+      </el-tooltip>
       <el-dropdown
         v-if="isSuperAdmin"
         trigger="click"
@@ -48,7 +51,7 @@
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
-import { Collection, MoreFilled, Delete, Calendar } from '@element-plus/icons-vue'
+import { Collection, MoreFilled, Delete, Calendar, Lock } from '@element-plus/icons-vue'
 import { ElMessageBox } from 'element-plus'
 
 const props = defineProps({
@@ -64,8 +67,21 @@ const router = useRouter()
 const authStore = useAuthStore()
 
 const isSuperAdmin = computed(() => authStore.isSuperAdmin)
+const canAccess = computed(() => isSuperAdmin.value || authStore.kbId === props.kb.id)
 
 function handleClick() {
+  if (!canAccess.value) {
+    ElMessageBox.alert(
+      '您没有权限访问该知识库，只能进入您所属的知识库。',
+      '访问受限',
+      {
+        confirmButtonText: '我知道了',
+        type: 'warning',
+        icon: Lock,
+      }
+    )
+    return
+  }
   router.push(`/kb/${props.kb.id}`)
 }
 
@@ -110,6 +126,20 @@ function formatDate(dateStr) {
 
 .kb-card:hover {
   transform: translateY(-4px);
+}
+
+.kb-card--locked {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.kb-card--locked:hover {
+  transform: none;
+}
+
+.lock-icon {
+  font-size: 16px;
+  color: #909399;
 }
 
 .kb-card-header {
