@@ -23,6 +23,7 @@ Content-Type: application/json
   "password": "super_admin"
 }
 
+###
 # 登录成功后，token 自动从响应中提取，后续请求直接使用 {{token}}
 @token = {{login.response.body.data.access_token}}
 

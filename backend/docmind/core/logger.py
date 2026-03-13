@@ -34,7 +34,7 @@ from pathlib import Path
 from docmind.core.config import settings
 
 # Level ordering — entries below the configured minimum are silently dropped
-_LEVELS = {"debug": 0, "info": 1, "error": 2}
+_LEVELS = {"debug": 0, "info": 1, "warning": 2, "error": 3}
 
 
 def _log_dir() -> Path:
@@ -147,6 +147,19 @@ def info(topic: str, data: dict) -> None:
         data:  Structured payload as a dict.
     """
     _write("info", topic, data)
+
+
+def warning(topic: str, data: dict) -> None:
+    """Write a WARNING-level log entry.
+
+    Use for expected-but-notable events: business exceptions, bad client input,
+    suspicious activity — anything that is not a server bug but warrants attention.
+
+    Args:
+        topic: Context tag for grep-friendly searching (snake_case recommended).
+        data:  Structured payload as a dict.
+    """
+    _write("warning", topic, data)
 
 
 def error(topic: str, data: dict) -> None:
