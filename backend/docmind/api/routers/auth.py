@@ -103,6 +103,7 @@ async def login(body: LoginRequest):
             is_super_admin=is_super_admin,
             kb_id=user["kb_id"],
             role=user["role"],
+            username=user["username"]
         ).model_dump(),
         message="Login successful",
     )

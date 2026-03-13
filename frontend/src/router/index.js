@@ -29,6 +29,11 @@ const routes = [
         path: 'kb/:id',
         name: 'KbDetail',
         component: () => import('../views/KbDetailView.vue'),
+      },
+      {
+        path: 'profile',
+        name: 'UserProfile',
+        component: () => import('../views/UserProfileView.vue'),
       }
     ]
   }

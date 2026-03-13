@@ -32,7 +32,11 @@
                 {{ doc.chunk_count }} Chunks
               </span>
               <span class="doc-date">{{ formatDate(doc.created_at) }}</span>
-              <span class="doc-uploader" v-if="doc.uploader_name">
+              <span class="doc-kb" v-if="mode === 'profile' && doc.kb_display_name">
+                <el-icon><Folder /></el-icon>
+                {{ doc.kb_display_name }}
+              </span>
+              <span class="doc-uploader" v-if="mode !== 'profile' && doc.uploader_name">
                 <el-icon><User /></el-icon>
                 {{ doc.uploader_name }}
               </span>
@@ -56,7 +60,7 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
-import { Delete, Coin, Document, Memo, User } from '@element-plus/icons-vue'
+import { Delete, Coin, Document, Memo, User, Folder } from '@element-plus/icons-vue'
 import { ElMessageBox, ElMessage } from 'element-plus'
 import { getDocuments, getDocumentsByKb, deleteDocument } from '@/api/ingest'
 
@@ -66,6 +70,10 @@ const props = defineProps({
     type: String,
     default: null,
   },
+  mode: {
+    type: String,
+    default: 'kb', // 'kb' or 'profile'
+  }
 })
 
 const emit = defineEmits(['deleted'])
@@ -231,7 +239,8 @@ onMounted(() => {
   color: #c0c4cc;
 }
 
-.doc-uploader {
+.doc-uploader,
+.doc-kb {
   display: flex;
   align-items: center;
   gap: 3px;

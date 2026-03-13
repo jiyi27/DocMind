@@ -156,6 +156,19 @@ class DocumentRepository:
             rows = await cur.fetchall()
             return [dict(r) for r in rows]
 
+    async def list_by_user_with_kb_info(self, user_id: str) -> list[dict[str, Any]]:
+        """Return all documents uploaded by a specific user across all KBs, with KB display name."""
+        query = """
+            SELECT d.*, k.name AS kb_name, k.display_name AS kb_display_name
+            FROM documents d
+            LEFT JOIN knowledge_bases k ON d.kb_id = k.id
+            WHERE d.user_id = ?
+            ORDER BY d.created_at DESC
+        """
+        async with self.db.execute(query, (user_id,)) as cur:
+            rows = await cur.fetchall()
+            return [dict(r) for r in rows]
+
     async def list_by_kb(self, kb_id: str) -> list[dict[str, Any]]:
         async with self.db.execute(
             "SELECT * FROM documents WHERE kb_id = ? ORDER BY created_at DESC", (kb_id,)

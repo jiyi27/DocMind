@@ -19,6 +19,10 @@
               <el-tag v-if="isSuperAdmin" type="danger" size="small">Super Admin</el-tag>
               <el-tag v-else type="info" size="small">User</el-tag>
             </el-dropdown-item>
+            <el-dropdown-item command="profile">
+              <el-icon><User /></el-icon>
+              My Profile
+            </el-dropdown-item>
             <el-dropdown-item divided command="logout">
               <el-icon><SwitchButton /></el-icon>
               Sign Out
@@ -34,7 +38,7 @@
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
-import { Reading, ArrowDown, SwitchButton } from '@element-plus/icons-vue'
+import { Reading, ArrowDown, SwitchButton, User } from '@element-plus/icons-vue'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -47,6 +51,8 @@ function handleCommand(command) {
   if (command === 'logout') {
     authStore.clearAuth()
     router.push('/login')
+  } else if (command === 'profile') {
+    router.push('/profile')
   }
 }
 </script>

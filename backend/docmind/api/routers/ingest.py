@@ -120,10 +120,10 @@ async def ingest_document(
 async def list_documents(
     current_user: UserContext = Depends(get_current_user),
 ):
-    """Return all documents uploaded by the current user, along with total count."""
+    """Return all documents uploaded by the current user across all KBs, along with total count."""
     async with get_db() as db:
         doc_repo = DocumentRepository(db)
-        docs = await doc_repo.list_by_user(current_user.user_id)
+        docs = await doc_repo.list_by_user_with_kb_info(current_user.user_id)
     return ok(data={"total": len(docs), "documents": docs})
 
 

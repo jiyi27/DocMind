@@ -22,6 +22,7 @@ class TokenResponse(BaseModel):
     is_super_admin: bool = False
     kb_id: str = ""
     role: str = ""
+    username: str = ""
 
 
 class UserOut(BaseModel):
