@@ -22,6 +22,15 @@ export function getDocuments() {
 }
 
 /**
+ * 获取当前用户在指定知识库的文档列表
+ * GET /ingest/documents/kb/{kb_id}
+ * @param {string} kbId
+ */
+export function getDocumentsByKb(kbId) {
+    return http.get(`/ingest/documents/kb/${kbId}`)
+}
+
+/**
  * 删除文档及向量数据
  * DELETE /ingest/{doc_id}
  * @param {string} docId

@@ -109,16 +109,30 @@ async def ingest_document(
 async def list_documents(
     current_user: UserContext = Depends(get_current_user),
 ):
-    """Return all documents uploaded by the current user."""
+    """Return all documents uploaded by the current user, along with total count."""
     async with get_db() as db:
         doc_repo = DocumentRepository(db)
         docs = await doc_repo.list_by_user(current_user.user_id)
-    return ok(data=docs)
+    return ok(data={"total": len(docs), "documents": docs})
 
 
 # ---------------------------------------------------------------------------
-# DELETE /ingest/{doc_id}  — delete a document and its vectors
+# GET /ingest/documents/kb/{kb_id}  — list current user's docs in a specific KB
 # ---------------------------------------------------------------------------
+
+@router.get("/documents/kb/{kb_id}")
+async def list_documents_by_kb(
+    kb_id: str,
+    current_user: UserContext = Depends(get_current_user),
+):
+    """Return documents uploaded by the current user within a specific knowledge base.
+
+    Also returns the total count of matching documents.
+    """
+    async with get_db() as db:
+        doc_repo = DocumentRepository(db)
+        docs = await doc_repo.list_by_user_and_kb(current_user.user_id, kb_id)
+    return ok(data={"total": len(docs), "documents": docs})
 
 # ---------------------------------------------------------------------------
 # GET /ingest/{doc_id}/chunks  — inspect chunks of a document
@@ -170,6 +184,10 @@ async def get_document_chunks(
 
     return ok(data=result)
 
+
+# ---------------------------------------------------------------------------
+# DELETE /ingest/{doc_id}  — delete a document and its vectors
+# ---------------------------------------------------------------------------
 
 @router.delete("/{doc_id}")
 async def delete_document(

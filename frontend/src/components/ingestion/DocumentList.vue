@@ -54,7 +54,7 @@
 import { ref, onMounted } from 'vue'
 import { Delete, Coin, Document, Memo } from '@element-plus/icons-vue'
 import { ElMessageBox, ElMessage } from 'element-plus'
-import { getDocuments, deleteDocument } from '@/api/ingest'
+import { getDocuments, getDocumentsByKb, deleteDocument } from '@/api/ingest'
 
 const props = defineProps({
   // Pass kbId if needed for future filtering; currently API returns user's docs
@@ -90,8 +90,11 @@ function formatDate(dateStr) {
 async function fetchDocuments() {
   loading.value = true
   try {
-    const data = await getDocuments()
-    documents.value = data || []
+    const res = props.kbId
+      ? await getDocumentsByKb(props.kbId)
+      : await getDocuments()
+    // API returns { total, documents } envelope
+    documents.value = res?.documents ?? res ?? []
   } catch (err) {
     // Error handled by interceptor
   } finally {

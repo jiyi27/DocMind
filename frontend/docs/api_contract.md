@@ -165,24 +165,50 @@ Authorization: Bearer <your_access_token>
 *   **Path**: `/ingest/documents`
 *   **Response `data` (code: 0)**:
     ```json
-    [
-      {
-        "id": "uuid",
-        "file_name": "example.pdf",
-        "title": "Example Title",
-        "doc_type": "all",
-        "chunk_count": 45,
-        "created_at": "timestamp"
-      }
-    ]
+    {
+      "total": 2,
+      "documents": [
+        {
+          "id": "uuid",
+          "file_name": "example.pdf",
+          "title": "Example Title",
+          "doc_type": "all",
+          "chunk_count": 45,
+          "created_at": "timestamp"
+        }
+      ]
+    }
     ```
+    > **说明**：`total` 为当前用户上传的文档总数。
 
-### 3.3 删除文档及向量数据
+### 3.3 获取当前用户在指定知识库的文档列表
+*   **Method**: `GET`
+*   **Path**: `/ingest/documents/kb/{kb_id}`
+*   **Path Params**: `kb_id` — 知识库 UUID
+*   **Response `data` (code: 0)**:
+    ```json
+    {
+      "total": 1,
+      "documents": [
+        {
+          "id": "uuid",
+          "file_name": "example.pdf",
+          "title": "Example Title",
+          "doc_type": "all",
+          "chunk_count": 45,
+          "created_at": "timestamp"
+        }
+      ]
+    }
+    ```
+    > **说明**：仅返回当前登录用户在该知识库下上传的文档，`total` 为匹配文档数目。
+
+### 3.4 删除文档及向量数据
 *   **Method**: `DELETE`
 *   **Path**: `/ingest/{doc_id}`
 *   **Response `data` (code: 0)**: `{"doc_id": "uuid"}`
 
-### 3.4 检查文档 Chunk 列表
+### 3.5 检查文档 Chunk 列表
 *   **Method**: `GET`
 *   **Path**: `/ingest/{doc_id}/chunks?offset=0&limit=20`
 *   **Response `data` (code: 0)**: 返回 Qdrant Points 的分页信息 (含文本和 Metadata, 不含 Vector)。

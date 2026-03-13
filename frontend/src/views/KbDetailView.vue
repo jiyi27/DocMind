@@ -1,56 +1,44 @@
 <template>
-  <div class="kb-detail-layout">
-    <!-- Left Panel: Document Management -->
-    <div class="left-panel">
-      <!-- KB Info Header -->
-      <div class="panel-header">
-        <div class="kb-title-row">
-          <el-button
-            :icon="ArrowLeft"
-            text
-            size="small"
-            @click="router.push('/')"
-          />
-          <div class="kb-title-info">
-            <h2 class="kb-display-name">{{ kbDetail?.display_name || '知识库详情' }}</h2>
-            <span class="kb-slug">{{ kbDetail?.name }}</span>
-          </div>
-        </div>
-        <div v-if="kbDetail" class="kb-stats">
-          <el-tag size="small" type="info">{{ kbDetail.document_count ?? 0 }} 篇文档</el-tag>
-          <el-tag size="small" type="success">{{ kbDetail.total_points ?? 0 }} Chunks</el-tag>
+  <div class="kb-detail-page">
+    <!-- Page Header -->
+    <div class="page-header">
+      <div class="header-left">
+        <el-button :icon="ArrowLeft" text @click="router.push('/')" />
+        <div class="kb-title-info">
+          <h1 class="kb-display-name">{{ kbDetail?.display_name || '知识库详情' }}</h1>
+          <span class="kb-slug">{{ kbDetail?.name }}</span>
         </div>
       </div>
-
-      <el-divider />
-
-      <!-- Upload Section -->
-      <div class="section">
-        <h3 class="section-title">
-          <el-icon><Upload /></el-icon>
-          上传文档
-        </h3>
-        <UploadZone @uploaded="handleUploaded" />
-      </div>
-
-      <el-divider />
-
-      <!-- Document List Section -->
-      <div class="section">
-        <h3 class="section-title">
-          <el-icon><Files /></el-icon>
-          已有文档
-        </h3>
-        <DocumentList ref="docListRef" :kb-id="kbId" @deleted="handleDeleted" />
+      <div v-if="kbDetail" class="kb-stats">
+        <el-tag type="info">{{ kbDetail.document_count ?? 0 }} 篇文档</el-tag>
+        <el-tag type="success">{{ kbDetail.total_points ?? 0 }} Chunks</el-tag>
       </div>
     </div>
 
-    <!-- Right Panel: Chat Placeholder -->
-    <div class="right-panel">
-      <div class="chat-placeholder">
-        <el-icon class="placeholder-icon"><ChatDotRound /></el-icon>
-        <p class="placeholder-title">RAG 对话</p>
-        <p class="placeholder-desc">对话功能将在下一阶段实现</p>
+    <!-- Main Content: Two columns -->
+    <div class="page-body">
+      <!-- Upload Column -->
+      <div class="upload-column">
+        <div class="column-card">
+          <h3 class="column-title">
+            <el-icon><Upload /></el-icon>
+            上传文档
+          </h3>
+          <el-divider />
+          <UploadZone :kb-id="kbId" @uploaded="handleUploaded" />
+        </div>
+      </div>
+
+      <!-- Document List Column -->
+      <div class="list-column">
+        <div class="column-card">
+          <h3 class="column-title">
+            <el-icon><Files /></el-icon>
+            本知识库的文档
+          </h3>
+          <el-divider />
+          <DocumentList ref="docListRef" :kb-id="kbId" @deleted="handleDeleted" />
+        </div>
       </div>
     </div>
   </div>
@@ -59,7 +47,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ArrowLeft, Upload, Files, ChatDotRound } from '@element-plus/icons-vue'
+import { ArrowLeft, Upload, Files } from '@element-plus/icons-vue'
 import { useKbStore } from '@/stores/kb'
 import UploadZone from '@/components/ingestion/UploadZone.vue'
 import DocumentList from '@/components/ingestion/DocumentList.vue'
@@ -93,32 +81,24 @@ function handleDeleted() {
 </script>
 
 <style scoped>
-.kb-detail-layout {
-  display: flex;
-  height: calc(100vh - 60px); /* Subtract AppHeader height */
-  overflow: hidden;
-}
-
-/* Left Panel */
-.left-panel {
-  width: 420px;
-  flex-shrink: 0;
-  background: #fff;
-  border-right: 1px solid #e4e7ed;
+.kb-detail-page {
+  max-width: 1400px;
+  margin: 0 auto;
   display: flex;
   flex-direction: column;
-  overflow-y: auto;
-  padding: 20px;
-  gap: 0;
+  gap: 24px;
 }
 
-.panel-header {
+/* Page Header */
+.page-header {
   display: flex;
-  flex-direction: column;
-  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
 }
 
-.kb-title-row {
+.header-left {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -131,7 +111,7 @@ function handleDeleted() {
 }
 
 .kb-display-name {
-  font-size: 16px;
+  font-size: 22px;
   font-weight: 700;
   color: #303133;
   margin: 0;
@@ -149,54 +129,29 @@ function handleDeleted() {
   flex-wrap: wrap;
 }
 
-.section {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+/* Two-column body */
+.page-body {
+  display: grid;
+  grid-template-columns: 420px 1fr;
+  gap: 24px;
+  align-items: start;
 }
 
-.section-title {
+.column-card {
+  background: #fff;
+  border: 1px solid #e4e7ed;
+  border-radius: 8px;
+  padding: 20px;
+}
+
+.column-title {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 600;
-  color: #606266;
+  color: #303133;
   margin: 0;
 }
 
-/* Right Panel */
-.right-panel {
-  flex: 1;
-  background: #f5f7fa;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.chat-placeholder {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12px;
-  color: #c0c4cc;
-}
-
-.placeholder-icon {
-  font-size: 64px;
-  color: #dcdfe6;
-}
-
-.placeholder-title {
-  font-size: 18px;
-  font-weight: 600;
-  color: #909399;
-  margin: 0;
-}
-
-.placeholder-desc {
-  font-size: 13px;
-  color: #c0c4cc;
-  margin: 0;
-}
 </style>
