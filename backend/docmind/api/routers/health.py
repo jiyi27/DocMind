@@ -12,8 +12,9 @@ from docmind.api.response import ok, err
 router = APIRouter(tags=["health"])
 
 
-@router.get("/health", summary="Health Check", description="Verify system status and connectivity of external dependencies (Qdrant, LLM API, etc.)")
+@router.get("/health", summary="Health Check")
 async def health_check():
+    """Verify system status and connectivity of external dependencies (Qdrant, LLM API, etc.)."""
     checks: dict[str, str] = {}
 
     # Check Qdrant connectivity (run in thread to avoid blocking the event loop)

@@ -14,11 +14,12 @@ from docmind.retrieval.graph import rag_graph
 router = APIRouter(prefix="/chat", tags=["chat"])
 
 
-@router.post("", summary="KB Conversation", description="Send a question to the RAG knowledge base. Supports multi-turn conversation via session_id, restricted to the user's knowledge base.")
+@router.post("", summary="KB Conversation")
 async def chat(
     request: ChatRequest,
     current_user: UserContext = Depends(get_current_user),
 ) -> JSONResponse:
+    """Send a question to the RAG knowledge base. Supports multi-turn conversation via session_id, restricted to the user's knowledge base."""
     result = rag_graph.invoke(
         {
             "query": request.chat_input,

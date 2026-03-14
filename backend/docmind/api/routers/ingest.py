@@ -26,7 +26,7 @@ router = APIRouter(prefix="/ingest", tags=["ingestion"])
 # POST /ingest/{kb_id}  — upload and ingest a document into a specific KB
 # ---------------------------------------------------------------------------
 
-@router.post("/{kb_id}", status_code=status.HTTP_201_CREATED, summary="Upload and Ingest Document", description="Upload a PDF or Markdown file to a specific KB, extract text, and store in the vector database")
+@router.post("/{kb_id}", status_code=status.HTTP_201_CREATED, summary="Upload and Ingest Document")
 async def ingest_document(
     kb_id: str,
     file: UploadFile = File(..., description="PDF or Markdown file to ingest"),
@@ -37,6 +37,7 @@ async def ingest_document(
     department: str = Form(default="all"),
     current_user: UserContext = Depends(get_current_user),
 ):
+    """Upload a PDF or Markdown file to a specific KB, extract text, and store in the vector database."""
     # Resolve KB name (Qdrant collection slug) from the provided kb_id
     async with get_db() as db:
         kb_repo = KBRepository(db)
@@ -110,10 +111,11 @@ async def ingest_document(
 # GET /ingest/documents  — list current user's documents
 # ---------------------------------------------------------------------------
 
-@router.get("/documents", summary="List All User Documents", description="Return a list of document records uploaded by the current user across all knowledge bases")
+@router.get("/documents", summary="List All User Documents")
 async def list_documents(
     current_user: UserContext = Depends(get_current_user),
 ):
+    """Return a list of document records uploaded by the current user across all knowledge bases."""
     async with get_db() as db:
         doc_repo = DocumentRepository(db)
         docs = await doc_repo.list_by_user_with_kb_info(current_user.user_id)
@@ -124,11 +126,12 @@ async def list_documents(
 # GET /ingest/documents/kb/{kb_id}  — list current user's docs in a specific KB
 # ---------------------------------------------------------------------------
 
-@router.get("/documents/kb/{kb_id}", summary="List Documents by KB", description="Return document records within a specific KB (Admins see all, regular users see only theirs)")
+@router.get("/documents/kb/{kb_id}", summary="List Documents by KB")
 async def list_documents_by_kb(
     kb_id: str,
     current_user: UserContext = Depends(get_current_user),
 ):
+    """Return document records within a specific KB (Admins see all, regular users see only theirs)."""
     is_super_admin = (current_user.role == "super_admin")
     is_kb_admin = (current_user.role == "admin" and current_user.kb_id == kb_id)
 
@@ -145,13 +148,14 @@ async def list_documents_by_kb(
 # GET /ingest/{doc_id}/chunks  — inspect chunks of a document
 # ---------------------------------------------------------------------------
 
-@router.get("/{doc_id}/chunks", summary="Inspect Document Chunks", description="Examine text chunks and metadata of a specific document after splitting for validation")
+@router.get("/{doc_id}/chunks", summary="Inspect Document Chunks")
 async def get_document_chunks(
     doc_id: str,
     offset: int = 0,
     limit: int = 20,
     current_user: UserContext = Depends(get_current_user),
 ):
+    """Examine text chunks and metadata of a specific document after splitting for validation."""
     if not (1 <= limit <= 100):
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -187,11 +191,12 @@ async def get_document_chunks(
 # DELETE /ingest/{doc_id}  — delete a document and its vectors
 # ---------------------------------------------------------------------------
 
-@router.delete("/{doc_id}", summary="Delete Document", description="Permanently remove a document and its associated vector chunks from the database and vector store")
+@router.delete("/{doc_id}", summary="Delete Document")
 async def delete_document(
     doc_id: str,
     current_user: UserContext = Depends(get_current_user),
 ):
+    """Permanently remove a document and its associated vector chunks from the database and vector store."""
     async with get_db() as db:
         doc_repo = DocumentRepository(db)
         doc = await doc_repo.get_by_id(doc_id)

@@ -38,11 +38,12 @@ class KBOut(BaseModel):
 # POST /kb
 # ---------------------------------------------------------------------------
 
-@router.post("", status_code=status.HTTP_201_CREATED, summary="Create Knowledge Base", description="Initialize a new knowledge base and its corresponding vector collection (Super-admin only)")
+@router.post("", status_code=status.HTTP_201_CREATED, summary="Create Knowledge Base")
 async def create_knowledge_base(
     body: KBCreate,
     _: UserContext = Depends(require_super_admin),
 ):
+    """Initialize a new knowledge base and its corresponding vector collection (Super-admin only)."""
     # Validate slug format
     if not body.name.replace("_", "").replace("-", "").isalnum():
         raise HTTPException(
@@ -77,8 +78,9 @@ async def create_knowledge_base(
 # GET /kb
 # ---------------------------------------------------------------------------
 
-@router.get("", summary="List Knowledge Bases", description="Return a list of all registered knowledge bases and their basic info")
+@router.get("", summary="List Knowledge Bases")
 async def list_knowledge_bases():
+    """Return a list of all registered knowledge bases and their basic info."""
     async with get_db() as db:
         repo = KBRepository(db)
         kbs = await repo.list_all()
@@ -89,8 +91,9 @@ async def list_knowledge_bases():
 # GET /kb/{kb_id}
 # ---------------------------------------------------------------------------
 
-@router.get("/{kb_id}", summary="Get Knowledge Base Details", description="Retrieve detailed configuration and statistics (e.g., total documents and chunks) for a specific KB")
+@router.get("/{kb_id}", summary="Get Knowledge Base Details")
 async def get_knowledge_base(kb_id: str):
+    """Retrieve detailed configuration and statistics (e.g., total documents and chunks) for a specific KB."""
     async with get_db() as db:
         kb_repo = KBRepository(db)
         doc_repo = DocumentRepository(db)
@@ -109,11 +112,12 @@ async def get_knowledge_base(kb_id: str):
 # DELETE /kb/{kb_id}
 # ---------------------------------------------------------------------------
 
-@router.delete("/{kb_id}", summary="Delete Knowledge Base", description="Completely remove a KB, its document records, and its vector collection (Super-admin only)")
+@router.delete("/{kb_id}", summary="Delete Knowledge Base")
 async def delete_knowledge_base(
     kb_id: str,
     _: UserContext = Depends(require_super_admin),
 ):
+    """Completely remove a KB, its document records, and its vector collection (Super-admin only)."""
     async with get_db() as db:
         kb_repo = KBRepository(db)
         doc_repo = DocumentRepository(db)
