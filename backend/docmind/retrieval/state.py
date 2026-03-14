@@ -15,8 +15,6 @@ class RAGState(TypedDict, total=False):
     ----------
     query : str
         The user's current question.
-    session_id : str
-        Session identifier for multi-turn conversation tracking.
     retrieved_docs : list
         Raw documents retrieved from the vector store.
     context : str
@@ -32,8 +30,7 @@ class RAGState(TypedDict, total=False):
     """
 
     query: str
-    session_id: str
-    kb_name: str   # knowledge base slug — selects the Qdrant collection to search
+    kb_name: str  # knowledge base slug — selects the Qdrant collection to search
     retrieved_docs: list
     context: str
     sources: list[str]
