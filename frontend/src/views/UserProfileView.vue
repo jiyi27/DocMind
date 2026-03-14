@@ -45,8 +45,7 @@ const isSuperAdmin = computed(() => authStore.user?.role === 'super_admin')
 
 <style scoped>
 .user-profile {
-  max-width: 1000px;
-  margin: 0 auto;
+  width: 100%;
 }
 
 .page-header {

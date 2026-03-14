@@ -21,6 +21,11 @@ const routes = [
     meta: { requiresAuth: true },
     children: [
       {
+        path: 'chat',
+        name: 'Chat',
+        component: () => import('../views/ChatView.vue'),
+      },
+      {
         path: '',
         name: 'Dashboard',
         component: () => import('../views/DashboardView.vue'),

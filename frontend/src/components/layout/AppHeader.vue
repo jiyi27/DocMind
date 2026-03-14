@@ -1,9 +1,22 @@
 <template>
   <el-header class="app-header">
-    <router-link to="/" class="header-left">
-      <el-icon class="logo-icon"><Reading /></el-icon>
-      <span class="logo-text">DocMind</span>
-    </router-link>
+    <div class="header-left">
+      <router-link to="/" class="brand">
+        <el-icon class="logo-icon"><Reading /></el-icon>
+        <span class="logo-text">DocMind</span>
+      </router-link>
+      <nav class="main-nav">
+        <router-link
+          v-for="item in navItems"
+          :key="item.name"
+          :to="item.to"
+          class="nav-link"
+          :class="{ active: route.name === item.name }"
+        >
+          {{ item.label }}
+        </router-link>
+      </nav>
+    </div>
     <div class="header-right">
       <el-dropdown trigger="click" @command="handleCommand">
         <span class="user-info">
@@ -19,10 +32,6 @@
               <el-tag v-if="isSuperAdmin" type="danger" size="small">Super Admin</el-tag>
               <el-tag v-else type="info" size="small">User</el-tag>
             </el-dropdown-item>
-            <el-dropdown-item command="profile">
-              <el-icon><User /></el-icon>
-              My Profile
-            </el-dropdown-item>
             <el-dropdown-item divided command="logout">
               <el-icon><SwitchButton /></el-icon>
               Sign Out
@@ -36,23 +45,27 @@
 
 <script setup>
 import { computed } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
-import { Reading, ArrowDown, SwitchButton, User } from '@element-plus/icons-vue'
+import { Reading, ArrowDown, SwitchButton } from '@element-plus/icons-vue'
 
 const router = useRouter()
+const route = useRoute()
 const authStore = useAuthStore()
 
 const username = computed(() => authStore.user?.username || 'User')
 const userInitial = computed(() => username.value.charAt(0).toUpperCase())
 const isSuperAdmin = computed(() => authStore.user?.role === 'super_admin')
+const navItems = [
+  { name: 'Chat', label: 'Chat', to: '/chat' },
+  { name: 'Dashboard', label: 'Knowledge Base', to: '/' },
+  { name: 'UserProfile', label: 'Profile', to: '/profile' }
+]
 
 function handleCommand(command) {
   if (command === 'logout') {
     authStore.clearAuth()
     router.push('/login')
-  } else if (command === 'profile') {
-    router.push('/profile')
   }
 }
 </script>
@@ -72,6 +85,13 @@ function handleCommand(command) {
 .header-left {
   display: flex;
   align-items: center;
+  gap: 24px;
+  min-width: 0;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
   gap: 10px;
   cursor: pointer;
   text-decoration: none;
@@ -87,6 +107,32 @@ function handleCommand(command) {
   font-weight: 700;
   color: #303133;
   letter-spacing: 0.5px;
+}
+
+.main-nav {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.nav-link {
+  color: #606266;
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 6px 8px;
+  border-radius: 6px;
+  transition: background-color 0.2s, color 0.2s;
+}
+
+.nav-link:hover {
+  background-color: #f5f7fa;
+  color: #303133;
+}
+
+.nav-link.active {
+  color: #409eff;
+  background-color: rgba(64, 158, 255, 0.12);
 }
 
 .header-right {

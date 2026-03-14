@@ -21,5 +21,7 @@ import AppHeader from './AppHeader.vue'
 .main-content {
   padding: 24px;
   flex: 1;
+  display: flex;
+  flex-direction: column;
 }
 </style>
