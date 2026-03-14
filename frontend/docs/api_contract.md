@@ -97,6 +97,12 @@ The backend uses a standard response structure for successful business logic and
 *   **Path**: `/kb/{kb_id}`
 *   **Response `data` (code: 0)**: KB details including `document_count` and `total_points` (vector chunks).
 
+### 2.4 Delete Knowledge Base (Super-Admin Only)
+*   **Method**: `DELETE`
+*   **Path**: `/kb/{kb_id}`
+*   **Description**: Completely remove a KB, all its document records, and its vector collection.
+*   **Response `data` (code: 0)**: `{"kb_id": "uuid", "documents_removed": 10}`
+
 ---
 
 ## 🔹 3. Document Ingestion
@@ -126,6 +132,19 @@ The backend uses a standard response structure for successful business logic and
     *   **Regular User**: Returns only documents uploaded by the user in this KB.
     *   **Admin/Super-Admin**: Returns ALL documents in this KB.
 
+### 3.4 Delete Document
+*   **Method**: `DELETE`
+*   **Path**: `/ingest/{doc_id}`
+*   **Description**: Permanently remove a document and its associated vector chunks.
+*   **Response `data` (code: 0)**: `{"doc_id": "uuid"}`
+
+### 3.5 Inspect Document Chunks
+*   **Method**: `GET`
+*   **Path**: `/ingest/{doc_id}/chunks`
+*   **Query Params**: `offset` (default 0), `limit` (default 20)
+*   **Description**: Retrieve paginated text chunks for a document to verify ingestion quality.
+*   **Response `data` (code: 0)**: List of chunk objects.
+
 ---
 
 ## 🔹 4. Chat & Retrieval
@@ -150,3 +169,22 @@ The backend uses a standard response structure for successful business logic and
     }
     ```
     > **Note**: This is a direct response (non-streaming). Frontend should display the answer and source citations.
+
+---
+
+## 🔹 5. System Health
+
+### 5.1 Health Check
+*   **Method**: `GET`
+*   **Path**: `/health`
+*   **Description**: Check system status and connectivity to Qdrant and LLM providers.
+*   **Response `data` (code: 0)**:
+    ```json
+    {
+      "status": "ok",
+      "checks": {
+        "qdrant": "ok",
+        "llm_api_key": "configured"
+      }
+    }
+    ```
