@@ -75,7 +75,8 @@ def generate_node(state: RAGState) -> dict:
         llm = get_llm()
         chain = rag_prompt | llm
 
-        # Append current turn to the injected history before invoking the LLM
+        # History is pre-truncated by the chat router before being passed in.
+        # Append the current turn and invoke the LLM.
         messages = list(state.get("messages", []))
         messages.append(HumanMessage(content=state["query"]))
 

@@ -17,12 +17,16 @@
           v-for="(message, index) in conversation.messages"
           :key="message.id ?? index"
           class="chat-message"
-          :class="message.role"
+          :class="[message.role, { 'msg-error': message.status === 'error' }]"
         >
           <div class="chat-message-role">
             {{ message.role === 'user' ? 'You' : 'Assistant' }}
           </div>
           <div class="chat-message-text">{{ message.content }}</div>
+          <!-- Send failure indicator -->
+          <div v-if="message.status === 'error'" class="msg-error-hint">
+            Send failed — please try again
+          </div>
           <!-- Sources -->
           <div v-if="message.sources && message.sources.length" class="chat-sources">
             <span class="sources-label">Sources:</span>
@@ -160,6 +164,17 @@ watch(
   align-self: flex-end;
   background-color: #eff6ff;
   border: 1px solid #bfdbfe;
+}
+
+.chat-message.msg-error {
+  border-color: #fca5a5;
+  background-color: #fff5f5;
+}
+
+.msg-error-hint {
+  font-size: 12px;
+  color: #ef4444;
+  margin-top: 2px;
 }
 
 .chat-message.assistant {

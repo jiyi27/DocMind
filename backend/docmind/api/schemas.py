@@ -55,21 +55,9 @@ class IngestMetadata(BaseModel):
         return v
 
 
-class HistoryMessage(BaseModel):
-    """A single message in the conversation history passed by the client."""
-
-    role: Literal["user", "assistant"]
-    content: str
-
-
 class ChatRequest(BaseModel):
     chat_input: str = Field(..., alias="chatInput", description="The user's question")
     session_id: str = Field(..., alias="sessionId", description="Chat session UUID")
-    messages: list[HistoryMessage] = Field(
-        default_factory=list,
-        alias="messages",
-        description="Full conversation history prior to this turn (oldest first)",
-    )
 
 
 class ChatSessionCreate(BaseModel):

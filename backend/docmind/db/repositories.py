@@ -30,7 +30,9 @@ class KBRepository:
     def __init__(self, db: aiosqlite.Connection) -> None:
         self.db = db
 
-    async def create(self, name: str, display_name: str, description: str = "") -> dict[str, Any]:
+    async def create(
+        self, name: str, display_name: str, description: str = ""
+    ) -> dict[str, Any]:
         kb_id = str(uuid.uuid4())
         now = _now()
         await self.db.execute(
@@ -38,23 +40,37 @@ class KBRepository:
             (kb_id, name, display_name, description, now),
         )
         await self.db.commit()
-        return {"id": kb_id, "name": name, "display_name": display_name, "description": description, "created_at": now}
+        return {
+            "id": kb_id,
+            "name": name,
+            "display_name": display_name,
+            "description": description,
+            "created_at": now,
+        }
 
     async def get_by_id(self, kb_id: str) -> dict[str, Any] | None:
-        async with self.db.execute("SELECT * FROM knowledge_bases WHERE id = ?", (kb_id,)) as cur:
+        async with self.db.execute(
+            "SELECT * FROM knowledge_bases WHERE id = ?", (kb_id,)
+        ) as cur:
             return _row_to_dict(await cur.fetchone())
 
     async def get_by_name(self, name: str) -> dict[str, Any] | None:
-        async with self.db.execute("SELECT * FROM knowledge_bases WHERE name = ?", (name,)) as cur:
+        async with self.db.execute(
+            "SELECT * FROM knowledge_bases WHERE name = ?", (name,)
+        ) as cur:
             return _row_to_dict(await cur.fetchone())
 
     async def list_all(self) -> list[dict[str, Any]]:
-        async with self.db.execute("SELECT * FROM knowledge_bases ORDER BY created_at") as cur:
+        async with self.db.execute(
+            "SELECT * FROM knowledge_bases ORDER BY created_at"
+        ) as cur:
             rows = await cur.fetchall()
             return [dict(r) for r in rows]
 
     async def delete(self, kb_id: str) -> bool:
-        cur = await self.db.execute("DELETE FROM knowledge_bases WHERE id = ?", (kb_id,))
+        cur = await self.db.execute(
+            "DELETE FROM knowledge_bases WHERE id = ?", (kb_id,)
+        )
         await self.db.commit()
         return cur.rowcount > 0
 
@@ -91,11 +107,15 @@ class UserRepository:
         }
 
     async def get_by_id(self, user_id: str) -> dict[str, Any] | None:
-        async with self.db.execute("SELECT * FROM users WHERE id = ?", (user_id,)) as cur:
+        async with self.db.execute(
+            "SELECT * FROM users WHERE id = ?", (user_id,)
+        ) as cur:
             return _row_to_dict(await cur.fetchone())
 
     async def get_by_username(self, username: str) -> dict[str, Any] | None:
-        async with self.db.execute("SELECT * FROM users WHERE username = ?", (username,)) as cur:
+        async with self.db.execute(
+            "SELECT * FROM users WHERE username = ?", (username,)
+        ) as cur:
             return _row_to_dict(await cur.fetchone())
 
 
@@ -146,12 +166,15 @@ class DocumentRepository:
         }
 
     async def get_by_id(self, doc_id: str) -> dict[str, Any] | None:
-        async with self.db.execute("SELECT * FROM documents WHERE id = ?", (doc_id,)) as cur:
+        async with self.db.execute(
+            "SELECT * FROM documents WHERE id = ?", (doc_id,)
+        ) as cur:
             return _row_to_dict(await cur.fetchone())
 
     async def list_by_user(self, user_id: str) -> list[dict[str, Any]]:
         async with self.db.execute(
-            "SELECT * FROM documents WHERE user_id = ? ORDER BY created_at DESC", (user_id,)
+            "SELECT * FROM documents WHERE user_id = ? ORDER BY created_at DESC",
+            (user_id,),
         ) as cur:
             rows = await cur.fetchall()
             return [dict(r) for r in rows]
@@ -176,7 +199,9 @@ class DocumentRepository:
             rows = await cur.fetchall()
             return [dict(r) for r in rows]
 
-    async def list_by_user_and_kb(self, user_id: str, kb_id: str) -> list[dict[str, Any]]:
+    async def list_by_user_and_kb(
+        self, user_id: str, kb_id: str
+    ) -> list[dict[str, Any]]:
         """Return all documents uploaded by a specific user within a specific KB."""
         async with self.db.execute(
             "SELECT * FROM documents WHERE user_id = ? AND kb_id = ? ORDER BY created_at DESC",
@@ -198,7 +223,9 @@ class DocumentRepository:
             rows = await cur.fetchall()
             return [dict(r) for r in rows]
 
-    async def list_by_user_and_kb_with_user_info(self, user_id: str, kb_id: str) -> list[dict[str, Any]]:
+    async def list_by_user_and_kb_with_user_info(
+        self, user_id: str, kb_id: str
+    ) -> list[dict[str, Any]]:
         """Return all documents uploaded by a specific user within a specific KB with uploader username."""
         query = """
             SELECT d.*, u.username AS uploader_name
@@ -219,7 +246,8 @@ class DocumentRepository:
     async def sum_chunk_count_by_kb(self, kb_id: str) -> int:
         """Return the total number of vector points (chunks) across all documents in a KB."""
         async with self.db.execute(
-            "SELECT COALESCE(SUM(chunk_count), 0) FROM documents WHERE kb_id = ?", (kb_id,)
+            "SELECT COALESCE(SUM(chunk_count), 0) FROM documents WHERE kb_id = ?",
+            (kb_id,),
         ) as cur:
             row = await cur.fetchone()
             return int(row[0]) if row else 0
@@ -273,7 +301,9 @@ class ChatSessionRepository:
         }
 
     async def get_by_id(self, session_id: str) -> dict[str, Any] | None:
-        async with self.db.execute("SELECT * FROM chat_sessions WHERE id = ?", (session_id,)) as cur:
+        async with self.db.execute(
+            "SELECT * FROM chat_sessions WHERE id = ?", (session_id,)
+        ) as cur:
             return _row_to_dict(await cur.fetchone())
 
     async def list_by_user(
@@ -342,6 +372,15 @@ class ChatSessionRepository:
             )
         await self.db.commit()
 
+    async def update_title(self, session_id: str, title: str) -> None:
+        """Overwrite the session title (used after async LLM title generation)."""
+        now = _now()
+        await self.db.execute(
+            "UPDATE chat_sessions SET title = ?, updated_at = ? WHERE id = ?",
+            (title, now, session_id),
+        )
+        await self.db.commit()
+
 
 # ---------------------------------------------------------------------------
 # Chat Message Repository
@@ -370,7 +409,16 @@ class ChatMessageRepository:
             INSERT INTO chat_messages (id, session_id, role, content, sources_json, model_name, token_count, created_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (_id, session_id, role, content, sources_json, model_name, token_count, now),
+            (
+                _id,
+                session_id,
+                role,
+                content,
+                sources_json,
+                model_name,
+                token_count,
+                now,
+            ),
         )
         await self.db.commit()
         return {
