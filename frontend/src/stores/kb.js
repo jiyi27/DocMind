@@ -1,7 +1,6 @@
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
 import { getKbs, getKbDetail, createKb, deleteKb } from '@/api/kb'
-import { ElMessage } from 'element-plus'
 
 export const useKbStore = defineStore('kb', () => {
     // State
@@ -41,7 +40,6 @@ export const useKbStore = defineStore('kb', () => {
     async function addKb(formData) {
         const data = await createKb(formData)
         kbList.value.unshift(data)
-        ElMessage.success('Knowledge base created successfully')
         return data
     }
 
@@ -51,7 +49,6 @@ export const useKbStore = defineStore('kb', () => {
         if (currentKb.value?.id === kbId) {
             currentKb.value = null
         }
-        ElMessage.success('Knowledge base deleted')
     }
 
     function setCurrentKb(kb) {

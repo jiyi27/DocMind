@@ -1,5 +1,6 @@
 import axios from 'axios'
 import { ElMessage } from 'element-plus'
+import { useAuthStore } from '@/stores/auth'
 
 const http = axios.create({
   baseURL: import.meta.env.VITE_API_URL || 'http://localhost:8000',
@@ -45,8 +46,8 @@ http.interceptors.response.use(
     if (error.response) {
       if (error.response.status === 401) {
         ElMessage.error('Session expired, please login again')
-        localStorage.removeItem('token')
-        localStorage.removeItem('user')
+        const authStore = useAuthStore()
+        authStore.clearAuth()
         window.location.href = '/login'
       } else {
         const detail = error.response.data?.detail || error.message

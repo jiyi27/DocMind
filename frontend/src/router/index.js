@@ -53,10 +53,7 @@ const router = createRouter({
 router.beforeEach((to, from, next) => {
   const authStore = useAuthStore()
 
-  // Determine if the route requires authentication. 
-  // We use explicitly matched meta, and also fallback to checking if it's not a guest route.
-  const isAuthRequired = to.matched.some(record => record.meta.requiresAuth) ||
-    (!['Login', 'Register'].includes(to.name))
+  const isAuthRequired = to.matched.some(record => record.meta.requiresAuth)
 
   const isGuestOnly = to.matched.some(record => record.meta.requiresGuest)
 

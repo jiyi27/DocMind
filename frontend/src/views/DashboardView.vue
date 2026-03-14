@@ -59,6 +59,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { useKbStore } from '@/stores/kb'
 import { Plus } from '@element-plus/icons-vue'
+import { ElMessage } from 'element-plus'
 import KbCard from '@/components/kb/KbCard.vue'
 import CreateKbDialog from '@/components/kb/CreateKbDialog.vue'
 
@@ -78,10 +79,12 @@ function openCreateDialog() {
 
 async function handleCreateKb(formData) {
   await kbStore.addKb(formData)
+  ElMessage.success('Knowledge base created successfully')
 }
 
 async function handleDeleteKb(kbId) {
   await kbStore.removeKb(kbId)
+  ElMessage.success('Knowledge base deleted')
 }
 </script>
 

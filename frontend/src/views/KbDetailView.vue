@@ -62,26 +62,22 @@ const router = useRouter()
 const kbStore = useKbStore()
 
 const kbId = computed(() => route.params.id)
-const kbDetail = ref(null)
+const kbDetail = computed(() => kbStore.currentKb)
 const docListRef = ref(null)
 
 onMounted(async () => {
-  kbDetail.value = await kbStore.fetchKbDetail(kbId.value)
+  await kbStore.fetchKbDetail(kbId.value)
 })
 
 function handleUploaded() {
   // Refresh document list and KB stats after upload
   docListRef.value?.refresh()
-  kbStore.fetchKbDetail(kbId.value).then((data) => {
-    kbDetail.value = data
-  })
+  kbStore.fetchKbDetail(kbId.value)
 }
 
 function handleDeleted() {
   // Refresh KB stats after deletion
-  kbStore.fetchKbDetail(kbId.value).then((data) => {
-    kbDetail.value = data
-  })
+  kbStore.fetchKbDetail(kbId.value)
 }
 </script>
 
