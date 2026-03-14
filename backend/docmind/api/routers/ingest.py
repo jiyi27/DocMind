@@ -17,7 +17,10 @@ from docmind.auth.schemas import UserContext
 from docmind.db.database import get_db
 from docmind.db.repositories import DocumentRepository, KBRepository
 from docmind.ingestion.graph import ingestion_graph
-from docmind.vectorstore.qdrant_store import delete_documents_by_doc_id, get_chunks_by_doc_id
+from docmind.vectorstore.qdrant_store import (
+    delete_documents_by_doc_id,
+    get_chunks_by_doc_id,
+)
 
 router = APIRouter(prefix="/ingest", tags=["ingestion"])
 
@@ -26,7 +29,12 @@ router = APIRouter(prefix="/ingest", tags=["ingestion"])
 # POST /ingest/{kb_id}  — upload and ingest a document into a specific KB
 # ---------------------------------------------------------------------------
 
-@router.post("/{kb_id}", status_code=status.HTTP_201_CREATED, summary="Upload and Ingest Document")
+
+@router.post(
+    "/{kb_id}",
+    status_code=status.HTTP_201_CREATED,
+    summary="Upload and Ingest Document",
+)
 async def ingest_document(
     kb_id: str,
     file: UploadFile = File(..., description="PDF or Markdown file to ingest"),
@@ -44,7 +52,9 @@ async def ingest_document(
         kb = await kb_repo.get_by_id(kb_id)
 
     if not kb:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Knowledge base not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Knowledge base not found"
+        )
 
     kb_name = kb["name"]
     file_name = file.filename or "unknown"
@@ -70,13 +80,15 @@ async def ingest_document(
         tmp_path = tmp.name
 
     try:
-        result = ingestion_graph.invoke({
-            "file_path": tmp_path,
-            "metadata": metadata.model_dump(),
-            "user_id": current_user.user_id,
-            "doc_id": doc_id,
-            "kb_name": kb_name,
-        })
+        result = ingestion_graph.invoke(
+            {
+                "file_path": tmp_path,
+                "metadata": metadata.model_dump(),
+                "user_id": current_user.user_id,
+                "doc_id": doc_id,
+                "kb_name": kb_name,
+            }
+        )
     finally:
         Path(tmp_path).unlink(missing_ok=True)
 
@@ -111,6 +123,7 @@ async def ingest_document(
 # GET /ingest/documents  — list current user's documents
 # ---------------------------------------------------------------------------
 
+
 @router.get("/documents", summary="List All User Documents")
 async def list_documents(
     current_user: UserContext = Depends(get_current_user),
@@ -126,27 +139,65 @@ async def list_documents(
 # GET /ingest/documents/kb/{kb_id}  — list current user's docs in a specific KB
 # ---------------------------------------------------------------------------
 
+
 @router.get("/documents/kb/{kb_id}", summary="List Documents by KB")
 async def list_documents_by_kb(
     kb_id: str,
     current_user: UserContext = Depends(get_current_user),
 ):
     """Return document records within a specific KB (Admins see all, regular users see only theirs)."""
-    is_super_admin = (current_user.role == "super_admin")
-    is_kb_admin = (current_user.role == "admin" and current_user.kb_id == kb_id)
+    is_super_admin = current_user.role == "super_admin"
+    is_kb_admin = current_user.role == "admin" and current_user.kb_id == kb_id
 
     async with get_db() as db:
         doc_repo = DocumentRepository(db)
         if is_super_admin or is_kb_admin:
             docs = await doc_repo.list_by_kb_with_user_info(kb_id)
         else:
-            docs = await doc_repo.list_by_user_and_kb_with_user_info(current_user.user_id, kb_id)
+            docs = await doc_repo.list_by_user_and_kb_with_user_info(
+                current_user.user_id, kb_id
+            )
 
     return ok(data={"total": len(docs), "documents": docs})
+
+
+# ---------------------------------------------------------------------------
+# GET /ingest/documents/{doc_id}  — get a single document's metadata
+# ---------------------------------------------------------------------------
+
+
+@router.get("/documents/{doc_id}", summary="Get Document Detail")
+async def get_document(
+    doc_id: str,
+    current_user: UserContext = Depends(get_current_user),
+):
+    """Return metadata for a single document."""
+    async with get_db() as db:
+        doc_repo = DocumentRepository(db)
+        doc = await doc_repo.get_by_id(doc_id)
+
+    if not doc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Document not found"
+        )
+
+    async with get_db() as db:
+        kb_repo = KBRepository(db)
+        kb = await kb_repo.get_by_id(doc["kb_id"])
+
+    return ok(
+        data={
+            **doc,
+            "kb_display_name": kb["display_name"] if kb else None,
+            "kb_name": kb["name"] if kb else None,
+        }
+    )
+
 
 # ---------------------------------------------------------------------------
 # GET /ingest/{doc_id}/chunks  — inspect chunks of a document
 # ---------------------------------------------------------------------------
+
 
 @router.get("/{doc_id}/chunks", summary="Inspect Document Chunks")
 async def get_document_chunks(
@@ -174,10 +225,14 @@ async def get_document_chunks(
         kb = await kb_repo.get_by_id(doc["kb_id"]) if doc else None
 
     if not doc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Document not found"
+        )
 
     if not kb:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Knowledge base not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Knowledge base not found"
+        )
 
     result = get_chunks_by_doc_id(
         kb_name=kb["name"],
@@ -193,6 +248,7 @@ async def get_document_chunks(
 # DELETE /ingest/{doc_id}  — delete a document and its vectors
 # ---------------------------------------------------------------------------
 
+
 @router.delete("/{doc_id}", summary="Delete Document")
 async def delete_document(
     doc_id: str,
@@ -204,14 +260,21 @@ async def delete_document(
         doc = await doc_repo.get_by_id(doc_id)
 
         if not doc:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Document not found"
+            )
 
         is_super_admin = current_user.role == "super_admin"
-        is_kb_admin = current_user.role == "admin" and current_user.kb_id == doc["kb_id"]
+        is_kb_admin = (
+            current_user.role == "admin" and current_user.kb_id == doc["kb_id"]
+        )
         is_owner = doc["user_id"] == current_user.user_id
 
         if not (is_owner or is_super_admin or is_kb_admin):
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to delete this document")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Not authorized to delete this document",
+            )
 
         # Delete vectors from Qdrant first
         delete_documents_by_doc_id(current_user.kb_name, doc_id)

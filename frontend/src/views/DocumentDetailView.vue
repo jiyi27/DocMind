@@ -76,8 +76,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ArrowLeft, Folder, List } from '@element-plus/icons-vue'
-import { getDocuments, getDocumentsByKb, getDocumentChunks } from '@/api/ingest'
-import { getKbDetail } from '@/api/kb'
+import { getDocumentById, getDocumentChunks } from '@/api/ingest'
 
 const route = useRoute()
 const router = useRouter()
@@ -148,23 +147,11 @@ function formatDate(dateStr) {
 async function fetchMeta() {
   loadingMeta.value = true
   try {
-    const kbId = preset.kbId || docMeta.value.kb_id
-    let doc = null
-    if (kbId) {
-      const res = await getDocumentsByKb(kbId)
-      const docs = res?.documents ?? res ?? []
-      doc = docs.find((item) => item.id === docId.value)
-    } else {
-      const res = await getDocuments()
-      const docs = res?.documents ?? res ?? []
-      doc = docs.find((item) => item.id === docId.value)
-    }
+    const doc = await getDocumentById(docId.value)
     if (doc) {
       docMeta.value = { ...docMeta.value, ...doc }
-    }
-    const finalKbId = docMeta.value.kb_id || preset.kbId
-    if (finalKbId) {
-      kbDetail.value = await getKbDetail(finalKbId)
+      // kb info is already included in the response (kb_display_name, kb_name)
+      kbDetail.value = doc.kb_name ? { name: doc.kb_name, display_name: doc.kb_display_name } : null
     }
   } catch {
     // Errors handled by interceptor

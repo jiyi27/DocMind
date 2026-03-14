@@ -23,6 +23,15 @@ export function getDocuments() {
 }
 
 /**
+ * Get a single document's metadata
+ * GET /ingest/documents/{doc_id}
+ * @param {string} docId
+ */
+export function getDocumentById(docId) {
+    return http.get(`/ingest/documents/${docId}`)
+}
+
+/**
  * Get current user's document list in specified KB
  * GET /ingest/documents/kb/{kb_id}
  * @param {string} kbId
