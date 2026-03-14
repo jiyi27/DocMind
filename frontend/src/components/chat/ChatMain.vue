@@ -36,8 +36,8 @@
           </div>
         </div>
 
-        <!-- Typing indicator -->
-        <div v-if="sending" class="chat-message assistant typing">
+        <!-- Typing indicator: show only while waiting for the first chunk -->
+        <div v-if="sending && !streamingMessage" class="chat-message assistant typing">
           <div class="chat-message-role">Assistant</div>
           <div class="chat-message-text typing-dots">
             <span></span><span></span><span></span>
@@ -70,7 +70,7 @@
 </template>
 
 <script setup>
-import { ref, watch, nextTick } from 'vue'
+import { ref, watch, nextTick, computed } from 'vue'
 
 const props = defineProps({
   conversation: {
@@ -88,6 +88,11 @@ const props = defineProps({
   },
 })
 
+// The assistant message currently being streamed (streaming: true and has content)
+const streamingMessage = computed(() =>
+  props.conversation?.messages?.find((m) => m.streaming && m.content),
+)
+
 const emit = defineEmits(['send'])
 
 const inputText = ref('')
@@ -100,9 +105,9 @@ function submit() {
   emit('send', text)
 }
 
-// Auto-scroll to the bottom when new messages arrive or sending state changes
+// Auto-scroll to the bottom when new messages arrive, a chunk streams in, or sending state changes
 watch(
-  () => [props.conversation?.messages?.length, props.sending],
+  () => [props.conversation?.messages?.length, props.sending, streamingMessage.value?.content],
   async () => {
     await nextTick()
     if (threadRef.value) {

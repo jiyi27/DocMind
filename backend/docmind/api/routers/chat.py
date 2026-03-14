@@ -1,11 +1,12 @@
-"""Chat router — RAG conversation endpoint."""
+"""Chat router — RAG conversation endpoint (blocking + streaming)."""
 
 from __future__ import annotations
 
+import asyncio
 import json
 
 from fastapi import APIRouter, BackgroundTasks, Depends
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from langchain_core.messages import AIMessage, HumanMessage
 
 from docmind.api.dependencies import get_current_user
@@ -17,6 +18,7 @@ from docmind.core.config import settings
 from docmind.db.database import get_db
 from docmind.db.repositories import ChatMessageRepository, ChatSessionRepository
 from docmind.retrieval.graph import rag_graph
+from docmind.retrieval.nodes import retrieve, stream_generate
 from docmind.retrieval.title import generate_session_title
 
 router = APIRouter(prefix="/chat", tags=["chat"])
@@ -129,4 +131,122 @@ async def chat(
             "kb_name": current_user.kb_name,
             "is_first_turn": is_first_turn,
         }
+    )
+
+
+@router.post("/stream", summary="KB Conversation (Streaming SSE)")
+async def chat_stream(
+    request: ChatRequest,
+    current_user: UserContext = Depends(get_current_user),
+) -> StreamingResponse:
+    """Stream the RAG answer token-by-token via Server-Sent Events.
+
+    SSE event types
+    ---------------
+    - ``data: {"type": "sources", "sources": [...]}``    — sent first, before text
+    - ``data: {"type": "chunk",   "text": "..."}``       — one per LLM token chunk
+    - ``data: {"type": "done",    "session_id": "..."}`` — sent after final token
+    - ``data: {"type": "error",   "message": "..."}``    — on unexpected failure
+
+    Flow
+    ----
+    1. Load session + history from SQLite
+    2. Run retrieval (sync) to get context + sources
+    3. Immediately persist the user message to SQLite
+    4. Emit a ``sources`` event, then stream LLM chunks via SSE
+    5. After stream ends, persist the full assistant answer and trigger title
+    """
+
+    async def event_generator():
+        # ── 1. Load session and history ──────────────────────────────────────
+        async with get_db() as db:
+            session_repo = ChatSessionRepository(db)
+            message_repo = ChatMessageRepository(db)
+
+            session = await session_repo.get_by_id(request.session_id)
+            if not session:
+                session = await session_repo.create(
+                    user_id=current_user.user_id,
+                    title="New Conversation",
+                    kb_id=current_user.kb_id,
+                    session_id=request.session_id,
+                )
+                logger.info("chat_session_created", {"session_id": request.session_id})
+
+            is_first_turn = session.get("message_count", 0) == 0
+
+            max_msg = settings.retrieval.max_messages
+            all_rows = await message_repo.list_by_session(request.session_id)
+            prior_rows = all_rows[-max_msg:] if max_msg > 0 else all_rows
+
+        lc_history = _db_messages_to_lc(prior_rows)
+
+        # ── 2. Retrieval (sync, fast) ─────────────────────────────────────────
+        context, sources = retrieve(request.chat_input, current_user.kb_name)
+
+        # ── 3. Persist user message immediately ──────────────────────────────
+        async with get_db() as db:
+            message_repo = ChatMessageRepository(db)
+            await message_repo.create(
+                session_id=request.session_id,
+                role="user",
+                content=request.chat_input,
+            )
+
+        # ── Emit sources before text starts ──────────────────────────────────
+        yield f"data: {json.dumps({'type': 'sources', 'sources': sources}, ensure_ascii=False)}\n\n"
+
+        # ── 4. Stream LLM generation ──────────────────────────────────────────
+        answer_parts: list[str] = []
+        try:
+            async for text in stream_generate(
+                query=request.chat_input,
+                context=context,
+                sources=sources,
+                messages=lc_history,
+            ):
+                answer_parts.append(text)
+                yield f"data: {json.dumps({'type': 'chunk', 'text': text}, ensure_ascii=False)}\n\n"
+        except Exception as exc:
+            yield f"data: {json.dumps({'type': 'error', 'message': str(exc)}, ensure_ascii=False)}\n\n"
+            return
+
+        # ── 5. Persist assistant answer + update session ──────────────────────
+        full_answer = "".join(answer_parts)
+        async with get_db() as db:
+            session_repo = ChatSessionRepository(db)
+            message_repo = ChatMessageRepository(db)
+
+            await message_repo.create(
+                session_id=request.session_id,
+                role="assistant",
+                content=full_answer,
+                sources_json=json.dumps(sources, ensure_ascii=False),
+            )
+            await session_repo.touch(
+                request.session_id,
+                message_count_delta=2,
+                last_message_preview=full_answer[:160],
+            )
+
+        # Fire-and-forget title generation on first turn
+        if is_first_turn:
+            asyncio.create_task(
+                generate_session_title(
+                    session_id=request.session_id,
+                    user_input=request.chat_input,
+                    assistant_answer=full_answer,
+                )
+            )
+
+        # ── Done event ────────────────────────────────────────────────────────
+        yield f"data: {json.dumps({'type': 'done', 'session_id': request.session_id}, ensure_ascii=False)}\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",  # disable Nginx buffering if present
+        },
     )

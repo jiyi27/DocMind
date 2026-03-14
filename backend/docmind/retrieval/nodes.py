@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from langchain_core.messages import HumanMessage
+from typing import AsyncGenerator
+
+from langchain_core.messages import AnyMessage, HumanMessage
 
 from docmind.core import logger
 from docmind.core.config import settings
@@ -99,3 +101,66 @@ def generate_node(state: RAGState) -> dict:
         raise
 
     return {"answer": result.content}
+
+
+def retrieve(query: str, kb_name: str) -> tuple[str, list[str]]:
+    """Run retrieval synchronously and return (context, sources).
+
+    Extracted as a standalone function for use by the streaming chat endpoint,
+    which bypasses the LangGraph graph and drives retrieval + generation directly.
+    """
+    state: RAGState = {"query": query, "kb_name": kb_name}
+    result = retrieve_node(state)
+    return result["context"], result["sources"]
+
+
+async def stream_generate(
+    query: str,
+    context: str,
+    sources: list[str],
+    messages: list[AnyMessage],
+) -> AsyncGenerator[str, None]:
+    """Stream LLM token chunks for the given query + RAG context.
+
+    Yields raw text fragments (not SSE-formatted). The caller is responsible
+    for wrapping chunks in SSE lines and flushing them to the HTTP response.
+
+    Parameters
+    ----------
+    query:
+        The current user question.
+    context:
+        Formatted retrieval context assembled by ``retrieve()``.
+    sources:
+        Source citation strings assembled by ``retrieve()``.
+    messages:
+        Prior conversation history (LangChain message objects), already
+        truncated by the caller to MAX_MESSAGES.
+    """
+    llm = get_llm()
+    chain = rag_prompt | llm
+
+    lc_messages = list(messages)
+    lc_messages.append(HumanMessage(content=query))
+
+    try:
+        async for chunk in chain.astream(
+            {
+                "context": context,
+                "sources": "\n".join(sources),
+                "messages": lc_messages,
+            }
+        ):
+            text = chunk.content
+            if text:
+                yield text
+    except Exception as exc:
+        logger.error(
+            "retrieval_stream_failed",
+            {
+                "query": query[:200],
+                "error_type": type(exc).__name__,
+                "error": str(exc),
+            },
+        )
+        raise

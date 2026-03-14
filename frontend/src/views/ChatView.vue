@@ -25,7 +25,7 @@ import { ElMessage } from 'element-plus'
 import ChatSidebar from '@/components/chat/ChatSidebar.vue'
 import ChatMain from '@/components/chat/ChatMain.vue'
 import { fetchChatList, fetchChatDetail } from '@/services/chat'
-import { getChatSessions, createChatSession, sendChatMessage, getChatSessionDetail } from '@/api/chats'
+import { getChatSessions, createChatSession, sendChatMessageStream, getChatSessionDetail } from '@/api/chats'
 
 const chatList = ref([])
 const activeChatId = ref('')
@@ -155,7 +155,7 @@ function pollForTitle(sessionId, sidebarItem, conversation, attempt = 1, maxAtte
 }
 
 /**
- * Send a user message in the active conversation.
+ * Send a user message in the active conversation (streaming SSE).
  * Called by ChatMain via the @send event.
  *
  * @param {string} input - The user's question
@@ -168,44 +168,55 @@ async function sendMessage(input) {
   if (!conversation) return
 
   // Optimistically append the user message to the UI
+  const isFirstTurn = conversation.messages.length === 0
   conversation.messages.push({ role: 'user', content: input, id: Date.now() })
+
+  // Pre-insert a streaming assistant message with empty content
+  const assistantMsg = { role: 'assistant', content: '', sources: [], id: Date.now() + 1, streaming: true }
+  conversation.messages.push(assistantMsg)
   activeConversation.value = { ...conversation }
 
   sending.value = true
   try {
-    const result = await sendChatMessage(sessionId, input)
+    let pendingSources = []
+    await sendChatMessageStream(sessionId, input, {
+      onSources(sources) {
+        // Hold sources until stream is done — avoids showing them before the answer
+        pendingSources = sources
+      },
+      onChunk(text) {
+        assistantMsg.content += text
+        // Trigger Vue reactivity by replacing the reference
+        activeConversation.value = { ...conversation }
+      },
+      onDone() {
+        assistantMsg.streaming = false
+        assistantMsg.sources = pendingSources
+        activeConversation.value = { ...conversation }
 
-    // Mark the optimistic user message as successfully sent
-    const userMsg = conversation.messages[conversation.messages.length - 1]
-    if (userMsg) delete userMsg.status
+        // Update sidebar preview counters
+        const sidebarItem = chatList.value.find((c) => c.id === sessionId)
+        if (sidebarItem) {
+          sidebarItem.message_count = (sidebarItem.message_count || 0) + 2
+          sidebarItem.last_message_preview = assistantMsg.content.slice(0, 80)
+        }
 
-    const assistantMsg = {
-      role: 'assistant',
-      content: result.answer,
-      sources: result.sources || [],
-      id: Date.now() + 1,
-    }
-    conversation.messages.push(assistantMsg)
-    activeConversation.value = { ...conversation }
-
-    // Update sidebar preview counters immediately
-    const sidebarItem = chatList.value.find((c) => c.id === sessionId)
-    if (sidebarItem) {
-      sidebarItem.message_count = (sidebarItem.message_count || 0) + 2
-      sidebarItem.last_message_preview = result.answer.slice(0, 80)
-    }
-
-    // First turn: title is generated async on the server after the response.
-    // Poll GET /chats/{id} up to 3 times (every 3s) until a real title appears.
-    if (result.is_first_turn) {
-      pollForTitle(sessionId, sidebarItem, conversation)
-    }
+        // First turn: poll for server-generated title
+        if (isFirstTurn) {
+          pollForTitle(sessionId, sidebarItem, conversation)
+        }
+      },
+      onError(message) {
+        assistantMsg.streaming = false
+        assistantMsg.status = 'error'
+        activeConversation.value = { ...conversation }
+        ElMessage.error(message || 'Stream error, please try again')
+      },
+    })
   } catch {
-    // Keep the user message in the UI but mark it as failed so the user can
-    // see what they sent. Removing it entirely risks losing input on timeout
-    // when the backend may have already persisted it successfully.
-    const userMsg = conversation.messages[conversation.messages.length - 1]
-    if (userMsg) userMsg.status = 'error'
+    // Network-level failure — mark the assistant bubble as error
+    assistantMsg.streaming = false
+    assistantMsg.status = 'error'
     activeConversation.value = { ...conversation }
     ElMessage.error('Failed to send message, please try again')
   } finally {
