@@ -14,7 +14,11 @@
         @click="$emit('select', item.id)"
       >
         <span class="chat-title">{{ item.title }}</span>
-        <span class="chat-meta">{{ item.id }}</span>
+        <span v-if="item.last_message_preview" class="chat-preview">{{ item.last_message_preview }}</span>
+        <span class="chat-meta">
+          <span>{{ item.id }}</span>
+          <span v-if="item.updated_at" class="chat-time">{{ formatTime(item.updated_at) }}</span>
+        </span>
       </button>
       <div v-if="!loading && items.length === 0" class="chat-empty">
         No conversations yet.
@@ -42,6 +46,17 @@ defineProps({
 })
 
 defineEmits(['select', 'create'])
+
+function formatTime(raw) {
+  if (!raw) {
+    return ''
+  }
+  const date = new Date(raw)
+  if (Number.isNaN(date.getTime())) {
+    return raw
+  }
+  return date.toLocaleString()
+}
 </script>
 
 <style scoped>
@@ -106,9 +121,24 @@ defineEmits(['select', 'create'])
   color: #1f2937;
 }
 
+.chat-preview {
+  font-size: 12px;
+  color: #4b5563;
+  line-height: 1.4;
+}
+
 .chat-meta {
   font-size: 12px;
   color: #6b7280;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.chat-time {
+  color: #94a3b8;
+  white-space: nowrap;
 }
 
 .chat-empty {

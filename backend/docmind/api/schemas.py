@@ -55,3 +55,16 @@ class IngestMetadata(BaseModel):
 class ChatRequest(BaseModel):
     chat_input: str = Field(..., alias="chatInput", description="The user's question")
     session_id: str = Field(default="default", alias="sessionId")
+
+
+class ChatSessionCreate(BaseModel):
+    title: str = Field(default="New Conversation")
+    kb_id: str | None = None
+
+
+class ChatMessageCreate(BaseModel):
+    role: str
+    content: str
+    sources: list[str] = Field(default_factory=list)
+    model_name: str = ""
+    token_count: int = 0

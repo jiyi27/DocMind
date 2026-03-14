@@ -36,8 +36,38 @@ CREATE TABLE IF NOT EXISTS documents (
 );
 """
 
+CREATE_CHAT_SESSIONS_TABLE = """
+CREATE TABLE IF NOT EXISTS chat_sessions (
+    id              TEXT PRIMARY KEY,
+    user_id         TEXT NOT NULL REFERENCES users(id),
+    kb_id           TEXT REFERENCES knowledge_bases(id),
+    title           TEXT NOT NULL,
+    status          TEXT NOT NULL DEFAULT 'active',
+    message_count   INTEGER NOT NULL DEFAULT 0,
+    last_message_at TEXT,
+    last_message_preview TEXT DEFAULT '',
+    created_at      TEXT NOT NULL,
+    updated_at      TEXT NOT NULL
+);
+"""
+
+CREATE_CHAT_MESSAGES_TABLE = """
+CREATE TABLE IF NOT EXISTS chat_messages (
+    id          TEXT PRIMARY KEY,
+    session_id  TEXT NOT NULL REFERENCES chat_sessions(id) ON DELETE CASCADE,
+    role        TEXT NOT NULL,
+    content     TEXT NOT NULL,
+    sources_json TEXT DEFAULT '',
+    model_name  TEXT DEFAULT '',
+    token_count INTEGER DEFAULT 0,
+    created_at  TEXT NOT NULL
+);
+"""
+
 ALL_TABLES = [
     CREATE_KNOWLEDGE_BASES_TABLE,
     CREATE_USERS_TABLE,
     CREATE_DOCUMENTS_TABLE,
+    CREATE_CHAT_SESSIONS_TABLE,
+    CREATE_CHAT_MESSAGES_TABLE,
 ]

@@ -229,3 +229,165 @@ class DocumentRepository:
         cur = await self.db.execute("DELETE FROM documents WHERE kb_id = ?", (kb_id,))
         await self.db.commit()
         return cur.rowcount
+
+
+# ---------------------------------------------------------------------------
+# Chat Session Repository
+# ---------------------------------------------------------------------------
+
+
+class ChatSessionRepository:
+    def __init__(self, db: aiosqlite.Connection) -> None:
+        self.db = db
+
+    async def create(
+        self,
+        user_id: str,
+        title: str,
+        kb_id: str | None = None,
+        status: str = "active",
+        session_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Create a chat session record."""
+        chat_id = session_id or str(uuid.uuid4())
+        now = _now()
+        await self.db.execute(
+            """
+            INSERT INTO chat_sessions (id, user_id, kb_id, title, status, message_count, last_message_at, last_message_preview, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (chat_id, user_id, kb_id, title, status, 0, None, "", now, now),
+        )
+        await self.db.commit()
+        return {
+            "id": chat_id,
+            "user_id": user_id,
+            "kb_id": kb_id,
+            "title": title,
+            "status": status,
+            "message_count": 0,
+            "last_message_at": None,
+            "last_message_preview": "",
+            "created_at": now,
+            "updated_at": now,
+        }
+
+    async def get_by_id(self, session_id: str) -> dict[str, Any] | None:
+        async with self.db.execute("SELECT * FROM chat_sessions WHERE id = ?", (session_id,)) as cur:
+            return _row_to_dict(await cur.fetchone())
+
+    async def list_by_user(
+        self,
+        user_id: str,
+        kb_id: str | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> list[dict[str, Any]]:
+        if kb_id:
+            query = """
+                SELECT * FROM chat_sessions
+                WHERE user_id = ? AND kb_id = ?
+                ORDER BY updated_at DESC
+                LIMIT ? OFFSET ?
+            """
+            params = (user_id, kb_id, limit, offset)
+        else:
+            query = """
+                SELECT * FROM chat_sessions
+                WHERE user_id = ?
+                ORDER BY updated_at DESC
+                LIMIT ? OFFSET ?
+            """
+            params = (user_id, limit, offset)
+        async with self.db.execute(query, params) as cur:
+            rows = await cur.fetchall()
+            return [dict(r) for r in rows]
+
+    async def count_by_user(self, user_id: str, kb_id: str | None = None) -> int:
+        if kb_id:
+            query = "SELECT COUNT(*) FROM chat_sessions WHERE user_id = ? AND kb_id = ?"
+            params = (user_id, kb_id)
+        else:
+            query = "SELECT COUNT(*) FROM chat_sessions WHERE user_id = ?"
+            params = (user_id,)
+        async with self.db.execute(query, params) as cur:
+            row = await cur.fetchone()
+            return int(row[0]) if row else 0
+
+    async def touch(
+        self,
+        session_id: str,
+        message_count_delta: int = 0,
+        last_message_preview: str | None = None,
+    ) -> None:
+        """Update session activity timestamps and optional message count/preview."""
+        now = _now()
+        if last_message_preview is None:
+            await self.db.execute(
+                """
+                UPDATE chat_sessions
+                SET updated_at = ?, last_message_at = ?, message_count = message_count + ?
+                WHERE id = ?
+                """,
+                (now, now, message_count_delta, session_id),
+            )
+        else:
+            await self.db.execute(
+                """
+                UPDATE chat_sessions
+                SET updated_at = ?, last_message_at = ?, message_count = message_count + ?, last_message_preview = ?
+                WHERE id = ?
+                """,
+                (now, now, message_count_delta, last_message_preview, session_id),
+            )
+        await self.db.commit()
+
+
+# ---------------------------------------------------------------------------
+# Chat Message Repository
+# ---------------------------------------------------------------------------
+
+
+class ChatMessageRepository:
+    def __init__(self, db: aiosqlite.Connection) -> None:
+        self.db = db
+
+    async def create(
+        self,
+        session_id: str,
+        role: str,
+        content: str,
+        sources_json: str = "",
+        model_name: str = "",
+        token_count: int = 0,
+        message_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Create a chat message record."""
+        _id = message_id or str(uuid.uuid4())
+        now = _now()
+        await self.db.execute(
+            """
+            INSERT INTO chat_messages (id, session_id, role, content, sources_json, model_name, token_count, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (_id, session_id, role, content, sources_json, model_name, token_count, now),
+        )
+        await self.db.commit()
+        return {
+            "id": _id,
+            "session_id": session_id,
+            "role": role,
+            "content": content,
+            "sources_json": sources_json,
+            "model_name": model_name,
+            "token_count": token_count,
+            "created_at": now,
+        }
+
+    async def list_by_session(self, session_id: str) -> list[dict[str, Any]]:
+        async with self.db.execute(
+            "SELECT * FROM chat_messages WHERE session_id = ? ORDER BY created_at ASC",
+            (session_id,),
+        ) as cur:
+            rows = await cur.fetchall()
+            return [dict(r) for r in rows]
