@@ -1,27 +1,27 @@
-"""RAG chat LangGraph — retrieve → generate."""
+"""RAG chat LangGraph — retrieve → generate.
+
+Stateless design: conversation history is passed in via the initial state
+on every invocation. No checkpointer is used; persistence is handled by
+the chat router writing to SQLite after each turn.
+"""
 
 from __future__ import annotations
 
 from langgraph.graph import END, StateGraph
-from langgraph.checkpoint.memory import MemorySaver
 
 from docmind.retrieval.nodes import generate_node, retrieve_node
 from docmind.retrieval.state import RAGState
 
 
-def build_rag_graph(checkpointer=None):
-    """Build and compile the RAG chat graph.
+def build_rag_graph():
+    """Build and compile a stateless RAG chat graph.
 
     Flow
     ----
     retrieve → generate → END
 
-    Parameters
-    ----------
-    checkpointer:
-        Optional LangGraph checkpointer for session persistence.
-        Defaults to in-memory MemorySaver. For production, swap to
-        SqliteSaver or PostgresSaver.
+    History is injected into the initial state by the caller; the graph
+    itself holds no session state between invocations.
     """
     graph = StateGraph(RAGState)
 
@@ -32,13 +32,8 @@ def build_rag_graph(checkpointer=None):
     graph.add_edge("retrieve", "generate")
     graph.add_edge("generate", END)
 
-    # Persists the full RAGState snapshot (messages, context, sources, answer, etc.)
-    # keyed by thread_id (= session_id).
-    if checkpointer is None:
-        checkpointer = MemorySaver()
-
-    return graph.compile(checkpointer=checkpointer)
+    return graph.compile()
 
 
-# Pre-built graph instance with in-memory sessions
+# Module-level singleton — safe to reuse across requests (stateless)
 rag_graph = build_rag_graph()

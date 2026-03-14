@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pydantic import BaseModel, Field, field_validator
-from typing import Any
+from typing import Any, Literal
 
 from docmind.core.metadata_config import DEPARTMENTS, DOC_TYPES, SERVICES
 
@@ -49,12 +49,27 @@ class IngestMetadata(BaseModel):
     def validate_department(cls, v: list[str]) -> list[str]:
         invalid = [x for x in v if x not in DEPARTMENTS]
         if invalid:
-            raise ValueError(f"Invalid department values {invalid}. Allowed: {DEPARTMENTS}")
+            raise ValueError(
+                f"Invalid department values {invalid}. Allowed: {DEPARTMENTS}"
+            )
         return v
+
+
+class HistoryMessage(BaseModel):
+    """A single message in the conversation history passed by the client."""
+
+    role: Literal["user", "assistant"]
+    content: str
+
 
 class ChatRequest(BaseModel):
     chat_input: str = Field(..., alias="chatInput", description="The user's question")
-    session_id: str = Field(default="default", alias="sessionId")
+    session_id: str = Field(..., alias="sessionId", description="Chat session UUID")
+    messages: list[HistoryMessage] = Field(
+        default_factory=list,
+        alias="messages",
+        description="Full conversation history prior to this turn (oldest first)",
+    )
 
 
 class ChatSessionCreate(BaseModel):
@@ -63,7 +78,7 @@ class ChatSessionCreate(BaseModel):
 
 
 class ChatMessageCreate(BaseModel):
-    role: str
+    role: Literal["user", "assistant"]
     content: str
     sources: list[str] = Field(default_factory=list)
     model_name: str = ""
