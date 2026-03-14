@@ -22,6 +22,7 @@ htmlcov/
 .vscode/
 *.swp
 *.swo
+.ruff_cache/
 
 # OS
 .DS_Store
