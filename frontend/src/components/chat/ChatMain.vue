@@ -22,27 +22,37 @@
           <div class="chat-message-role">
             {{ message.role === 'user' ? 'You' : 'Assistant' }}
           </div>
-          <div class="chat-message-text">{{ message.content }}</div>
+          <div class="chat-message-text">
+            <template v-if="message.streaming && !message.content">
+              <div class="typing-dots"><span></span><span></span><span></span></div>
+            </template>
+            <template v-else>{{ message.content }}</template>
+          </div>
           <!-- Send failure indicator -->
           <div v-if="message.status === 'error'" class="msg-error-hint">
             Send failed — please try again
           </div>
           <!-- Sources -->
           <div v-if="message.sources && message.sources.length" class="chat-sources">
-            <span class="sources-label">Sources:</span>
-            <span v-for="(src, i) in message.sources" :key="i" class="source-item">
-              {{ src }}
-            </span>
+            <div class="sources-label">Sources</div>
+            <div class="sources-list">
+              <a
+                v-for="(src, i) in parseSources(message.sources)"
+                :key="i"
+                :href="src.url || undefined"
+                :target="src.url ? '_blank' : undefined"
+                :rel="src.url ? 'noopener noreferrer' : undefined"
+                class="source-item"
+                :class="{ 'source-item--no-link': !src.url }"
+              >
+                <span class="source-index">{{ src.index }}</span>
+                <span class="source-title">{{ src.title }}</span>
+              </a>
+            </div>
           </div>
         </div>
 
-        <!-- Typing indicator: show only while waiting for the first chunk -->
-        <div v-if="sending && !streamingMessage" class="chat-message assistant typing">
-          <div class="chat-message-role">Assistant</div>
-          <div class="chat-message-text typing-dots">
-            <span></span><span></span><span></span>
-          </div>
-        </div>
+
       </div>
 
       <!-- Input area -->
@@ -88,10 +98,31 @@ const props = defineProps({
   },
 })
 
-// The assistant message currently being streamed (streaming: true and has content)
-const streamingMessage = computed(() =>
-  props.conversation?.messages?.find((m) => m.streaming && m.content),
+// The streaming message's content (for auto-scroll watcher)
+const streamingContent = computed(() =>
+  props.conversation?.messages?.find((m) => m.streaming)?.content,
 )
+
+/**
+ * Parse raw source strings like:
+ *   "[1] [Title](https://...)"  → { index: "1", title: "Title", url: "https://..." }
+ *   "[2] Title only"            → { index: "2", title: "Title only", url: "" }
+ */
+function parseSources(sources) {
+  return sources.map((src) => {
+    // Try to match "[n] [title](url)"
+    const mdMatch = src.match(/^\[(\d+)\]\s+\[(.+?)\]\((.+?)\)$/)
+    if (mdMatch) {
+      return { index: mdMatch[1], title: mdMatch[2], url: mdMatch[3] }
+    }
+    // Try to match "[n] plain text"
+    const plainMatch = src.match(/^\[(\d+)\]\s+(.+)$/)
+    if (plainMatch) {
+      return { index: plainMatch[1], title: plainMatch[2], url: '' }
+    }
+    return { index: '', title: src, url: '' }
+  })
+}
 
 const emit = defineEmits(['send'])
 
@@ -107,7 +138,7 @@ function submit() {
 
 // Auto-scroll to the bottom when new messages arrive, a chunk streams in, or sending state changes
 watch(
-  () => [props.conversation?.messages?.length, props.sending, streamingMessage.value?.content],
+  () => [props.conversation?.messages?.length, props.sending, streamingContent.value],
   async () => {
     await nextTick()
     if (threadRef.value) {
@@ -207,23 +238,65 @@ watch(
 
 /* ── Sources ─────────────────────────────────────────── */
 .chat-sources {
-  margin-top: 6px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #e5e7eb;
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   gap: 6px;
-  font-size: 12px;
 }
 
 .sources-label {
-  color: #6b7280;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: #9ca3af;
   font-weight: 600;
 }
 
+.sources-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
 .source-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
   color: #3b82f6;
-  background: #eff6ff;
+  text-decoration: none;
+  padding: 4px 8px;
   border-radius: 6px;
-  padding: 2px 8px;
+  transition: background-color 0.15s;
+}
+
+.source-item:hover {
+  background-color: #eff6ff;
+  text-decoration: underline;
+}
+
+.source-item--no-link {
+  color: #6b7280;
+  cursor: default;
+}
+
+.source-item--no-link:hover {
+  background-color: transparent;
+  text-decoration: none;
+}
+
+.source-index {
+  flex-shrink: 0;
+  font-weight: 600;
+  color: #93c5fd;
+}
+
+.source-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* ── Typing indicator ───────────────────────────────── */
