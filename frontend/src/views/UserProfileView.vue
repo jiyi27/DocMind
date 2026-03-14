@@ -25,7 +25,9 @@
     <!-- Uploaded Documents -->
     <div class="documents-section">
       <h3 class="section-title">My Uploaded Documents</h3>
-      <DocumentList ref="docListRef" mode="profile" />
+      <div class="doc-list-wrap">
+        <DocumentList ref="docListRef" mode="profile" />
+      </div>
     </div>
   </div>
 </template>
@@ -106,5 +108,12 @@ const isSuperAdmin = computed(() => authStore.user?.role === 'super_admin')
   font-size: 18px;
   font-weight: 600;
   color: #303133;
+}
+
+.doc-list-wrap {
+  max-height: calc(100vh - 320px);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 </style>

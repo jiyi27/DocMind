@@ -144,6 +144,13 @@ function handleDeleted() {
   min-width: 0;
 }
 
+.list-column .column-card {
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 180px);
+  overflow: hidden;
+}
+
 .column-card {
   background: #fff;
   border: 1px solid #e4e7ed;

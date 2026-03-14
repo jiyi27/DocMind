@@ -26,6 +26,6 @@ import AppHeader from './AppHeader.vue'
   flex-direction: column;
   min-width: 0;
   min-height: 0;
-  overflow: hidden;
+  overflow-y: auto;
 }
 </style>

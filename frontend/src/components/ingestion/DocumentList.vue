@@ -189,6 +189,9 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
 }
 
 .list-loading {
