@@ -18,6 +18,11 @@
         v-for="doc in documents"
         :key="doc.id"
         class="doc-item"
+        role="button"
+        tabindex="0"
+        @click="goToDetail(doc)"
+        @keydown.enter="goToDetail(doc)"
+        @keydown.space.prevent="goToDetail(doc)"
       >
         <div class="doc-item-left">
           <el-icon class="doc-icon">
@@ -50,7 +55,7 @@
             size="small"
             text
             :loading="deletingId === doc.id"
-            @click="handleDelete(doc)"
+            @click.stop="handleDelete(doc)"
           />
         </div>
       </div>
@@ -60,6 +65,7 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { Delete, Coin, Document, Memo, User, Folder } from '@element-plus/icons-vue'
 import { ElMessageBox, ElMessage } from 'element-plus'
 import { getDocuments, getDocumentsByKb, deleteDocument } from '@/api/ingest'
@@ -73,7 +79,11 @@ const props = defineProps({
   mode: {
     type: String,
     default: 'kb', // 'kb' or 'profile'
-  }
+  },
+  kbName: {
+    type: String,
+    default: null,
+  },
 })
 
 const emit = defineEmits(['deleted'])
@@ -81,6 +91,7 @@ const emit = defineEmits(['deleted'])
 const documents = ref([])
 const loading = ref(false)
 const deletingId = ref(null)
+const router = useRouter()
 
 function getFileIcon(fileName) {
   if (!fileName) return Document
@@ -96,6 +107,24 @@ function formatDate(dateStr) {
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
+  })
+}
+
+function goToDetail(doc) {
+  if (!doc?.id) return
+  const kbId = props.kbId || doc.kb_id || null
+  const kbName = props.kbName || doc.kb_display_name || null
+  router.push({
+    name: 'DocumentDetail',
+    params: { id: doc.id },
+    query: {
+      kbId: kbId || undefined,
+      kbName: kbName || undefined,
+      title: doc.title || undefined,
+      fileName: doc.file_name || undefined,
+      docType: doc.doc_type || undefined,
+      chunkCount: doc.chunk_count ?? undefined,
+    },
   })
 }
 
@@ -181,11 +210,17 @@ onMounted(() => {
   border-radius: 8px;
   background: #fafafa;
   transition: box-shadow 0.2s;
+  cursor: pointer;
 }
 
 .doc-item:hover {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
   background: #fff;
+}
+
+.doc-item:focus-visible {
+  outline: 2px solid #409eff;
+  outline-offset: 2px;
 }
 
 .doc-item-left {

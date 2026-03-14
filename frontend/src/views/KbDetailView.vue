@@ -37,7 +37,12 @@
             My Documents
           </h3>
           <el-divider />
-          <DocumentList ref="docListRef" :kb-id="kbId" @deleted="handleDeleted" />
+          <DocumentList
+            ref="docListRef"
+            :kb-id="kbId"
+            :kb-name="kbDetail?.display_name"
+            @deleted="handleDeleted"
+          />
         </div>
       </div>
     </div>
