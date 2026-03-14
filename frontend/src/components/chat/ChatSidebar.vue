@@ -66,6 +66,7 @@ function formatTime(raw) {
   border-right: 1px solid #e2e8f0;
   display: flex;
   flex-direction: column;
+  min-width: 0;
 }
 
 .sidebar-header {

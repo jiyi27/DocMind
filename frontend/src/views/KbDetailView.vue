@@ -139,6 +139,11 @@ function handleDeleted() {
   align-items: start;
 }
 
+.upload-column,
+.list-column {
+  min-width: 0;
+}
+
 .column-card {
   background: #fff;
   border: 1px solid #e4e7ed;

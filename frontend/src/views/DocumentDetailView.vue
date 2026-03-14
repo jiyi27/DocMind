@@ -4,18 +4,24 @@
       <div class="header-left">
         <el-button :icon="ArrowLeft" text @click="router.back()" />
         <div class="doc-title-info">
-          <h1 class="doc-title">{{ docTitle }}</h1>
-          <span v-if="docMeta.file_name" class="doc-file">{{ docMeta.file_name }}</span>
+          <el-skeleton v-if="loadingMeta" :rows="1" animated />
+          <template v-else>
+            <h1 class="doc-title">{{ docTitle }}</h1>
+            <span v-if="docMeta.file_name" class="doc-file">{{ docMeta.file_name }}</span>
+          </template>
         </div>
       </div>
       <div class="header-right">
-        <el-tag type="info">{{ displayedChunkCount }} Chunks</el-tag>
-        <el-tag v-if="docMeta.doc_type" type="success">{{ docMeta.doc_type }}</el-tag>
+        <el-skeleton v-if="loadingMeta" :rows="1" animated />
+        <template v-else>
+          <el-tag type="info">{{ displayedChunkCount }} Chunks</el-tag>
+          <el-tag v-if="docMeta.doc_type" type="success">{{ docMeta.doc_type }}</el-tag>
+        </template>
       </div>
     </div>
 
     <div class="page-body">
-      <div class="summary-grid">
+      <div class="summary-grid" v-if="!loadingMeta">
         <div class="summary-card">
           <div class="summary-label">Knowledge Base</div>
           <div class="summary-value">
@@ -27,6 +33,14 @@
         <div class="summary-card">
           <div class="summary-label">Uploaded</div>
           <div class="summary-value">{{ formatDate(docMeta.created_at) }}</div>
+        </div>
+      </div>
+      <div v-else class="summary-grid">
+        <div class="summary-card">
+          <el-skeleton :rows="2" animated />
+        </div>
+        <div class="summary-card">
+          <el-skeleton :rows="2" animated />
         </div>
       </div>
 
@@ -107,7 +121,7 @@ const docMeta = ref({
 const kbDetail = ref(null)
 const chunks = ref([])
 const chunkTotal = ref(0)
-const loadingMeta = ref(false)
+const loadingMeta = ref(true)
 const loadingChunks = ref(false)
 const loadingMore = ref(false)
 const limit = 20
@@ -147,6 +161,9 @@ function formatDate(dateStr) {
 async function fetchMeta() {
   loadingMeta.value = true
   try {
+    if (!docId.value) {
+      return
+    }
     const doc = await getDocumentById(docId.value)
     if (doc) {
       docMeta.value = { ...docMeta.value, ...doc }

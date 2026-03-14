@@ -61,6 +61,7 @@ const subtitle = computed(() => {
   display: flex;
   align-items: flex-start;
   background: radial-gradient(circle at top left, rgba(64, 158, 255, 0.08), transparent 55%);
+  min-width: 0;
 }
 
 .chat-main-card {
