@@ -38,12 +38,11 @@ class KBOut(BaseModel):
 # POST /kb
 # ---------------------------------------------------------------------------
 
-@router.post("", status_code=status.HTTP_201_CREATED)
+@router.post("", status_code=status.HTTP_201_CREATED, summary="Create Knowledge Base", description="Initialize a new knowledge base and its corresponding vector collection (Super-admin only)")
 async def create_knowledge_base(
     body: KBCreate,
     _: UserContext = Depends(require_super_admin),
 ):
-    """Create a new knowledge base and its corresponding Qdrant vector collection. Super-admin only."""
     # Validate slug format
     if not body.name.replace("_", "").replace("-", "").isalnum():
         raise HTTPException(
@@ -78,9 +77,8 @@ async def create_knowledge_base(
 # GET /kb
 # ---------------------------------------------------------------------------
 
-@router.get("")
+@router.get("", summary="List Knowledge Bases", description="Return a list of all registered knowledge bases and their basic info")
 async def list_knowledge_bases():
-    """Return a list of all available knowledge bases."""
     async with get_db() as db:
         repo = KBRepository(db)
         kbs = await repo.list_all()
@@ -91,9 +89,8 @@ async def list_knowledge_bases():
 # GET /kb/{kb_id}
 # ---------------------------------------------------------------------------
 
-@router.get("/{kb_id}")
+@router.get("/{kb_id}", summary="Get Knowledge Base Details", description="Retrieve detailed configuration and statistics (e.g., total documents and chunks) for a specific KB")
 async def get_knowledge_base(kb_id: str):
-    """Get details of a specific knowledge base, including its document count."""
     async with get_db() as db:
         kb_repo = KBRepository(db)
         doc_repo = DocumentRepository(db)
@@ -112,12 +109,11 @@ async def get_knowledge_base(kb_id: str):
 # DELETE /kb/{kb_id}
 # ---------------------------------------------------------------------------
 
-@router.delete("/{kb_id}")
+@router.delete("/{kb_id}", summary="Delete Knowledge Base", description="Completely remove a KB, its document records, and its vector collection (Super-admin only)")
 async def delete_knowledge_base(
     kb_id: str,
     _: UserContext = Depends(require_super_admin),
 ):
-    """Delete a knowledge base along with all its documents and Qdrant vectors. Super-admin only."""
     async with get_db() as db:
         kb_repo = KBRepository(db)
         doc_repo = DocumentRepository(db)

@@ -22,7 +22,7 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 # POST /auth/register
 # ---------------------------------------------------------------------------
 
-@router.post("/register", status_code=status.HTTP_201_CREATED)
+@router.post("/register", status_code=status.HTTP_201_CREATED, summary="Register User", description="Create a new user and associate them with a specific knowledge base")
 async def register(body: UserCreate):
     async with get_db() as db:
         kb_repo = KBRepository(db)
@@ -67,7 +67,7 @@ async def register(body: UserCreate):
 # POST /auth/login
 # ---------------------------------------------------------------------------
 
-@router.post("/login")
+@router.post("/login", summary="User Login", description="Authenticate username and password to return a JWT access token and user info")
 async def login(body: LoginRequest):
     async with get_db() as db:
         user_repo = UserRepository(db)
