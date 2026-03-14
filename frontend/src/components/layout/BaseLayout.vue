@@ -13,9 +13,10 @@ import AppHeader from './AppHeader.vue'
 
 <style scoped>
 .base-layout {
-  min-height: 100vh;
+  height: 100%;
   background-color: #f5f7fa;
   flex-direction: column;
+  overflow: hidden;
 }
 
 .main-content {
@@ -24,5 +25,7 @@ import AppHeader from './AppHeader.vue'
   display: flex;
   flex-direction: column;
   min-width: 0;
+  min-height: 0;
+  overflow: hidden;
 }
 </style>
