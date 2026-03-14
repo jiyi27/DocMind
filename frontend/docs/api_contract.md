@@ -1,64 +1,56 @@
-# DocMind API 接口契约规范 (Frontend Reference)
+# DocMind API Contract Specification (Frontend Reference)
 
-这份文档详细定义了 DocMind 后端提供的核心 API 接口。它主要供前端开发人员（或接手编码的 AI）在编写 Vue/Axios 集成代码时提供请求与响应的参考约束。
+This document defines the core API endpoints provided by the DocMind backend. It serves as a reference for frontend developers (and AI agents) to ensure consistent request/response handling.
 
-## 🔹 全局请求与响应规范
+## 🔹 Global Request & Response Standards
 
-### 认证方式 (Authorization)
-除 `/auth/register` 和 `/auth/login` 外，所有接口都需要在 HTTP Request Header 中携带 JWT Token：
+### Authorization
+All endpoints except `/auth/register` and `/auth/login` require a JWT Token in the HTTP Request Header:
 ```http
 Authorization: Bearer <your_access_token>
 ```
 
-### 全局响应结构 (Response Envelope)
+### Response Envelope
+The backend uses a standard response structure for successful business logic and handled errors.
 
-> **统一响应格式说明**：所有接口无论成功或失败，HTTP 状态码均为 `200`，通过响应体中的 `code` 字段判断结果。
->
-> - `code: 0` → 成功，业务数据在 `data` 字段
-> - `code: -1` → 失败，错误描述在 `message` 字段，`data` 为 `null`
+- **Status Code**: Usually `200 OK` for business responses.
+- **Envelope Structure**:
+  - `code: 0` → Success. Data is in the `data` field.
+  - `code: -1` → Business error. Description is in the `message` field.
 
 ```json
-// 成功
+// Success Example
 { "code": 0, "message": "ok", "data": { ... } }
 
-// 失败
-{ "code": -1, "message": "错误原因", "data": null }
+// Business Error Example
+{ "code": -1, "message": "Reason for failure", "data": null }
 ```
 
-**注意：** 部分直接抛出 `HTTPException` 的错误（如 401 Unauthorized, 404 Not Found 等），可能会直接返回对应的 HTTP 状态码及 `{"detail": "..."}` 结构。前端封装 Axios Interceptor 时需要同时兼容检查 HTTP Status Code 和 `response.data.code`。
+> [!IMPORTANT]
+> **FastAPI Standard Exceptions**: For errors like `401 Unauthorized` or `404 Not Found` handled by FastAPI filters, the API may return standard HTTP status codes (non-200) and a body like `{"detail": "..."}`. Frontend Axios interceptors should handle both business `code` and HTTP status codes.
 
 ---
 
-## 🔹 1. 认证模块 (Auth)
+## 🔹 1. Authentication (Auth)
 
-### 1.1 用户注册
+### 1.1 Register User
 *   **Method**: `POST`
 *   **Path**: `/auth/register`
-*   **Content-Type**: `application/json`
+*   **Description**: Create a new user account linked to a specific Knowledge Base.
 *   **Request Body**:
     ```json
     {
       "username": "user1",
       "password": "my_secure_password",
-      "kb_id": "uuid-of-a-knowledge-base"
+      "kb_id": "uuid-of-kb"
     }
     ```
-*   **Response `data` (code: 0)**:
-    ```json
-    {
-      "id": "uuid",
-      "username": "user1",
-      "kb_id": "uuid-of-a-knowledge-base",
-      "kb_name": "tech_kb_slug",
-      "role": "user",
-      "created_at": "2023-10-27T10:00:00"
-    }
-    ```
+*   **Response `data` (code: 0)**: Returns user profile including `id`, `username`, `kb_id`, `kb_name`, and `role`.
 
-### 1.2 用户登录
+### 1.2 User Login
 *   **Method**: `POST`
 *   **Path**: `/auth/login`
-*   **Content-Type**: `application/json`
+*   **Description**: Authenticate user and return access token.
 *   **Request Body**:
     ```json
     {
@@ -69,174 +61,92 @@ Authorization: Bearer <your_access_token>
 *   **Response `data` (code: 0)**:
     ```json
     {
-      "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+      "access_token": "JWT_TOKEN_STRING",
       "token_type": "bearer",
-      "is_super_admin": false
+      "is_super_admin": false,
+      "kb_id": "uuid-of-user-kb",
+      "role": "user",
+      "username": "user1"
     }
     ```
-    > **说明**：
-    >
-    > - 登录成功后，前端需将 `access_token` 持久化保存（localStorage 或 store），后续所有需要鉴权的请求必须在 Header 中携带：`Authorization: Bearer <access_token>`。
-    > - `is_super_admin` 为布尔值，前端 Auth Store 需保存此字段，用于控制"创建知识库"、"删除知识库"等危险操作的 UI 显示与隐藏。**注意：此字段仅用于 UI 层体验优化，后端接口本身有独立的权限校验，前端不可依赖此字段做安全判断。**
+    > **Note**: Frontend should persist `access_token` for authorization and `is_super_admin` / `role` for UI permission control.
 
 ---
 
-## 🔹 2. 知识库管理模块 (Knowledge Base)
+## 🔹 2. Knowledge Base Management (KB)
 
-### 2.1 获取知识库列表
+### 2.1 List All Knowledge Bases
 *   **Method**: `GET`
 *   **Path**: `/kb`
-*   **Response `data` (code: 0)**:
-    ```json
-    [
-      {
-        "id": "uuid",
-        "name": "tech_kb_slug",
-        "display_name": "Technical Documentation",
-        "description": "...",
-        "created_at": "timestamp"
-      }
-    ]
-    ```
+*   **Response `data` (code: 0)**: Array of KB objects (id, name, display_name, description, created_at).
 
-### 2.2 创建知识库 (Super-Admin Only)
+### 2.2 Create Knowledge Base (Super-Admin Only)
 *   **Method**: `POST`
 *   **Path**: `/kb`
-*   **Content-Type**: `application/json`
 *   **Request Body**:
     ```json
     {
-      "name": "tech_kb_slug",           // 必须为字母和数字 (支持横杠/下划线)
+      "name": "tech_kb_slug", // Alphanumeric slug
       "display_name": "Technical Documentation",
-      "description": "Optional description."
+      "description": "Optional text"
     }
     ```
-*   **Response `data` (code: 0)**: 返回新创建的知识库对象。
 
-### 2.3 获取单个知识库详情
+### 2.3 Get KB Details
 *   **Method**: `GET`
 *   **Path**: `/kb/{kb_id}`
-*   **Response `data` (code: 0)**:
-    ```json
-    {
-      "id": "uuid",
-      "name": "tech_kb_slug",
-      "display_name": "Technical Documentation",
-      "description": "...",
-      "created_at": "timestamp",
-      "document_count": 10,
-      "total_points": 250 // 知识库内 Vector Chunks 总数
-    }
-    ```
-
-### 2.4 删除知识库 (Super-Admin Only)
-*   **Method**: `DELETE`
-*   **Path**: `/kb/{kb_id}`
-*   **Response `data` (code: 0)**: `{"kb_id": "uuid", "documents_removed": 10}`
+*   **Response `data` (code: 0)**: KB details including `document_count` and `total_points` (vector chunks).
 
 ---
 
-## 🔹 3. 文档注入模块 (Ingestion)
+## 🔹 3. Document Ingestion
 
-### 3.1 上传并注入文档
+### 3.1 Upload and Ingest Document
 *   **Method**: `POST`
 *   **Path**: `/ingest/{kb_id}`
-*   **Path Params**: `kb_id` — 目标知识库 UUID
 *   **Content-Type**: `multipart/form-data`
-*   **Request Payload (Form Data)**:
-    *   `file`: `(File)` *必填, PDF 或 Markdown 文件*
-    *   `title`: `(String)` *选填, 默认取文件名*
-    *   `url`: `(String)` *选填*
-    *   `doc_type`: `(String)` *选填, 例如: "all"*
-    *   `service`: `(String)` *选填, 逗号分隔的字符, 例如: "all"*
-    *   `department`: `(String)` *选填, 逗号分隔的字符, 例如: "all"*
-*   **说明**: 目标知识库由路径参数 `kb_id` 指定，任何已登录用户均可向任意已存在的知识库上传文档。
-*   **Response `data` (code: 0)**:
-    ```json
-    {
-      "doc_id": "uuid",
-      "status": "success",
-      "chunk_count": 45,
-      "file_name": "example.pdf",
-      "kb_name": "tech_kb_slug"
-    }
-    ```
+*   **FormData Parameters**:
+    *   `file`: `(File)` **Required**. PDF or Markdown.
+    *   `title`: `(String)` Optional. Defaults to filename.
+    *   `url`: `(String)` Optional.
+    *   `doc_type`: `(String)` Optional (e.g., "tech_spec", "requirement").
+    *   `service`: `(String)` Optional.
+    *   `department`: `(String)` Optional.
+*   **Response `data` (code: 0)**: Contains `doc_id`, `chunk_count`, and ingestion `status`.
 
-### 3.2 获取当前用户的文档列表
+### 3.2 List Documents (Current User)
 *   **Method**: `GET`
 *   **Path**: `/ingest/documents`
-*   **Response `data` (code: 0)**:
-    ```json
-    {
-      "total": 2,
-      "documents": [
-        {
-          "id": "uuid",
-          "file_name": "example.pdf",
-          "title": "Example Title",
-          "doc_type": "all",
-          "chunk_count": 45,
-          "created_at": "timestamp"
-        }
-      ]
-    }
-    ```
-    > **说明**：`total` 为当前用户上传的文档总数。
+*   **Description**: Returns all documents uploaded by the authenticated user across all Knowledge Bases.
 
-### 3.3 获取当前用户在指定知识库的文档列表
+### 3.3 List Documents in KB
 *   **Method**: `GET`
 *   **Path**: `/ingest/documents/kb/{kb_id}`
-*   **Path Params**: `kb_id` — 知识库 UUID
-*   **Response `data` (code: 0)**:
-    ```json
-    {
-      "total": 1,
-      "documents": [
-        {
-          "id": "uuid",
-          "file_name": "example.pdf",
-          "title": "Example Title",
-          "doc_type": "all",
-          "chunk_count": 45,
-          "created_at": "timestamp"
-        }
-      ]
-    }
-    ```
-    > **说明**：仅返回当前登录用户在该知识库下上传的文档，`total` 为匹配文档数目。
-
-### 3.4 删除文档及向量数据
-*   **Method**: `DELETE`
-*   **Path**: `/ingest/{doc_id}`
-*   **Response `data` (code: 0)**: `{"doc_id": "uuid"}`
-
-### 3.5 检查文档 Chunk 列表
-*   **Method**: `GET`
-*   **Path**: `/ingest/{doc_id}/chunks?offset=0&limit=20`
-*   **Response `data` (code: 0)**: 返回 Qdrant Points 的分页信息 (含文本和 Metadata, 不含 Vector)。
+*   **Description**:
+    *   **Regular User**: Returns only documents uploaded by the user in this KB.
+    *   **Admin/Super-Admin**: Returns ALL documents in this KB.
 
 ---
 
-## 🔹 4. 检索与对话模块 (Chat)
+## 🔹 4. Chat & Retrieval
 
-### 4.1 发起对话
+### 4.1 Chat Endpoint
 *   **Method**: `POST`
 *   **Path**: `/chat`
-*   **Content-Type**: `application/json`
 *   **Request Body**:
     ```json
     {
-      "chatInput": "什么是 RAG？",
-      "sessionId": "random-uuid-for-thread" // 用于多轮对话的上下文窗口
+      "chatInput": "What is RAG?",
+      "sessionId": "optional-uuid"
     }
     ```
 *   **Response `data` (code: 0)**:
     ```json
     {
-      "answer": "RAG 是一种...",
-      "sources": [{"page_content": "...", "metadata": {"source": "example.pdf"}}],
-      "session_id": "random-uuid-for-thread",
-      "kb_name": "tech_kb_slug"
+      "answer": "RAG stands for...",
+      "sources": [{"page_content": "...", "metadata": {...}}],
+      "session_id": "uuid",
+      "kb_name": "current_kb_slug"
     }
     ```
-    *说明：Chat 接口使用了 `rag_graph.invoke`，目前为一次性返回 (非流式 SSE)，前端无需处理 Fetch 流，只需要像普通 API 那样 await 挂起并渲染 `answer` 及 `sources`。*
+    > **Note**: This is a direct response (non-streaming). Frontend should display the answer and source citations.
