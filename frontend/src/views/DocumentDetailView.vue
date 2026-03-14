@@ -206,6 +206,7 @@ onMounted(async () => {
 .document-detail {
   max-width: 1200px;
   margin: 0 auto;
+  width: 100%;
   display: flex;
   flex-direction: column;
   gap: 24px;

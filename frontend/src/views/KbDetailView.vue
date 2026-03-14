@@ -85,6 +85,7 @@ function handleDeleted() {
 .kb-detail-page {
   max-width: 1400px;
   margin: 0 auto;
+  width: 100%;
   display: flex;
   flex-direction: column;
   gap: 24px;
