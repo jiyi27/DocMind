@@ -169,16 +169,18 @@ async def get_document_chunks(
 
     async with get_db() as db:
         doc_repo = DocumentRepository(db)
+        kb_repo = KBRepository(db)
         doc = await doc_repo.get_by_id(doc_id)
+        kb = await kb_repo.get_by_id(doc["kb_id"]) if doc else None
 
     if not doc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
 
-    if doc["user_id"] != current_user.user_id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not your document")
+    if not kb:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Knowledge base not found")
 
     result = get_chunks_by_doc_id(
-        kb_name=current_user.kb_name,
+        kb_name=kb["name"],
         doc_id=doc_id,
         offset=offset,
         limit=limit,
