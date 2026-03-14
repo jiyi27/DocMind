@@ -45,7 +45,17 @@ The backend uses a standard response structure for successful business logic and
       "kb_id": "uuid-of-kb"
     }
     ```
-*   **Response `data` (code: 0)**: Returns user profile including `id`, `username`, `kb_id`, `kb_name`, and `role`.
+*   **Response `data` (code: 0)**:
+    ```json
+    {
+      "id": "uuid-user",
+      "username": "user1",
+      "kb_id": "uuid-kb",
+      "kb_name": "tech_kb",
+      "role": "user",
+      "created_at": "2024-03-21T10:00:00Z"
+    }
+    ```
 
 ### 1.2 User Login
 *   **Method**: `POST`
@@ -78,7 +88,18 @@ The backend uses a standard response structure for successful business logic and
 ### 2.1 List All Knowledge Bases
 *   **Method**: `GET`
 *   **Path**: `/kb`
-*   **Response `data` (code: 0)**: Array of KB objects (id, name, display_name, description, created_at).
+*   **Response `data` (code: 0)**:
+    ```json
+    [
+      {
+        "id": "uuid-kb",
+        "name": "tech_kb",
+        "display_name": "Technical Documentation",
+        "description": "Project specs and manuals",
+        "created_at": "2024-03-21T10:00:00Z"
+      }
+    ]
+    ```
 
 ### 2.2 Create Knowledge Base (Super-Admin Only)
 *   **Method**: `POST`
@@ -124,6 +145,26 @@ The backend uses a standard response structure for successful business logic and
 *   **Method**: `GET`
 *   **Path**: `/ingest/documents`
 *   **Description**: Returns all documents uploaded by the authenticated user across all Knowledge Bases.
+*   **Response `data` (code: 0)**:
+    ```json
+    {
+      "total": 1,
+      "documents": [
+        {
+          "id": "uuid-doc",
+          "user_id": "uuid-user",
+          "kb_id": "uuid-kb",
+          "file_name": "example.pdf",
+          "title": "Document Title",
+          "doc_type": "tech_spec",
+          "chunk_count": 42,
+          "created_at": "2024-03-21T10:00:00Z",
+          "kb_name": "tech_kb",
+          "kb_display_name": "Technical Documentation"
+        }
+      ]
+    }
+    ```
 
 ### 3.3 List Documents in KB
 *   **Method**: `GET`
@@ -131,6 +172,24 @@ The backend uses a standard response structure for successful business logic and
 *   **Description**:
     *   **Regular User**: Returns only documents uploaded by the user in this KB.
     *   **Admin/Super-Admin**: Returns ALL documents in this KB.
+*   **Response `data` (code: 0)**:
+    ```json
+    {
+      "total": 1,
+      "documents": [
+        {
+          "id": "uuid-doc",
+          "file_name": "example.pdf",
+          "title": "Document Title",
+          "doc_type": "tech_spec",
+          "chunk_count": 42,
+          "created_at": "2024-03-21T10:00:00Z",
+          "uploader_name": "john_doe" 
+        }
+      ]
+    }
+    ```
+    > **Note**: `uploader_name` is included in this list view to help admins identify who uploaded what.
 
 ### 3.4 Delete Document
 *   **Method**: `DELETE`
@@ -143,7 +202,28 @@ The backend uses a standard response structure for successful business logic and
 *   **Path**: `/ingest/{doc_id}/chunks`
 *   **Query Params**: `offset` (default 0), `limit` (default 20)
 *   **Description**: Retrieve paginated text chunks for a document to verify ingestion quality.
-*   **Response `data` (code: 0)**: List of chunk objects.
+*   **Response `data` (code: 0)**:
+    ```json
+    {
+      "items": [
+        {
+          "point_id": "uuid-point",
+          "content": "Full text of this chunk...",
+          "char_count": 500,
+          "metadata": {
+            "title": "Document Title",
+            "url": "https://example.com/doc",
+            "doc_type": "tech_spec",
+            "service": ["auth", "billing"],
+            "department": ["engineering"]
+          }
+        }
+      ],
+      "total": 42,
+      "offset": 0,
+      "limit": 20
+    }
+    ```
 
 ---
 
