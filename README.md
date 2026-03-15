@@ -2,134 +2,195 @@
 
 A robust, multi-tenant RAG (Retrieval-Augmented Generation) Knowledge Base system. DocMind seamlessly handles document ingestion, vector storage, and conversational retrieval with proper user data isolation.
 
-## 🌟 Key Features
+## Screenshots
 
-- **Multi-Tenant Architecture**: User registration, JWT-based authentication, and proper data isolation (users are tied to specific Knowledge Bases).
+**Knowledge Base Dashboard**
+
+![Dashboard](docs/screenshot-dashboard.png)
+
+**Document Management**
+
+![Document Management](docs/screenshot-documents.png)
+
+**Conversational Chat with Source Citations**
+
+![Chat](docs/screenshot-chat.png)
+
+## Key Features
+
+- **Multi-Tenant Architecture**: User registration, JWT-based authentication, and role-based access control (user / admin / super-admin) with proper data isolation.
 - **Advanced RAG Pipelines**: Orchestrated via **LangGraph** for both document ingestion and conversational retrieval workflows.
-- **Relational Metadata Management**: Uses SQLite to efficiently track Users, Knowledge Bases, and Document upload histories.
-- **High-Performance Vector Search**: Uses **Qdrant** for scalable and fast similarity searches with dynamic collection creation per knowledge base.
-- **Flexible LLM & Embeddings**: Built-in support for local embeddings via **Ollama** (`nomic-embed-text`) and external LLMs via OpenAI-compatible endpoints (e.g., **OpenRouter**).
+- **Relational Metadata Management**: Uses SQLite to track Users, Knowledge Bases, Documents, and Chat Sessions with full history.
+- **High-Performance Vector Search**: Uses **Qdrant** for scalable similarity search with dynamic collection creation per knowledge base (`docmind_{kb_name}`).
+- **Flexible LLM & Embeddings**: OpenAI-compatible endpoints for both LLM and embeddings — swap providers (Ollama, OpenAI, OpenRouter, etc.) by changing environment variables only.
+- **Streaming Chat**: Server-Sent Events (SSE) support for real-time token-by-token response streaming.
+- **Full-Stack Application**: Vue 3 frontend with a complete UI covering authentication, knowledge base management, document ingestion, and conversational chat.
 
-## 🏗️ Architecture & Tech Stack
+## Architecture & Tech Stack
 
-- **Backend Framework**: Python 3.12+, FastAPI, Pydantic, Uvicorn
-- **Package Manager**: `uv` - An extremely fast Python package manager
+### Backend
+- **Framework**: Python 3.12+, FastAPI, Pydantic, Uvicorn
+- **Package Manager**: `uv`
 - **Workflow Orchestration**: LangGraph, LangChain
 - **Vector Database**: Qdrant (Docker)
-- **Local Embedding Model**: Ollama (Docker) - `nomic-embed-text`
+- **Embedding Model**: Any OpenAI-compatible endpoint (default: Ollama `nomic-embed-text`)
+- **LLM**: Any OpenAI-compatible endpoint (default: OpenRouter `google/gemini-2.5-flash`)
 - **Relational DB**: SQLite
 
+### Frontend
+- **Framework**: Vue 3 (Composition API)
+- **Build Tool**: Vite 8
+- **UI Components**: Element Plus
+- **State Management**: Pinia
+- **Routing**: Vue Router 5
+- **CSS**: Tailwind CSS
+- **Package Manager**: pnpm
 
-## 🧠 Advanced Ingestion & Preprocessing Pipeline
+## Advanced Ingestion & Preprocessing Pipeline
 
-DocMind features a highly optimized, LangGraph-orchestrated document ingestion pipeline. It addresses several critical pain points in standard RAG architectures, specifically focusing on structural preservation and the retrieval of non-semantic content like code blocks.
+DocMind features a highly optimized, LangGraph-orchestrated document ingestion pipeline that addresses critical pain points in standard RAG architectures.
 
 ### 1. Strict Context-Preserving Chunking
-* **Pain Point**: Traditional character-based splitters often haphazardly slice through code blocks or separate paragraphs from their parent headers, leading to severe context loss during retrieval.
-* **DocMind Solution**: Implements a custom state-machine-based Markdown splitter. 
-  * **Physical Boundaries**: Strictly slices documents by physical paragraphs (`\n\n`).
-  * **Hierarchy Tracking**: Dynamically tracks heading levels (e.g., `header_1`, `header_2`) and injects them into the metadata of every child chunk.
-  * **Integrity Protection**: Identifies and protects Markdown code blocks (` ``` `) from being broken apart, ensuring structural integrity.
+* **Pain Point**: Traditional character-based splitters often slice through code blocks or separate paragraphs from their parent headers, causing context loss during retrieval.
+* **Solution**: Custom state-machine-based Markdown splitter that slices by physical paragraphs (`\n\n`), dynamically tracks heading hierarchy and injects it into chunk metadata, and protects code blocks from being broken apart.
 
-### 2. LLM-Powered Code Summarization (Multi-Vector / Parent-Child Retrieval)
-* **Pain Point (Semantic Dilution)**: Pure code blocks (e.g., Python functions, JSON configs) lack natural language characteristics. Directly vectorizing raw code causes the embedding models to lose focus (semantic dilution). Users querying with natural language often fail to retrieve the right code snippets.
-* **DocMind Solution**: A zero-invasion "Content Injection" Multi-Vector approach.
-  * **Detection & Summarization**: A dedicated LangGraph node intercepts chunks containing code. It extracts the code alongside its hierarchical headers and asks an LLM to generate a keyword-dense natural language summary (focusing on business intent, tech stack, and usage scenarios).
-  * **Embedding Swap**: The original code in the chunk is replaced with the LLM-generated summary, which is then vectorized by the embedding model. This guarantees extremely high recall when queried in natural language.
-  * **Lossless Context Retrieval**: The *original, unadulterated code* is stored safely inside the Qdrant `metadata` payload. At retrieval time, the system matches the summary vector but extracts the original code from the payload, feeding perfectly intact code to the generation LLM.
+### 2. LLM-Powered Code Summarization (Multi-Vector Retrieval)
+* **Pain Point**: Raw code lacks natural language characteristics, causing semantic dilution when vectorized — users querying in natural language often miss the right code snippets.
+* **Solution**: A dedicated LangGraph node intercepts chunks containing code, generates a keyword-dense natural language summary via LLM, and uses the summary for embedding while storing the original code in Qdrant metadata payload. Retrieval matches the summary vector but returns the intact original code to the LLM.
 
 ### 3. Graceful Degradation & Fault Tolerance
-* **Pain Point**: Relying on external LLMs during the ingestion phase can bottleneck the process or cause crashes due to API rate limits or timeout errors.
-* **DocMind Solution**: The summarization pipeline is wrapped in strict fault-tolerance mechanisms. If an LLM call fails, the system safely falls back to standard text embedding for that specific chunk without disrupting the rest of the document's ingestion process.
+* **Pain Point**: External LLM calls during ingestion can fail due to rate limits or timeouts.
+* **Solution**: The summarization step falls back to standard text embedding for any chunk where the LLM call fails, without disrupting the rest of the ingestion process.
 
-## 📂 Project Structure
+## Project Structure
 
 ```text
 DocMind/
-├── backend/                  # Backend application source code
+├── backend/                  # Backend application
 │   ├── docmind/
-│   │   ├── api/              # FastAPI endpoints and routers (auth, chat, ingest, kb)
-│   │   ├── auth/             # JWT authentication and role-based access control
-│   │   ├── core/             # Configuration, logging, exception handling
-│   │   ├── db/               # SQLite database setup, DDL models, and Repositories
-│   │   ├── ingestion/        # LangGraph workflow for document chunking and vectorDB insertion
-│   │   ├── retrieval/        # LangGraph workflow for question answering and source retrieval
-│   │   ├── tools/            # Reusable AI sub-tools
+│   │   ├── api/              # FastAPI routers (auth, chat, chats, ingest, kb) + middleware
+│   │   ├── auth/             # JWT authentication and RBAC
+│   │   ├── core/             # Config, logging, LLM/embedding clients, exception handling
+│   │   ├── db/               # SQLite setup, DDL models, repositories
+│   │   ├── ingestion/        # LangGraph ingestion workflow (chunking, summarization, vectorization)
+│   │   ├── retrieval/        # LangGraph retrieval workflow (RAG, streaming, session titles)
 │   │   └── vectorstore/      # Qdrant abstraction layer
-│   ├── data/                 # Local directory for SQLite and Qdrant volume data
+│   ├── scripts/              # Database migration and ingestion utility scripts
+│   ├── data/                 # SQLite and Qdrant volume data
 │   ├── logs/                 # Application rotating logs
-│   ├── Makefile              # Helper commands for running and deployment
-│   ├── docker-compose.yml    # Infrastructure definitions (Qdrant & Ollama)
-│   └── pyproject.toml        # uv dependencies configuration
-└── frontend/                 # Frontend application (Planned/WIP)
+│   ├── Makefile              # Helper commands
+│   ├── docker-compose.yml    # Infrastructure (Qdrant & Ollama)
+│   └── pyproject.toml        # Python dependencies
+└── frontend/                 # Vue 3 frontend application
+    ├── src/
+    │   ├── api/              # Axios API modules (auth, kb, ingest, chats)
+    │   ├── components/       # UI components (auth, chat, ingestion, kb, layout)
+    │   ├── stores/           # Pinia stores (auth, kb)
+    │   ├── views/            # Page views (Dashboard, Chat, KB detail, Document detail, etc.)
+    │   └── router/           # Vue Router configuration with navigation guards
+    └── package.json
 ```
 
-## 🚀 Quick Start
+## Quick Start
 
 ### 1. Prerequisites
 
-- [Docker & Docker Compose](https://docs.docker.com/get-docker/) (For running Qdrant and Ollama)
-- [uv](https://github.com/astral-sh/uv) (For ultra-fast Python dependency management)
+- [Docker & Docker Compose](https://docs.docker.com/get-docker/) — for running Qdrant and Ollama
+- [uv](https://github.com/astral-sh/uv) — Python package manager
+- [pnpm](https://pnpm.io/) — frontend package manager
 
-### 2. Start Infrastructure 
+### 2. Start Infrastructure
 
-All commands should be run from the `backend/` directory:
+All backend commands should be run from the `backend/` directory:
 
 ```bash
 cd backend
 ```
 
-**First time only** (Creates containers & pulls the embedding model):
+**First time only** (creates containers and pulls the embedding model):
 ```bash
 make infra-init
 ```
 
-**Subsequent runs** (Starts existing containers):
+**Subsequent runs**:
 ```bash
 make infra-up
 ```
 
 ### 3. Configure Environment
 
-Copy the example environment file and configure your API keys:
-
 ```bash
 cp .env.example .env
 ```
-Ensure you edit `.env` and set your `LLM_API_KEY` (e.g. OpenRouter key) and generate a secure `JWT_SECRET_KEY`.
 
-### 4. Run the API Server
+Edit `.env` and set the required values — at minimum:
 
-Start the FastAPI application with watch-mode enabled:
+| Variable                | Description                                                                                                |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `LLM_API_KEY`           | API key for your LLM provider (e.g. OpenRouter key)                                                        |
+| `LLM_MODEL`             | Model name (default: `google/gemini-2.5-flash`)                                                            |
+| `LLM_BASE_URL`          | OpenAI-compatible endpoint (default: `https://openrouter.ai/api/v1`)                                       |
+| `EMBEDDING_BASE_URL`    | Embedding endpoint (default: `http://localhost:11434/v1` for Ollama)                                       |
+| `EMBEDDING_MODEL`       | Embedding model (default: `nomic-embed-text:latest`)                                                       |
+| `JWT_SECRET_KEY`        | Random secret for signing JWTs — generate with: `python -c "import secrets; print(secrets.token_hex(32))"` |
+| `SUPER_ADMIN_USERNAMES` | Comma-separated usernames that get super-admin privileges                                                  |
+
+See `.env.example` for all available options including chunking, retrieval, and logging settings.
+
+### 4. Run the Backend
 
 ```bash
 make dev
 ```
-The server will be available at `http://localhost:8000`.
-Visit `http://localhost:8000/docs` to interact with the interactive Swagger API documentation.
 
-## 💻 Usage & API Reference
+The API server will be available at `http://localhost:8000`.
+Interactive API docs: `http://localhost:8000/docs`
 
-DocMind provides a complete RESTful API, accessible via the interactive `/docs` UI.
-Key flows include:
-1. **Authentication**: Use `POST /auth/register` and `POST /auth/login` to obtain a JWT.
-2. **Knowledge Base Management**: Super-admins can create KBs via `POST /kb`.
-3. **Ingestion**: Upload documents using `POST /ingest` (kicks off the LangGraph ingestion pipeline).
-4. **Chat**: Query your Knowledge Base using `POST /chat` (triggers the LangGraph retrieval workflow).
+### 5. Run the Frontend
 
-### Utility Commands
+```bash
+cd frontend
+pnpm install
+pnpm dev
+```
 
-| Command                  | Description                                              |
-| ------------------------ | -------------------------------------------------------- |
-| `make dev`               | Start API server with hot reload                         |
-| `make infra-init`        | **First time**: create containers + pull embedding model |
-| `make infra-up`          | Start existing containers (subsequent runs)              |
-| `make infra-down`        | Stop running containers (keeps data volumes intact)      |
-| `docker compose ps`      | Check container status                                   |
-| `docker compose down -v` | ⚠️ Stop and delete containers + volumes (data loss)       |
+The frontend will be available at `http://localhost:5173`. It connects to the backend at `http://localhost:8000` by default (configure via `VITE_API_URL` if needed).
 
-## 🗺️ Roadmap
+## API Reference
+
+DocMind exposes a complete RESTful API. Key endpoints:
+
+| Method   | Endpoint                       | Description                                           |
+| -------- | ------------------------------ | ----------------------------------------------------- |
+| `POST`   | `/auth/register`               | Register a new user                                   |
+| `POST`   | `/auth/login`                  | Login and obtain a JWT                                |
+| `GET`    | `/kb`                          | List accessible knowledge bases                       |
+| `POST`   | `/kb`                          | Create a knowledge base (super-admin only)            |
+| `DELETE` | `/kb/{kb_id}`                  | Delete a knowledge base (super-admin only)            |
+| `POST`   | `/ingest/{kb_id}`              | Upload and ingest a document (async, background task) |
+| `GET`    | `/ingest/documents/kb/{kb_id}` | List documents in a knowledge base                    |
+| `GET`    | `/ingest/{doc_id}/chunks`      | View processed chunks for a document                  |
+| `DELETE` | `/ingest/{doc_id}`             | Delete a document                                     |
+| `POST`   | `/chat`                        | Query a knowledge base (non-streaming)                |
+| `POST`   | `/chat/stream`                 | Query a knowledge base (SSE streaming)                |
+| `GET`    | `/chats`                       | List chat sessions                                    |
+| `GET`    | `/chats/{session_id}`          | Get chat session with message history                 |
+| `GET`    | `/health`                      | Health check (Qdrant + LLM connectivity)              |
+
+## Utility Commands
+
+| Command                                           | Description                                              |
+| ------------------------------------------------- | -------------------------------------------------------- |
+| `make dev`                                        | Start API server with hot reload                         |
+| `make infra-init`                                 | **First time**: create containers + pull embedding model |
+| `make infra-up`                                   | Start existing containers                                |
+| `make infra-down`                                 | Stop containers (keeps data volumes)                     |
+| `make ingest FILE=path/to/file.md TITLE="My Doc"` | Ingest a file via CLI script                             |
+| `docker compose ps`                               | Check container status                                   |
+| `docker compose down -v`                          | Stop containers and delete volumes (data loss)           |
+
+## Roadmap
 
 - [ ] **Document Storage with MinIO** — Persist uploaded documents to an object store during ingestion, exposing a download endpoint for users to retrieve original files.
-- [x] **Frontend UI** — Build a responsive web interface covering core user flows: knowledge base management, document ingestion, and conversational chat.
-- [x] **LLM-based Document Pre-processing** — Introduce a pre-ingestion pipeline utilizing an LLM to normalize document structure and improve chunking quality before vectorization.
+- [x] **Frontend UI** — Responsive Vue 3 web interface covering knowledge base management, document ingestion, and conversational chat.
+- [x] **LLM-based Document Pre-processing** — Pre-ingestion pipeline using LLM to generate code summaries and improve chunking quality before vectorization.
