@@ -12,8 +12,10 @@ from langchain_text_splitters import (
 
 from docmind.core.config import settings
 from docmind.core import logger
+from docmind.core.llm import get_llm
 from docmind.ingestion.loaders import load_document
 from docmind.ingestion.state import IngestionState
+from docmind.ingestion.prompts import code_summarization_prompt
 from docmind.vectorstore.qdrant_store import get_vector_store_for_kb
 
 
@@ -254,6 +256,108 @@ def split_text_node(state: IngestionState) -> dict:
         raise
 
     return {"chunks": chunks}
+
+
+import re
+
+
+def summarize_code_node(state: IngestionState) -> dict:
+    """Detect code chunks (pure or mixed), generate a summary using LLM, and update payload.
+
+    If successful:
+      - page_content = replaces ```code``` with its summary
+      - metadata["chunk_type"] = "code_mixed"
+      - metadata["original_content"] = original_text
+    If failed or too short:
+      - keeps original code in page_content
+      - metadata["chunk_type"] = "text"
+    """
+    chunks = state.get("chunks", [])
+    if not chunks:
+        return {"chunks": []}
+
+    llm = get_llm()
+    chain = code_summarization_prompt | llm
+    processed_chunks = []
+
+    for chunk in chunks:
+        text = chunk.page_content.strip()
+
+        # Find all markdown code blocks in the chunk
+        code_blocks = list(re.finditer(r"```(.*?)```", text, flags=re.DOTALL))
+
+        has_summarized_code = False
+        new_text = text
+
+        for match in code_blocks:
+            full_code_block = match.group(0)
+
+            # Skip summarization for very short snippets
+            if len(full_code_block) < 100:
+                continue
+
+            # Extract headers for context
+            headers = []
+            for k, v in chunk.metadata.items():
+                if k.startswith("header_"):
+                    headers.append(f"{k}: {v}")
+            headers_str = " > ".join(headers) if headers else "无明确章节"
+
+            # Try to extract language from the first line
+            first_line = full_code_block.split("\n", 1)[0]
+            language = first_line.strip("`").strip() or "unknown"
+
+            code_content = full_code_block.strip("```").strip()
+            if code_content.startswith(language):
+                code_content = code_content[len(language) :].strip()
+
+            try:
+                result = chain.invoke(
+                    {"headers": headers_str, "language": language, "code": code_content}
+                )
+
+                content = getattr(result, "content", str(result))
+                if isinstance(content, list):
+                    content = str(content[0]) if content else ""
+                summary = str(content).strip()
+
+                # Replace the code block with its summary in the new text
+                new_text = new_text.replace(full_code_block, f"\n{summary}\n")
+                has_summarized_code = True
+
+                logger.debug(
+                    "code_summarized",
+                    {
+                        "doc_id": chunk.metadata.get("doc_id"),
+                        "language": language,
+                        "original_len": len(full_code_block),
+                        "summary_len": len(summary),
+                    },
+                )
+
+            except Exception as exc:
+                # Graceful fallback: keep original content if LLM fails
+                logger.warning(
+                    "code_summarization_failed",
+                    {
+                        "error": str(exc),
+                        "error_type": type(exc).__name__,
+                        "doc_id": chunk.metadata.get("doc_id"),
+                        "snippet": full_code_block[:50],
+                    },
+                )
+
+        if has_summarized_code:
+            chunk.page_content = new_text
+            chunk.metadata["chunk_type"] = "code_mixed"
+            chunk.metadata["original_content"] = text
+        else:
+            if "chunk_type" not in chunk.metadata:
+                chunk.metadata["chunk_type"] = "text"
+
+        processed_chunks.append(chunk)
+
+    return {"chunks": processed_chunks}
 
 
 def embed_and_store_node(state: IngestionState) -> dict:

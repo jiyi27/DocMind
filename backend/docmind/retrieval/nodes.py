@@ -44,9 +44,16 @@ def retrieve_node(state: RAGState) -> dict:
     sources: list[str] = []
 
     for i, doc in enumerate(docs, 1):
-        context_parts.append(f"[{i}] {doc.page_content}")
-
         meta = doc.metadata or {}
+
+        # Determine if we should use original code or the indexed summary
+        if meta.get("chunk_type") == "code" and "original_code" in meta:
+            context_content = meta["original_code"]
+        else:
+            context_content = doc.page_content
+
+        context_parts.append(f"[{i}] {context_content}")
+
         url = meta.get("url", "")
         title = meta.get("title") or meta.get("file_name") or meta.get("source", "")
 
