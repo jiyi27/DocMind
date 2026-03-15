@@ -21,6 +21,11 @@ class IngestMetadata(BaseModel):
     service: list[str] = Field(default_factory=lambda: ["all"])
     department: list[str] = Field(default_factory=lambda: ["all"])
 
+    strict_mode: bool = Field(
+        default=True,
+        description="Enable strict mode. If true, excessively long chunks will cause failure.",
+    )
+
     @field_validator("doc_type")
     @classmethod
     def validate_doc_type(cls, v: str) -> str:

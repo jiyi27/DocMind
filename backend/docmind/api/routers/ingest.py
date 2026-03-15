@@ -7,7 +7,16 @@ from tempfile import NamedTemporaryFile
 
 import uuid
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    UploadFile,
+    status,
+)
 from fastapi.responses import JSONResponse
 
 from docmind.api.dependencies import get_current_user
@@ -30,6 +39,44 @@ router = APIRouter(prefix="/ingest", tags=["ingestion"])
 # ---------------------------------------------------------------------------
 
 
+async def process_document_task(
+    doc_id: str,
+    file_path: str,
+    metadata_dict: dict,
+    user_id: str,
+    kb_name: str,
+    strict_mode: bool,
+):
+    """Background task to run the ingestion graph."""
+    try:
+        async with get_db() as db:
+            doc_repo = DocumentRepository(db)
+            await doc_repo.update_status(doc_id, "processing")
+
+        result = ingestion_graph.invoke(
+            {
+                "file_path": file_path,
+                "metadata": metadata_dict,
+                "user_id": user_id,
+                "doc_id": doc_id,
+                "kb_name": kb_name,
+                "strict_mode": strict_mode,
+            }
+        )
+
+        chunk_count = result.get("chunk_count", 0)
+        async with get_db() as db:
+            doc_repo = DocumentRepository(db)
+            await doc_repo.update_status(doc_id, "completed", chunk_count=chunk_count)
+
+    except Exception as e:
+        async with get_db() as db:
+            doc_repo = DocumentRepository(db)
+            await doc_repo.update_status(doc_id, "failed", error_message=str(e))
+    finally:
+        Path(file_path).unlink(missing_ok=True)
+
+
 @router.post(
     "/{kb_id}",
     status_code=status.HTTP_201_CREATED,
@@ -37,12 +84,16 @@ router = APIRouter(prefix="/ingest", tags=["ingestion"])
 )
 async def ingest_document(
     kb_id: str,
+    background_tasks: BackgroundTasks,
     file: UploadFile = File(..., description="PDF or Markdown file to ingest"),
     title: str = Form(default=""),
     url: str = Form(default=""),
     doc_type: str = Form(default="all"),
     service: str = Form(default="all"),
     department: str = Form(default="all"),
+    strict_mode: bool = Form(
+        default=True, description="Enable strict chunking validation"
+    ),
     current_user: UserContext = Depends(get_current_user),
 ):
     """Upload a PDF or Markdown file to a specific KB, extract text, and store in the vector database."""
@@ -63,38 +114,24 @@ async def ingest_document(
         title=title or file_name,
         url=url,
         doc_type=doc_type,
-        service=service,
-        department=department,
+        service=service,  # type: ignore
+        department=department,  # type: ignore
+        strict_mode=strict_mode,
     )
 
-    # Pre-generate doc_id so it can be stamped into every Qdrant chunk payload.
-    # This allows bulk-deleting all chunks of a document by filtering on doc_id.
     doc_id = str(uuid.uuid4())
 
     # Write uploaded file to disk temporarily because document loaders
     # (PDF/Markdown parsers) expect file paths, not byte streams.
-    suffix = Path(file_name).suffix
-    with NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
-        content = await file.read()
-        tmp.write(content)
-        tmp_path = tmp.name
+    upload_dir = Path("data/uploads")
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    tmp_path = upload_dir / f"{doc_id}_{file_name}"
 
-    try:
-        result = ingestion_graph.invoke(
-            {
-                "file_path": tmp_path,
-                "metadata": metadata.model_dump(),
-                "user_id": current_user.user_id,
-                "doc_id": doc_id,
-                "kb_name": kb_name,
-            }
-        )
-    finally:
-        Path(tmp_path).unlink(missing_ok=True)
+    content = await file.read()
+    with open(tmp_path, "wb") as f:
+        f.write(content)
 
-    chunk_count = result.get("chunk_count", 0)
-
-    # Persist document record to SQLite using the pre-generated doc_id
+    # Persist document record to SQLite as pending
     async with get_db() as db:
         doc_repo = DocumentRepository(db)
         doc = await doc_repo.create(
@@ -103,19 +140,33 @@ async def ingest_document(
             file_name=file_name,
             title=metadata.title,
             doc_type=metadata.doc_type,
-            chunk_count=chunk_count,
+            chunk_count=0,
             doc_id=doc_id,
+            status="pending",
+            file_path=str(tmp_path),
+            strict_mode=strict_mode,
         )
+
+    # Add background task
+    background_tasks.add_task(
+        process_document_task,
+        doc_id=doc_id,
+        file_path=str(tmp_path),
+        metadata_dict=metadata.model_dump(),
+        user_id=current_user.user_id,
+        kb_name=kb_name,
+        strict_mode=strict_mode,
+    )
 
     return ok(
         data={
             "doc_id": doc["id"],
-            "status": result.get("status", "unknown"),
-            "chunk_count": chunk_count,
+            "status": "pending",
+            "chunk_count": 0,
             "file_name": file_name,
             "kb_name": kb_name,
         },
-        message="Document ingested successfully",
+        message="Document uploaded and ingestion queued",
     )
 
 

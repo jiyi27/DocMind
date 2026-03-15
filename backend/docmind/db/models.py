@@ -32,6 +32,10 @@ CREATE TABLE IF NOT EXISTS documents (
     title       TEXT DEFAULT '',
     doc_type    TEXT DEFAULT '',
     chunk_count INTEGER DEFAULT 0,
+    status        TEXT DEFAULT 'pending',
+    error_message TEXT DEFAULT '',
+    file_path     TEXT DEFAULT '',
+    strict_mode   INTEGER DEFAULT 1,
     created_at  TEXT NOT NULL
 );
 """

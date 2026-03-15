@@ -29,7 +29,19 @@
             <component :is="getFileIcon(doc.file_name)" />
           </el-icon>
           <div class="doc-info">
-            <p class="doc-title">{{ doc.title || doc.file_name }}</p>
+            <p class="doc-title">
+              {{ doc.title || doc.file_name }}
+              <el-tag v-if="doc.status === 'pending'" size="small" type="info" style="margin-left: 8px">Pending</el-tag>
+              <el-tag v-else-if="doc.status === 'processing'" size="small" type="warning" style="margin-left: 8px">
+                <el-icon class="is-loading"><Loading /></el-icon> Processing
+              </el-tag>
+              <el-tag v-else-if="doc.status === 'failed'" size="small" type="danger" style="margin-left: 8px">
+                Failed
+              </el-tag>
+              <el-tag v-else-if="doc.status === 'completed'" size="small" type="success" style="margin-left: 8px">
+                Ready
+              </el-tag>
+            </p>
             <p class="doc-meta">
               <el-tag size="small" type="info">{{ doc.doc_type || 'all' }}</el-tag>
               <span class="doc-chunks">
@@ -45,6 +57,12 @@
                 <el-icon><User /></el-icon>
                 {{ doc.uploader_name }}
               </span>
+              <el-tooltip v-if="doc.status === 'failed' && doc.error_message" :content="doc.error_message" placement="top">
+                <span class="doc-error-msg">
+                  <el-icon><Warning /></el-icon>
+                  View Error
+                </span>
+              </el-tooltip>
             </p>
           </div>
         </div>
@@ -64,9 +82,9 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { Delete, Coin, Document, Memo, User, Folder } from '@element-plus/icons-vue'
+import { Delete, Coin, Document, Memo, User, Folder, Loading, Warning } from '@element-plus/icons-vue'
 import { ElMessageBox, ElMessage } from 'element-plus'
 import { getDocuments, getDocumentsByKb, deleteDocument } from '@/api/ingest'
 
@@ -92,6 +110,7 @@ const documents = ref([])
 const loading = ref(false)
 const deletingId = ref(null)
 const router = useRouter()
+let pollingTimer = null
 
 function getFileIcon(fileName) {
   if (!fileName) return Document
@@ -111,7 +130,7 @@ function formatDate(dateStr) {
 }
 
 function goToDetail(doc) {
-  if (!doc?.id) return
+  if (!doc?.id || doc.status === 'pending' || doc.status === 'processing') return
   const kbId = props.kbId || doc.kb_id || null
   const kbName = props.kbName || doc.kb_display_name || null
   router.push({
@@ -128,18 +147,31 @@ function goToDetail(doc) {
   })
 }
 
-async function fetchDocuments() {
-  loading.value = true
+async function fetchDocuments(showLoading = true) {
+  if (showLoading) {
+    loading.value = true
+  }
   try {
     const res = props.kbId
       ? await getDocumentsByKb(props.kbId)
       : await getDocuments()
     // API returns { total, documents } envelope
     documents.value = res?.documents ?? res ?? []
+
+    // Check if we need to poll
+    const needsPolling = documents.value.some(
+      doc => doc.status === 'pending' || doc.status === 'processing'
+    )
+    
+    if (needsPolling) {
+      pollingTimer = setTimeout(() => fetchDocuments(false), 3000)
+    }
   } catch (err) {
     // Error handled by interceptor
   } finally {
-    loading.value = false
+    if (showLoading) {
+      loading.value = false
+    }
   }
 }
 
@@ -181,6 +213,12 @@ defineExpose({ refresh })
 
 onMounted(() => {
   fetchDocuments()
+})
+
+onUnmounted(() => {
+  if (pollingTimer) {
+    clearTimeout(pollingTimer)
+  }
 })
 </script>
 
@@ -278,12 +316,18 @@ onMounted(() => {
 }
 
 .doc-uploader,
-.doc-kb {
+.doc-kb,
+.doc-error-msg {
   display: flex;
   align-items: center;
   gap: 3px;
   font-size: 12px;
   color: #909399;
+}
+
+.doc-error-msg {
+  color: #f56c6c;
+  cursor: help;
 }
 
 .doc-item-right {

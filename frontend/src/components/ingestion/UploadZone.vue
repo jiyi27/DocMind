@@ -77,6 +77,15 @@
       </el-form-item>
 
       <el-form-item>
+        <el-checkbox v-model="form.strict_mode">
+          Strict Chunking Validation
+        </el-checkbox>
+        <div style="font-size: 12px; color: #909399; line-height: 1.2; margin-top: 4px;">
+          If enabled, extremely long text blocks or code snippets that exceed limits will fail the ingestion to guarantee semantic integrity. If disabled, they will be forcefully chunked.
+        </div>
+      </el-form-item>
+
+      <el-form-item>
         <el-button
           type="primary"
           :loading="uploading"
@@ -118,6 +127,7 @@ const form = reactive({
   service: 'all',
   department: 'all',
   url: '',
+  strict_mode: true,
 })
 
 function handleFileChange(file) {
@@ -145,11 +155,12 @@ async function handleUpload() {
   if (form.doc_type) formData.append('doc_type', form.doc_type)
   if (form.service) formData.append('service', form.service)
   if (form.department) formData.append('department', form.department)
+  formData.append('strict_mode', form.strict_mode)
 
   uploading.value = true
   try {
     const result = await uploadDocument(props.kbId, formData)
-    ElMessage.success(`Upload successful! ${result.chunk_count} chunks created.`)
+    ElMessage.success('Document uploaded and ingestion queued successfully.')
     // Reset form and file list
     resetForm()
     emit('uploaded', result)
@@ -168,6 +179,7 @@ function resetForm() {
   form.service = 'all'
   form.department = 'all'
   form.url = ''
+  form.strict_mode = true
   uploadRef.value?.clearFiles()
 }
 </script>

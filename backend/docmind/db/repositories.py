@@ -137,6 +137,10 @@ class DocumentRepository:
         doc_type: str = "",
         chunk_count: int = 0,
         doc_id: str | None = None,
+        status: str = "pending",
+        error_message: str = "",
+        file_path: str = "",
+        strict_mode: bool = True,
     ) -> dict[str, Any]:
         """Create a document record.
 
@@ -149,9 +153,26 @@ class DocumentRepository:
         """
         _id = doc_id or str(uuid.uuid4())
         now = _now()
+        strict_int = 1 if strict_mode else 0
         await self.db.execute(
-            "INSERT INTO documents (id, user_id, kb_id, file_name, title, doc_type, chunk_count, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-            (_id, user_id, kb_id, file_name, title, doc_type, chunk_count, now),
+            """
+            INSERT INTO documents (id, user_id, kb_id, file_name, title, doc_type, chunk_count, status, error_message, file_path, strict_mode, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                _id,
+                user_id,
+                kb_id,
+                file_name,
+                title,
+                doc_type,
+                chunk_count,
+                status,
+                error_message,
+                file_path,
+                strict_int,
+                now,
+            ),
         )
         await self.db.commit()
         return {
@@ -162,8 +183,32 @@ class DocumentRepository:
             "title": title,
             "doc_type": doc_type,
             "chunk_count": chunk_count,
+            "status": status,
+            "error_message": error_message,
+            "file_path": file_path,
+            "strict_mode": strict_int,
             "created_at": now,
         }
+
+    async def update_status(
+        self,
+        doc_id: str,
+        status: str,
+        error_message: str = "",
+        chunk_count: int | None = None,
+    ) -> None:
+        """Update the processing status of a document."""
+        if chunk_count is not None:
+            await self.db.execute(
+                "UPDATE documents SET status = ?, error_message = ?, chunk_count = ? WHERE id = ?",
+                (status, error_message, chunk_count, doc_id),
+            )
+        else:
+            await self.db.execute(
+                "UPDATE documents SET status = ?, error_message = ? WHERE id = ?",
+                (status, error_message, doc_id),
+            )
+        await self.db.commit()
 
     async def get_by_id(self, doc_id: str) -> dict[str, Any] | None:
         async with self.db.execute(
