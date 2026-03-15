@@ -25,6 +25,13 @@ class IngestMetadata(BaseModel):
         default=True,
         description="Enable strict mode. If true, excessively long chunks will cause failure.",
     )
+    chunk_size: int = Field(
+        default=500, description="Target chunk size for semantic merging."
+    )
+    max_chunk_size: int = Field(
+        default=1500,
+        description="Maximum allowed size for an atomic block (e.g., code block).",
+    )
 
     @field_validator("doc_type")
     @classmethod

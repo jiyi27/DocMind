@@ -46,6 +46,8 @@ async def process_document_task(
     user_id: str,
     kb_name: str,
     strict_mode: bool,
+    chunk_size: int,
+    max_chunk_size: int,
 ):
     """Background task to run the ingestion graph."""
     try:
@@ -61,6 +63,8 @@ async def process_document_task(
                 "doc_id": doc_id,
                 "kb_name": kb_name,
                 "strict_mode": strict_mode,
+                "chunk_size": chunk_size,
+                "max_chunk_size": max_chunk_size,
             }
         )
 
@@ -94,6 +98,10 @@ async def ingest_document(
     strict_mode: bool = Form(
         default=True, description="Enable strict chunking validation"
     ),
+    chunk_size: int = Form(default=500, description="Target chunk size"),
+    max_chunk_size: int = Form(
+        default=1500, description="Max allowed chunk size for code blocks"
+    ),
     current_user: UserContext = Depends(get_current_user),
 ):
     """Upload a PDF or Markdown file to a specific KB, extract text, and store in the vector database."""
@@ -117,6 +125,8 @@ async def ingest_document(
         service=service,  # type: ignore
         department=department,  # type: ignore
         strict_mode=strict_mode,
+        chunk_size=chunk_size,
+        max_chunk_size=max_chunk_size,
     )
 
     doc_id = str(uuid.uuid4())
@@ -156,6 +166,8 @@ async def ingest_document(
         user_id=current_user.user_id,
         kb_name=kb_name,
         strict_mode=strict_mode,
+        chunk_size=chunk_size,
+        max_chunk_size=max_chunk_size,
     )
 
     return ok(

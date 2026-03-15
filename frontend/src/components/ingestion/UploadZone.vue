@@ -85,6 +85,34 @@
         </div>
       </el-form-item>
 
+      <el-collapse accordion v-if="form.strict_mode" style="border: none; margin-bottom: 18px;">
+        <el-collapse-item name="1">
+          <template #title>
+            <span style="font-size: 13px; color: #606266; font-weight: normal;">Advanced Chunking Settings</span>
+          </template>
+          <div style="padding: 10px 0 0 0;">
+            <el-row :gutter="12">
+              <el-col :span="12">
+                <el-form-item label="Target Chunk Size" style="margin-bottom: 0;">
+                  <el-input-number v-model="form.chunk_size" :min="100" :max="8000" controls-position="right" style="width: 100%" />
+                  <div style="font-size: 11px; color: #909399; margin-top: 4px; line-height: 1.2;">
+                    Ideal token size for a combined chunk.
+                  </div>
+                </el-form-item>
+              </el-col>
+              <el-col :span="12">
+                <el-form-item label="Max Chunk Size" style="margin-bottom: 0;">
+                  <el-input-number v-model="form.max_chunk_size" :min="200" :max="8000" controls-position="right" style="width: 100%" />
+                  <div style="font-size: 11px; color: #909399; margin-top: 4px; line-height: 1.2;">
+                    Absolute limit for an indivisible block (e.g. code).
+                  </div>
+                </el-form-item>
+              </el-col>
+            </el-row>
+          </div>
+        </el-collapse-item>
+      </el-collapse>
+
       <el-form-item>
         <el-button
           type="primary"
@@ -128,6 +156,8 @@ const form = reactive({
   department: 'all',
   url: '',
   strict_mode: true,
+  chunk_size: 500,
+  max_chunk_size: 1500,
 })
 
 function handleFileChange(file) {
@@ -156,6 +186,8 @@ async function handleUpload() {
   if (form.service) formData.append('service', form.service)
   if (form.department) formData.append('department', form.department)
   formData.append('strict_mode', form.strict_mode)
+  formData.append('chunk_size', form.chunk_size)
+  formData.append('max_chunk_size', form.max_chunk_size)
 
   uploading.value = true
   try {
@@ -180,6 +212,8 @@ function resetForm() {
   form.department = 'all'
   form.url = ''
   form.strict_mode = true
+  form.chunk_size = 500
+  form.max_chunk_size = 1500
   uploadRef.value?.clearFiles()
 }
 </script>

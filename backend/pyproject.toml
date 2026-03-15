@@ -2,7 +2,7 @@
 name = "docmind"
 version = "0.1.0"
 description = "RAG Knowledge Base powered by LangGraph"
-readme = "../README.md"
+readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "aiosqlite>=0.22.1",

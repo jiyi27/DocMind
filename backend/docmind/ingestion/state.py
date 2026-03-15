@@ -39,6 +39,8 @@ class IngestionState(TypedDict, total=False):
     doc_id: str
     kb_name: str
     strict_mode: bool
+    chunk_size: int
+    max_chunk_size: int
     documents: list[Document]
     chunks: list[Document]
     status: str
