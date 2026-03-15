@@ -115,12 +115,12 @@ def _custom_split_markdown(
 
             # Remove any existing headers that are at the same or deeper level
             keys_to_remove = [
-                k for k in current_headers.keys() if int(k.split(" ")[1]) >= level
+                k for k in current_headers.keys() if int(k.split("_")[1]) >= level
             ]
             for k in keys_to_remove:
                 del current_headers[k]
 
-            current_headers[f"Header {level}"] = header_text
+            current_headers[f"header_{level}"] = header_text
 
         # Restore code blocks in this specific paragraph
         def restore(m):
