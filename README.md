@@ -22,6 +22,7 @@ A robust, multi-tenant RAG (Retrieval-Augmented Generation) Knowledge Base syste
 - **Advanced RAG Pipelines**: Orchestrated via **LangGraph** for both document ingestion and conversational retrieval workflows.
 - **Relational Metadata Management**: Uses SQLite to track Users, Knowledge Bases, Documents, and Chat Sessions with full history.
 - **High-Performance Vector Search**: Uses **Qdrant** for scalable similarity search with dynamic collection creation per knowledge base (`docmind_{kb_name}`).
+- **Source Citations & Traceability**: Every chat response includes cited source references linked back to the original document chunks, enabling full answer provenance and auditability.
 - **Flexible LLM & Embeddings**: OpenAI-compatible endpoints for both LLM and embeddings — swap providers (Ollama, OpenAI, OpenRouter, etc.) by changing environment variables only.
 - **Streaming Chat**: Server-Sent Events (SSE) support for real-time token-by-token response streaming.
 - **Full-Stack Application**: Vue 3 frontend with a complete UI covering authentication, knowledge base management, document ingestion, and conversational chat.
