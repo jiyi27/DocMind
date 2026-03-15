@@ -19,6 +19,29 @@ A robust, multi-tenant RAG (Retrieval-Augmented Generation) Knowledge Base syste
 - **Local Embedding Model**: Ollama (Docker) - `nomic-embed-text`
 - **Relational DB**: SQLite
 
+
+## 🧠 Advanced Ingestion & Preprocessing Pipeline
+
+DocMind features a highly optimized, LangGraph-orchestrated document ingestion pipeline. It addresses several critical pain points in standard RAG architectures, specifically focusing on structural preservation and the retrieval of non-semantic content like code blocks.
+
+### 1. Strict Context-Preserving Chunking
+* **Pain Point**: Traditional character-based splitters often haphazardly slice through code blocks or separate paragraphs from their parent headers, leading to severe context loss during retrieval.
+* **DocMind Solution**: Implements a custom state-machine-based Markdown splitter. 
+  * **Physical Boundaries**: Strictly slices documents by physical paragraphs (`\n\n`).
+  * **Hierarchy Tracking**: Dynamically tracks heading levels (e.g., `header_1`, `header_2`) and injects them into the metadata of every child chunk.
+  * **Integrity Protection**: Identifies and protects Markdown code blocks (` ``` `) from being broken apart, ensuring structural integrity.
+
+### 2. LLM-Powered Code Summarization (Multi-Vector / Parent-Child Retrieval)
+* **Pain Point (Semantic Dilution)**: Pure code blocks (e.g., Python functions, JSON configs) lack natural language characteristics. Directly vectorizing raw code causes the embedding models to lose focus (semantic dilution). Users querying with natural language often fail to retrieve the right code snippets.
+* **DocMind Solution**: A zero-invasion "Content Injection" Multi-Vector approach.
+  * **Detection & Summarization**: A dedicated LangGraph node intercepts chunks containing code. It extracts the code alongside its hierarchical headers and asks an LLM to generate a keyword-dense natural language summary (focusing on business intent, tech stack, and usage scenarios).
+  * **Embedding Swap**: The original code in the chunk is replaced with the LLM-generated summary, which is then vectorized by the embedding model. This guarantees extremely high recall when queried in natural language.
+  * **Lossless Context Retrieval**: The *original, unadulterated code* is stored safely inside the Qdrant `metadata` payload. At retrieval time, the system matches the summary vector but extracts the original code from the payload, feeding perfectly intact code to the generation LLM.
+
+### 3. Graceful Degradation & Fault Tolerance
+* **Pain Point**: Relying on external LLMs during the ingestion phase can bottleneck the process or cause crashes due to API rate limits or timeout errors.
+* **DocMind Solution**: The summarization pipeline is wrapped in strict fault-tolerance mechanisms. If an LLM call fails, the system safely falls back to standard text embedding for that specific chunk without disrupting the rest of the document's ingestion process.
+
 ## 📂 Project Structure
 
 ```text
@@ -96,17 +119,17 @@ Key flows include:
 
 ### Utility Commands
 
-| Command | Description |
-| ------- | ----------- |
-| `make dev` | Start API server with hot reload |
-| `make infra-init` | **First time**: create containers + pull embedding model |
-| `make infra-up` | Start existing containers (subsequent runs) |
-| `make infra-down` | Stop running containers (keeps data volumes intact) |
-| `docker compose ps` | Check container status |
-| `docker compose down -v` | ⚠️ Stop and delete containers + volumes (data loss) |
+| Command                  | Description                                              |
+| ------------------------ | -------------------------------------------------------- |
+| `make dev`               | Start API server with hot reload                         |
+| `make infra-init`        | **First time**: create containers + pull embedding model |
+| `make infra-up`          | Start existing containers (subsequent runs)              |
+| `make infra-down`        | Stop running containers (keeps data volumes intact)      |
+| `docker compose ps`      | Check container status                                   |
+| `docker compose down -v` | ⚠️ Stop and delete containers + volumes (data loss)       |
 
 ## 🗺️ Roadmap
 
-- [ ] **Frontend UI** — Build a responsive web interface covering core user flows: knowledge base management, document ingestion, and conversational chat.
 - [ ] **Document Storage with MinIO** — Persist uploaded documents to an object store during ingestion, exposing a download endpoint for users to retrieve original files.
-- [ ] **LLM-based Document Pre-processing** — Introduce a pre-ingestion pipeline utilizing an LLM to normalize document structure and improve chunking quality before vectorization.
+- [x] **Frontend UI** — Build a responsive web interface covering core user flows: knowledge base management, document ingestion, and conversational chat.
+- [x] **LLM-based Document Pre-processing** — Introduce a pre-ingestion pipeline utilizing an LLM to normalize document structure and improve chunking quality before vectorization.
