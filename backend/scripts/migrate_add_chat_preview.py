@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import sqlite3
 
-DB_PATH = "/Users/david/codes/agent/DocMind/backend/docmind.db"
+DB_PATH = "/backend/data/docmind.db"
 
 
 def column_exists(cursor: sqlite3.Cursor, table: str, column: str) -> bool:

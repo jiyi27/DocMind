@@ -8,7 +8,7 @@ from typing import AsyncGenerator
 
 from docmind.db.models import ALL_TABLES
 
-_DB_PATH = "docmind.db"
+_DB_PATH = "data/docmind.db"
 
 
 async def init_db() -> None:
