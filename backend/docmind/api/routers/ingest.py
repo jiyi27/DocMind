@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-from tempfile import NamedTemporaryFile
 
 import uuid
 
@@ -17,7 +16,6 @@ from fastapi import (
     UploadFile,
     status,
 )
-from fastapi.responses import JSONResponse
 
 from docmind.api.dependencies import get_current_user
 from docmind.api.schemas import IngestMetadata
@@ -230,10 +228,7 @@ async def list_documents_by_kb(
 
 
 @router.get("/documents/{doc_id}", summary="Get Document Detail")
-async def get_document(
-    doc_id: str,
-    current_user: UserContext = Depends(get_current_user),
-):
+async def get_document(doc_id: str):
     """Return metadata for a single document."""
     async with get_db() as db:
         doc_repo = DocumentRepository(db)
@@ -267,7 +262,6 @@ async def get_document_chunks(
     doc_id: str,
     offset: int = 0,
     limit: int = 20,
-    current_user: UserContext = Depends(get_current_user),
 ):
     """Examine text chunks and metadata of a specific document after splitting for validation."""
     if not (1 <= limit <= 100):
