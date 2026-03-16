@@ -146,10 +146,17 @@ class DocumentRepository:
 
         Parameters
         ----------
-        doc_id:
-            Optional explicit UUID. When provided (e.g. pre-generated before
-            ingestion so it can be stamped into Qdrant chunk payloads), this
-            value is used as the primary key. Otherwise a new UUID is generated.
+        user_id : str
+        kb_id : str
+        file_name : str
+        title : str
+        doc_type : str
+        chunk_count : int
+        doc_id : str
+        status : str
+        error_message : str
+        file_path : str
+        strict_mode : bool
         """
         _id = doc_id or str(uuid.uuid4())
         now = _now()

@@ -122,7 +122,7 @@ def managed_resource():
 数据量小且需要反复使用？ ──Yes──► 使用 return 列表
 ```
 
-## 第一步：生成器基础 —— `yield` 与 `next()`
+## 2. 生成器基础 —— `yield` 与 `next()`
 
 ### `next()` 是生成器的点火钥匙
 
@@ -155,7 +155,7 @@ next(gen)  # 没有更多 yield，抛出 StopIteration
 | `with` 语句 + `@contextmanager` | 装饰器内部自动调用           |
 | FastAPI `Depends()`             | FastAPI 依赖注入系统自动调用 |
 
-## 第二步：`yield` 实现"进入-退出"逻辑
+## 3. `yield` 实现"进入-退出"逻辑
 
 `yield` 的暂停特性天然适合做资源管理：**yield 前是准备工作，yield 后是清理工作，中间是资源使用时间**。
 
@@ -165,11 +165,11 @@ yield 前（准备）  →  yield（交出资源）  →  yield 后（清理）
   获取连接/锁          用户使用资源             关闭连接/释放锁
 ```
 
-### 问题：如果中途抛出异常怎么办？
+> 问题：如果中途抛出异常怎么办？
+>
+> 如果手动管理 `next()`，一旦中间出错，清理代码可能永远不会执行。这就是 `@contextmanager` 存在的原因
 
-如果手动管理 `next()`，一旦中间出错，清理代码可能永远不会执行。这就是 `@contextmanager` 存在的原因。
-
-## 第三步：`@contextmanager` 是自动化的 `next()` 调用器
+## 4. `@contextmanager` 是自动化的 `next()` 调用器
 
 `@contextmanager` 把生成器包装成一个标准的上下文管理器（拥有 `__enter__` 和 `__exit__`），自动处理 `next()` 调用和异常安全。
 
@@ -207,13 +207,13 @@ except StopIteration:
 **异常安全**：如果 `with` 块内抛出异常，装饰器会捕获它，仍然执行 `yield` 后的清理代码，然后再重新抛出异常。
 
 
-## 第四步：异步版本 `@asynccontextmanager`
+## 5. 异步版本 `@asynccontextmanager`
 
 数据库连接、网络请求等 I/O 操作需要异步处理。异步世界里，推动生成器的不是 `next()`，而是 `await __anext__()`。
 
 `@asynccontextmanager` 是 `@contextmanager` 的异步版本，原理完全相同。
 
-## 3. DocMind 项目中的真实案例
+## 6. DocMind 项目中的真实案例
 
 ### 案例 1：`get_db()` —— 全局单例连接的借用
 
