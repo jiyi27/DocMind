@@ -6,15 +6,15 @@ A robust, multi-tenant RAG (Retrieval-Augmented Generation) Knowledge Base syste
 
 **Knowledge Base Dashboard**
 
-![Dashboard](docs/screenshot-dashboard.png)
+![Dashboard](docs/images/screenshot-dashboard.png)
 
 **Document Management**
 
-![Document Management](docs/screenshot-documents.png)
+![Document Management](docs/images/screenshot-documents.png)
 
 **Conversational Chat with Source Citations**
 
-![Chat](docs/screenshot-chat.png)
+![Chat](docs/images/screenshot-chat.png)
 
 ## Key Features
 
