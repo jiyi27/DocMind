@@ -22,6 +22,7 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 # POST /auth/register
 # ---------------------------------------------------------------------------
 
+
 @router.post("/register", status_code=status.HTTP_201_CREATED, summary="Register User")
 async def register(body: UserCreate):
     """Create a new user and associate them with a specific knowledge base."""
@@ -68,6 +69,7 @@ async def register(body: UserCreate):
 # POST /auth/login
 # ---------------------------------------------------------------------------
 
+
 @router.post("/login", summary="User Login")
 async def login(body: LoginRequest):
     """Authenticate username and password to return a JWT access token and user info."""
@@ -89,13 +91,15 @@ async def login(body: LoginRequest):
                 detail="User's knowledge base not found",
             )
 
-    token = create_access_token({
-        "sub": user["id"],
-        "username": user["username"],
-        "kb_id": user["kb_id"],
-        "kb_name": kb["name"],
-        "role": user["role"],
-    })
+    token = create_access_token(
+        {
+            "sub": user["id"],
+            "username": user["username"],
+            "kb_id": user["kb_id"],
+            "kb_name": kb["name"],
+            "role": user["role"],
+        }
+    )
 
     is_super_admin = user["username"] in settings.admin.super_admin_usernames
 
@@ -105,7 +109,7 @@ async def login(body: LoginRequest):
             is_super_admin=is_super_admin,
             kb_id=user["kb_id"],
             role=user["role"],
-            username=user["username"]
+            username=user["username"],
         ).model_dump(),
         message="Login successful",
     )

@@ -47,6 +47,7 @@ class RequestIdMiddleware(BaseHTTPMiddleware):
             body_bytes = await request.body()
             try:
                 import json as _json
+
                 data["body"] = _json.loads(body_bytes)
             except Exception:
                 data["body"] = body_bytes.decode(errors="replace")

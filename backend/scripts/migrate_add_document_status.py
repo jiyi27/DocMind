@@ -6,11 +6,11 @@ from pathlib import Path
 project_root = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(project_root))
 
-from docmind.db.database import get_db
-
 
 async def migrate():
     """Add status, error_message, file_path, and strict_mode columns to documents table."""
+    from docmind.db.database import get_db
+
     print("Running migration: Add document status fields...")
     async with get_db() as db:
         try:

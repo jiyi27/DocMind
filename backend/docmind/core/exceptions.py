@@ -37,22 +37,30 @@ class AppException(Exception):
 class DocumentError(AppException):
     """Raised for any document-related failure (unsupported type, parse error, etc.)."""
 
-    default_message = "The document could not be processed. Please check the file and try again."
+    default_message = (
+        "The document could not be processed. Please check the file and try again."
+    )
 
 
 class VectorStoreError(AppException):
     """Raised when the vector store (Qdrant) cannot be reached or is misconfigured."""
 
-    default_message = "The knowledge base service is temporarily unavailable. Please try again later."
+    default_message = (
+        "The knowledge base service is temporarily unavailable. Please try again later."
+    )
 
 
 class LLMError(AppException):
     """Raised when the LLM call fails (network error, context-window overflow, etc.)."""
 
-    default_message = "The AI service is temporarily unavailable. Please try again later."
+    default_message = (
+        "The AI service is temporarily unavailable. Please try again later."
+    )
 
 
 class ConfigError(AppException):
     """Raised when a required service cannot be initialized due to missing configuration."""
 
-    default_message = "A service configuration error occurred. Please contact the administrator."
+    default_message = (
+        "A service configuration error occurred. Please contact the administrator."
+    )

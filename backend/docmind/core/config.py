@@ -8,7 +8,6 @@ variables are collected and reported at startup, then the process exits.
 from __future__ import annotations
 
 import os
-import sys
 from dataclasses import dataclass
 from dotenv import load_dotenv
 
@@ -17,6 +16,7 @@ load_dotenv()
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
+
 
 def _require_str(env_var: str) -> str:
     """Return the value of *env_var*, recording it as missing if absent/empty."""
@@ -46,9 +46,11 @@ _MISSING: list[str] = []
 # Config dataclasses — no defaults, every field reads from env
 # ---------------------------------------------------------------------------
 
+
 @dataclass(frozen=True)
 class EmbeddingConfig:
     """Embedding service configuration (OpenAI-compatible, provider-agnostic)."""
+
     base_url: str
     api_key: str
     model: str
@@ -57,6 +59,7 @@ class EmbeddingConfig:
 @dataclass(frozen=True)
 class QdrantConfig:
     """Qdrant vector database configuration."""
+
     url: str
     collection: str
 
@@ -64,6 +67,7 @@ class QdrantConfig:
 @dataclass(frozen=True)
 class LLMConfig:
     """LLM configuration."""
+
     api_key: str
     model: str
     base_url: str
@@ -72,6 +76,7 @@ class LLMConfig:
 @dataclass(frozen=True)
 class IngestionConfig:
     """Document ingestion pipeline configuration."""
+
     chunk_size: int
     chunk_overlap: int
 
@@ -79,6 +84,7 @@ class IngestionConfig:
 @dataclass(frozen=True)
 class RetrievalConfig:
     """Retrieval pipeline configuration."""
+
     top_k: int
     max_messages: int  # Max number of messages to keep in conversation history (oldest are dropped first).
 
@@ -86,6 +92,7 @@ class RetrievalConfig:
 @dataclass(frozen=True)
 class LogConfig:
     """Logging configuration."""
+
     dir: str
     # Minimum level to write: "debug" | "info" | "error"
     level: str
@@ -94,6 +101,7 @@ class LogConfig:
 @dataclass(frozen=True)
 class JWTConfig:
     """JWT authentication configuration."""
+
     secret_key: str
     algorithm: str
     expire_minutes: int
@@ -111,6 +119,7 @@ class AdminConfig:
 
         Example env value:  SUPER_ADMIN_USERNAMES=super_admin,alice,bob
     """
+
     super_admin_usernames: frozenset[str]
 
 
@@ -124,12 +133,14 @@ class CORSConfig:
 
         Example env value:  CORS_ORIGINS=http://localhost:3000,https://app.example.com
     """
+
     allowed_origins: list[str]
 
 
 @dataclass(frozen=True)
 class Settings:
     """Root settings aggregating all sub-configurations."""
+
     embedding: EmbeddingConfig
     qdrant: QdrantConfig
     llm: LLMConfig

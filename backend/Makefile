@@ -11,11 +11,11 @@ ingest:
 ## First-time setup: start infrastructure and pull embedding model
 infra-init:
 	docker compose up -d
-	docker exec ollama ollama pull nomic-embed-text:latest
+	docker compose exec ollama ollama pull nomic-embed-text:latest
 
 ## Start existing infrastructure containers (after first-time setup)
 infra-up:
-	docker compose start
+	docker compose up -d
 
 ## Stop infrastructure (keeps containers and volumes intact)
 infra-down:

@@ -11,7 +11,7 @@ from langchain_openai import ChatOpenAI
 
 from docmind.core.config import settings
 from docmind.core import logger
-from docmind.core.exceptions import LLMError, ConfigError
+from docmind.core.exceptions import ConfigError
 
 _llm_instance: ChatOpenAI | None = None
 _lock = threading.Lock()

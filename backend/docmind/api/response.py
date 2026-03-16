@@ -28,6 +28,7 @@ from docmind.core import logger
 
 # ── Response envelope ──────────────────────────────────────────────────────────
 
+
 def ok(data: Any = None, message: str = "ok") -> JSONResponse:
     """Return a successful JSON response."""
     return JSONResponse(
@@ -46,6 +47,7 @@ def err(message: str, data: Any = None) -> JSONResponse:
 
 # ── Exception handler registration ────────────────────────────────────────────
 
+
 def register_exception_handlers(app: FastAPI) -> None:
     """Attach all global exception handlers to *app*.
 
@@ -53,40 +55,58 @@ def register_exception_handlers(app: FastAPI) -> None:
     """
 
     @app.exception_handler(AppException)
-    async def app_exception_handler(request: Request, exc: AppException) -> JSONResponse:
+    async def app_exception_handler(
+        request: Request, exc: AppException
+    ) -> JSONResponse:
         """Handle known business exceptions.
 
         The ``message`` on AppException subclasses is intentionally user-facing,
         so it is safe to return directly to the client.
         """
-        logger.warning("app_exception", {
-            "method": request.method,
-            "url": str(request.url),
-            "error_type": type(exc).__name__,
-            "message": exc.message,
-        })
+        logger.warning(
+            "app_exception",
+            {
+                "method": request.method,
+                "url": str(request.url),
+                "error_type": type(exc).__name__,
+                "message": exc.message,
+            },
+            exc=exc,
+        )
         return err(exc.message)
 
     @app.exception_handler(RequestValidationError)
-    async def validation_error_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
+    async def validation_error_handler(
+        request: Request, exc: RequestValidationError
+    ) -> JSONResponse:
         """Handle Pydantic / FastAPI request validation errors (bad input from client)."""
-        logger.warning("request_validation_error", {
-            "method": request.method,
-            "url": str(request.url),
-            "errors": exc.errors(),
-        })
+        logger.warning(
+            "request_validation_error",
+            {
+                "method": request.method,
+                "url": str(request.url),
+                "errors": exc.errors(),
+            },
+            exc=exc,
+        )
         return err("Invalid request parameters. Please check your input and try again.")
 
     @app.exception_handler(Exception)
-    async def generic_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    async def generic_exception_handler(
+        request: Request, exc: Exception
+    ) -> JSONResponse:
         """Catch-all handler — log full details, return a safe generic message.
 
         Never leaks internal error details or tracebacks to the client.
         """
-        logger.error("unhandled_exception", {
-            "method": request.method,
-            "url": str(request.url),
-            "error_type": type(exc).__name__,
-            "error": str(exc),
-        })
+        logger.error(
+            "unhandled_exception",
+            {
+                "method": request.method,
+                "url": str(request.url),
+                "error_type": type(exc).__name__,
+                "error": str(exc),
+            },
+            exc=exc,
+        )
         return err("An unexpected error occurred. Please try again later.")

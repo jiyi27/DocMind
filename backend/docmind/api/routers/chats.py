@@ -50,7 +50,9 @@ async def list_chat_sessions(
             limit=limit,
             offset=offset,
         )
-    return ok(data={"items": sessions, "total": total, "limit": limit, "offset": offset})
+    return ok(
+        data={"items": sessions, "total": total, "limit": limit, "offset": offset}
+    )
 
 
 @router.get("/{session_id}", summary="Get chat session detail")
@@ -65,7 +67,9 @@ async def get_chat_session(
 
         session = await session_repo.get_by_id(session_id)
         if not session or session["user_id"] != current_user.user_id:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Chat session not found")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Chat session not found"
+            )
 
         messages = await message_repo.list_by_session(session_id)
         for msg in messages:
@@ -90,7 +94,11 @@ async def create_chat_session(
     return ok(data=session, message="Chat session created")
 
 
-@router.post("/{session_id}/messages", status_code=status.HTTP_201_CREATED, summary="Append chat message")
+@router.post(
+    "/{session_id}/messages",
+    status_code=status.HTTP_201_CREATED,
+    summary="Append chat message",
+)
 async def create_chat_message(
     session_id: str,
     body: ChatMessageCreate,
@@ -103,7 +111,9 @@ async def create_chat_message(
 
         session = await session_repo.get_by_id(session_id)
         if not session or session["user_id"] != current_user.user_id:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Chat session not found")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Chat session not found"
+            )
 
         message = await message_repo.create(
             session_id=session_id,
@@ -114,7 +124,9 @@ async def create_chat_message(
             token_count=body.token_count,
         )
         preview = body.content[:160] if body.content else ""
-        await session_repo.touch(session_id, message_count_delta=1, last_message_preview=preview)
+        await session_repo.touch(
+            session_id, message_count_delta=1, last_message_preview=preview
+        )
 
         message["sources"] = body.sources
         message.pop("sources_json", None)

@@ -47,7 +47,10 @@ def get_embedding_model() -> OpenAIEmbeddings:
             return _embedding_instance
 
         if not settings.embedding.base_url:
-            logger.error("embedding_init_failed", {"reason": "EMBEDDING_BASE_URL is not configured"})
+            logger.error(
+                "embedding_init_failed",
+                {"reason": "EMBEDDING_BASE_URL is not configured"},
+            )
             raise ConfigError(
                 "EMBEDDING_BASE_URL is not configured. Please set it in your environment."
             )

@@ -29,20 +29,24 @@ def load_pdf(file_path: str | Path) -> list[Document]:
     try:
         loader = PyPDFLoader(str(file_path))
         docs = loader.load()
-        logger.debug("loader_pdf_success", {
-            "file_path": str(file_path),
-            "page_count": len(docs),
-        })
+        logger.debug(
+            "loader_pdf_success",
+            {
+                "file_path": str(file_path),
+                "page_count": len(docs),
+            },
+        )
         return docs
     except Exception as exc:
-        logger.error("loader_pdf_failed", {
-            "file_path": str(file_path),
-            "error_type": type(exc).__name__,
-            "error": str(exc),
-        })
-        raise DocumentError(
-            f"Failed to load PDF '{file_path}': {exc}"
-        ) from exc
+        logger.error(
+            "loader_pdf_failed",
+            {
+                "file_path": str(file_path),
+                "error_type": type(exc).__name__,
+                "error": str(exc),
+            },
+        )
+        raise DocumentError(f"Failed to load PDF '{file_path}': {exc}") from exc
 
 
 def load_markdown(file_path: str | Path) -> list[Document]:
@@ -60,19 +64,25 @@ def load_markdown(file_path: str | Path) -> list[Document]:
     try:
         content = path.read_text(encoding="utf-8")
     except Exception as exc:
-        logger.error("loader_markdown_failed", {
-            "file_path": str(file_path),
-            "error_type": type(exc).__name__,
-            "error": str(exc),
-        })
+        logger.error(
+            "loader_markdown_failed",
+            {
+                "file_path": str(file_path),
+                "error_type": type(exc).__name__,
+                "error": str(exc),
+            },
+        )
         raise DocumentError(
             f"Failed to read Markdown file '{file_path}': {exc}"
         ) from exc
 
-    logger.debug("loader_markdown_success", {
-        "file_path": str(file_path),
-        "content_length": len(content),
-    })
+    logger.debug(
+        "loader_markdown_success",
+        {
+            "file_path": str(file_path),
+            "content_length": len(content),
+        },
+    )
     return [
         Document(
             page_content=content,
@@ -103,11 +113,14 @@ def load_document(file_path: str | Path) -> list[Document]:
 
     loader_fn = loaders.get(suffix)
     if loader_fn is None:
-        logger.error("loader_unsupported_type", {
-            "file_path": str(file_path),
-            "suffix": suffix,
-            "supported": list(loaders.keys()),
-        })
+        logger.error(
+            "loader_unsupported_type",
+            {
+                "file_path": str(file_path),
+                "suffix": suffix,
+                "supported": list(loaders.keys()),
+            },
+        )
         raise DocumentError(
             f"Unsupported file type '{suffix}'. Supported types: {list(loaders.keys())}"
         )

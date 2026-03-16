@@ -28,9 +28,8 @@ import json
 import os
 import sys
 import traceback
-import uuid
 from contextvars import ContextVar
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
 
 from docmind.core.config import settings
@@ -54,6 +53,7 @@ def get_request_id() -> str:
     """Return the request ID bound to the current async context."""
     return _request_id_var.get()
 
+
 # Level ordering — entries below the configured minimum are silently dropped
 _LEVELS = {"debug": 0, "info": 1, "warning": 2, "error": 3}
 
@@ -67,7 +67,61 @@ def _log_dir() -> Path:
     return d
 
 
-def _write(level: str, topic: str, data: dict) -> None:
+def _serialize_traceback(exc: BaseException) -> dict[str, object]:
+    """Convert a single exception traceback into structured log fields."""
+    frames = traceback.extract_tb(exc.__traceback__)
+    result: dict[str, object] = {
+        "error_type": type(exc).__name__,
+        "error": str(exc),
+        "traceback": "".join(
+            traceback.format_exception(type(exc), exc, exc.__traceback__)
+        ),
+    }
+
+    if not frames:
+        return result
+
+    origin_frame = frames[0]
+    trigger_frame = frames[-1]
+    result["origin"] = {
+        "file": os.path.basename(origin_frame.filename),
+        "line": origin_frame.lineno,
+        "func": origin_frame.name,
+    }
+    result["trigger"] = {
+        "file": os.path.basename(trigger_frame.filename),
+        "line": trigger_frame.lineno,
+        "func": trigger_frame.name,
+        "code": trigger_frame.line,
+    }
+    result["call_chain"] = [
+        f"{os.path.basename(frame.filename)}:{frame.lineno} {frame.name}"
+        for frame in frames
+    ]
+    return result
+
+
+def _exception_chain(exc: BaseException) -> list[dict[str, object]]:
+    """Return the chained exceptions from outermost to root cause."""
+    chain: list[dict[str, object]] = []
+    seen: set[int] = set()
+    current: BaseException | None = exc
+
+    while current is not None and id(current) not in seen:
+        seen.add(id(current))
+        chain.append(_serialize_traceback(current))
+        current = current.__cause__ or current.__context__
+
+    return chain
+
+
+def _write(
+    level: str,
+    topic: str,
+    data: dict,
+    *,
+    exc: BaseException | None = None,
+) -> None:
     """Build a JSON record and append it to the appropriate log file.
 
     Args:
@@ -87,8 +141,8 @@ def _write(level: str, topic: str, data: dict) -> None:
     log_dir.mkdir(parents=True, exist_ok=True)
 
     now = datetime.now()  # local time
-    hour_prefix = now.strftime("%Y%m%d%H")            # e.g. "2026031219"
-    filename = f"{hour_prefix}.{level}.log"            # e.g. "2026031219.debug.log"
+    hour_prefix = now.strftime("%Y%m%d%H")  # e.g. "2026031219"
+    filename = f"{hour_prefix}.{level}.log"  # e.g. "2026031219.debug.log"
 
     # Caller info (skip 2 frames: _write → debug/info/error → actual caller)
     frame = inspect.stack()[2]
@@ -99,7 +153,8 @@ def _write(level: str, topic: str, data: dict) -> None:
     }
 
     record: dict = {
-        "ts": now.strftime("%Y-%m-%dT%H:%M:%S.") + f"{now.microsecond // 1000:03d}+08:00",
+        "ts": now.strftime("%Y-%m-%dT%H:%M:%S.")
+        + f"{now.microsecond // 1000:03d}+08:00",
         "request_id": _request_id_var.get() or "-",
         "topic": topic,
         "data": data,
@@ -107,31 +162,19 @@ def _write(level: str, topic: str, data: dict) -> None:
     }
 
     # If there is an active exception, enrich the record with traceback details.
-    exc_type, exc_value, exc_tb = sys.exc_info()
-    if exc_value is not None:
-        frames = traceback.extract_tb(exc_tb)
-        if frames:
-            # origin — where the exception propagated through our handler (outermost tb frame)
-            origin_frame = frames[0]
-            record["data"] = dict(data)  # shallow copy so we don't mutate the caller's dict
-            record["data"]["origin"] = {
-                "file": os.path.basename(origin_frame.filename),
-                "line": origin_frame.lineno,
-                "func": origin_frame.name,
+    active_exc = exc or sys.exc_info()[1]
+    if active_exc is not None:
+        record["data"] = dict(data)
+        record["data"].update(_serialize_traceback(active_exc))
+
+        chain = _exception_chain(active_exc)
+        if len(chain) > 1:
+            record["data"]["exception_chain"] = chain
+            root_cause = chain[-1]
+            record["data"]["root_cause"] = {
+                "error_type": root_cause["error_type"],
+                "error": root_cause["error"],
             }
-            # trigger — the innermost frame where the exception was actually raised
-            trigger_frame = frames[-1]
-            record["data"]["trigger"] = {
-                "file": os.path.basename(trigger_frame.filename),
-                "line": trigger_frame.lineno,
-                "func": trigger_frame.name,
-                "code": trigger_frame.line,
-            }
-            # call_chain — every frame in the traceback, outermost → innermost
-            record["data"]["call_chain"] = [
-                f"{os.path.basename(f.filename)}:{f.lineno} {f.name}"
-                for f in frames
-            ]
 
     filepath = log_dir / filename
     try:
@@ -140,6 +183,7 @@ def _write(level: str, topic: str, data: dict) -> None:
     except OSError as write_err:
         # Fallback to stderr so a logging failure never crashes the caller
         import sys as _sys
+
         _sys.stderr.write(
             f"[LOGGER FALLBACK] Failed to write log ({write_err}): "
             + json.dumps(record, ensure_ascii=False)
@@ -151,27 +195,28 @@ def _write(level: str, topic: str, data: dict) -> None:
 # Public API — three functions, three levels, dead simple
 # ---------------------------------------------------------------------------
 
-def debug(topic: str, data: dict) -> None:
+
+def debug(topic: str, data: dict, *, exc: BaseException | None = None) -> None:
     """Write a DEBUG-level log entry.
 
     Args:
         topic: Context tag for grep-friendly searching (snake_case recommended).
         data:  Structured payload as a dict.
     """
-    _write("debug", topic, data)
+    _write("debug", topic, data, exc=exc)
 
 
-def info(topic: str, data: dict) -> None:
+def info(topic: str, data: dict, *, exc: BaseException | None = None) -> None:
     """Write an INFO-level log entry.
 
     Args:
         topic: Context tag for grep-friendly searching (snake_case recommended).
         data:  Structured payload as a dict.
     """
-    _write("info", topic, data)
+    _write("info", topic, data, exc=exc)
 
 
-def warning(topic: str, data: dict) -> None:
+def warning(topic: str, data: dict, *, exc: BaseException | None = None) -> None:
     """Write a WARNING-level log entry.
 
     Use for expected-but-notable events: business exceptions, bad client input,
@@ -181,14 +226,14 @@ def warning(topic: str, data: dict) -> None:
         topic: Context tag for grep-friendly searching (snake_case recommended).
         data:  Structured payload as a dict.
     """
-    _write("warning", topic, data)
+    _write("warning", topic, data, exc=exc)
 
 
-def error(topic: str, data: dict) -> None:
+def error(topic: str, data: dict, *, exc: BaseException | None = None) -> None:
     """Write an ERROR-level log entry.
 
     Args:
         topic: Context tag for grep-friendly searching (snake_case recommended).
         data:  Structured payload as a dict.
     """
-    _write("error", topic, data)
+    _write("error", topic, data, exc=exc)

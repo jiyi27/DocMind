@@ -5,10 +5,7 @@ from __future__ import annotations
 import re
 
 from langchain_core.documents import Document
-from langchain_text_splitters import (
-    MarkdownHeaderTextSplitter,
-    RecursiveCharacterTextSplitter,
-)
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 from docmind.core.config import settings
 from docmind.core import logger
@@ -256,9 +253,6 @@ def split_text_node(state: IngestionState) -> dict:
         raise
 
     return {"chunks": chunks}
-
-
-import re
 
 
 def summarize_code_node(state: IngestionState) -> dict:

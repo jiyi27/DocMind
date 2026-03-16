@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pydantic import BaseModel, Field, field_validator
-from typing import Any, Literal
+from typing import Literal
 
 from docmind.core.metadata_config import DEPARTMENTS, DOC_TYPES, SERVICES
 

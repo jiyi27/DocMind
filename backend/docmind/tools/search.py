@@ -24,11 +24,14 @@ def search_knowledge_base(query: str) -> str:
         store = get_vector_store()
         docs = store.similarity_search(query, k=settings.retrieval.top_k)
     except Exception as exc:
-        logger.error("tool_search_failed", {
-            "query": query[:200],
-            "error_type": type(exc).__name__,
-            "error": str(exc),
-        })
+        logger.error(
+            "tool_search_failed",
+            {
+                "query": query[:200],
+                "error_type": type(exc).__name__,
+                "error": str(exc),
+            },
+        )
         return "Knowledge base search is currently unavailable. Please try again later."
 
     if not docs:

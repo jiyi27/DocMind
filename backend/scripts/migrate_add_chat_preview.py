@@ -21,7 +21,9 @@ def main() -> None:
     try:
         cur = conn.cursor()
         if not column_exists(cur, "chat_sessions", "last_message_preview"):
-            cur.execute("ALTER TABLE chat_sessions ADD COLUMN last_message_preview TEXT DEFAULT ''")
+            cur.execute(
+                "ALTER TABLE chat_sessions ADD COLUMN last_message_preview TEXT DEFAULT ''"
+            )
             conn.commit()
             print("Migration applied: chat_sessions.last_message_preview added")
         else:

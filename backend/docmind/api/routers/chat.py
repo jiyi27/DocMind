@@ -15,6 +15,7 @@ from docmind.api.response import ok
 from docmind.auth.schemas import UserContext
 from docmind.core import logger
 from docmind.core.config import settings
+from docmind.core.exceptions import AppException
 from docmind.db.database import get_db
 from docmind.db.repositories import ChatMessageRepository, ChatSessionRepository
 from docmind.retrieval.graph import rag_graph
@@ -33,6 +34,11 @@ def _db_messages_to_lc(rows: list[dict]) -> list:
         else:
             result.append(AIMessage(content=row["content"]))
     return result
+
+
+def _sse_event(payload: dict) -> str:
+    """Serialize a payload as a single SSE data event."""
+    return f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
 
 
 @router.post("", summary="KB Conversation")
@@ -158,47 +164,49 @@ async def chat_stream(
     """
 
     async def event_generator():
-        # ── 1. Load session and history ──────────────────────────────────────
-        async with get_db() as db:
-            session_repo = ChatSessionRepository(db)
-            message_repo = ChatMessageRepository(db)
-
-            session = await session_repo.get_by_id(request.session_id)
-            if not session:
-                session = await session_repo.create(
-                    user_id=current_user.user_id,
-                    title="New Conversation",
-                    kb_id=current_user.kb_id,
-                    session_id=request.session_id,
-                )
-                logger.info("chat_session_created", {"session_id": request.session_id})
-
-            is_first_turn = session.get("message_count", 0) == 0
-
-            max_msg = settings.retrieval.max_messages
-            all_rows = await message_repo.list_by_session(request.session_id)
-            prior_rows = all_rows[-max_msg:] if max_msg > 0 else all_rows
-
-        lc_history = _db_messages_to_lc(prior_rows)
-
-        # ── 2. Retrieval (sync, fast) ─────────────────────────────────────────
-        context, sources = retrieve(request.chat_input, current_user.kb_name)
-
-        # ── 3. Persist user message immediately ──────────────────────────────
-        async with get_db() as db:
-            message_repo = ChatMessageRepository(db)
-            await message_repo.create(
-                session_id=request.session_id,
-                role="user",
-                content=request.chat_input,
-            )
-
-        # ── Emit sources before text starts ──────────────────────────────────
-        yield f"data: {json.dumps({'type': 'sources', 'sources': sources}, ensure_ascii=False)}\n\n"
-
-        # ── 4. Stream LLM generation ──────────────────────────────────────────
-        answer_parts: list[str] = []
         try:
+            # ── 1. Load session and history ──────────────────────────────────
+            async with get_db() as db:
+                session_repo = ChatSessionRepository(db)
+                message_repo = ChatMessageRepository(db)
+
+                session = await session_repo.get_by_id(request.session_id)
+                if not session:
+                    session = await session_repo.create(
+                        user_id=current_user.user_id,
+                        title="New Conversation",
+                        kb_id=current_user.kb_id,
+                        session_id=request.session_id,
+                    )
+                    logger.info(
+                        "chat_session_created", {"session_id": request.session_id}
+                    )
+
+                is_first_turn = session.get("message_count", 0) == 0
+
+                max_msg = settings.retrieval.max_messages
+                all_rows = await message_repo.list_by_session(request.session_id)
+                prior_rows = all_rows[-max_msg:] if max_msg > 0 else all_rows
+
+            lc_history = _db_messages_to_lc(prior_rows)
+
+            # ── 2. Retrieval (sync, fast) ─────────────────────────────────────
+            context, sources = retrieve(request.chat_input, current_user.kb_name)
+
+            # ── 3. Persist user message immediately ──────────────────────────
+            async with get_db() as db:
+                message_repo = ChatMessageRepository(db)
+                await message_repo.create(
+                    session_id=request.session_id,
+                    role="user",
+                    content=request.chat_input,
+                )
+
+            # ── Emit sources before text starts ──────────────────────────────
+            yield _sse_event({"type": "sources", "sources": sources})
+
+            # ── 4. Stream LLM generation ─────────────────────────────────────
+            answer_parts: list[str] = []
             async for text in stream_generate(
                 query=request.chat_input,
                 context=context,
@@ -206,41 +214,65 @@ async def chat_stream(
                 messages=lc_history,
             ):
                 answer_parts.append(text)
-                yield f"data: {json.dumps({'type': 'chunk', 'text': text}, ensure_ascii=False)}\n\n"
-        except Exception as exc:
-            yield f"data: {json.dumps({'type': 'error', 'message': str(exc)}, ensure_ascii=False)}\n\n"
-            return
+                yield _sse_event({"type": "chunk", "text": text})
 
-        # ── 5. Persist assistant answer + update session ──────────────────────
-        full_answer = "".join(answer_parts)
-        async with get_db() as db:
-            session_repo = ChatSessionRepository(db)
-            message_repo = ChatMessageRepository(db)
+            # ── 5. Persist assistant answer + update session ─────────────────
+            full_answer = "".join(answer_parts)
+            async with get_db() as db:
+                session_repo = ChatSessionRepository(db)
+                message_repo = ChatMessageRepository(db)
 
-            await message_repo.create(
-                session_id=request.session_id,
-                role="assistant",
-                content=full_answer,
-                sources_json=json.dumps(sources, ensure_ascii=False),
-            )
-            await session_repo.touch(
-                request.session_id,
-                message_count_delta=2,
-                last_message_preview=full_answer[:160],
-            )
-
-        # Fire-and-forget title generation on first turn
-        if is_first_turn:
-            asyncio.create_task(
-                generate_session_title(
+                await message_repo.create(
                     session_id=request.session_id,
-                    user_input=request.chat_input,
-                    assistant_answer=full_answer,
+                    role="assistant",
+                    content=full_answer,
+                    sources_json=json.dumps(sources, ensure_ascii=False),
                 )
-            )
+                await session_repo.touch(
+                    request.session_id,
+                    message_count_delta=2,
+                    last_message_preview=full_answer[:160],
+                )
 
-        # ── Done event ────────────────────────────────────────────────────────
-        yield f"data: {json.dumps({'type': 'done', 'session_id': request.session_id}, ensure_ascii=False)}\n\n"
+            # Fire-and-forget title generation on first turn
+            if is_first_turn:
+                asyncio.create_task(
+                    generate_session_title(
+                        session_id=request.session_id,
+                        user_input=request.chat_input,
+                        assistant_answer=full_answer,
+                    )
+                )
+
+            # ── Done event ────────────────────────────────────────────────────
+            yield _sse_event({"type": "done", "session_id": request.session_id})
+        except AppException as exc:
+            logger.warning(
+                "chat_stream_app_exception",
+                {
+                    "session_id": request.session_id,
+                    "error_type": type(exc).__name__,
+                    "message": exc.message,
+                },
+                exc=exc,
+            )
+            yield _sse_event({"type": "error", "message": exc.message})
+        except Exception as exc:
+            logger.error(
+                "chat_stream_unhandled_exception",
+                {
+                    "session_id": request.session_id,
+                    "error_type": type(exc).__name__,
+                    "error": str(exc),
+                },
+                exc=exc,
+            )
+            yield _sse_event(
+                {
+                    "type": "error",
+                    "message": "An unexpected error occurred. Please try again later.",
+                }
+            )
 
     return StreamingResponse(
         event_generator(),

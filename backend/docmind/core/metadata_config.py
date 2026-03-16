@@ -11,18 +11,18 @@ entities managed via the /kb API and stored in the database.
 from __future__ import annotations
 
 DOC_TYPES: list[str] = [
-    "requirement",   # 需求文档
-    "postmortem",    # 线上问题复盘
-    "pitfall",       # 踩坑记录
-    "sharing",       # 个人分享
-    "tech_spec",     # 技术规范
+    "requirement",  # 需求文档
+    "postmortem",  # 线上问题复盘
+    "pitfall",  # 踩坑记录
+    "sharing",  # 个人分享
+    "tech_spec",  # 技术规范
     "all",
 ]
 
 SERVICES: list[str] = [
-    "collection",    # 催收系统
-    "risk",          # 风控系统
-    "admin",         # 管理后台
+    "collection",  # 催收系统
+    "risk",  # 风控系统
+    "admin",  # 管理后台
     "all",
 ]
 

@@ -20,6 +20,7 @@ async def health_check():
     # Check Qdrant connectivity (run in thread to avoid blocking the event loop)
     try:
         from docmind.vectorstore.qdrant_store import get_vector_store
+
         await asyncio.to_thread(get_vector_store)
         checks["qdrant"] = "ok"
     except Exception as exc:
@@ -31,8 +32,13 @@ async def health_check():
     else:
         checks["llm_api_key"] = "missing"
 
-    overall = "ok" if all(v in ("ok", "configured") for v in checks.values()) else "degraded"
+    overall = (
+        "ok" if all(v in ("ok", "configured") for v in checks.values()) else "degraded"
+    )
 
     if overall == "ok":
         return ok({"status": overall, "checks": checks})
-    return err("One or more dependencies are unavailable.", data={"status": overall, "checks": checks})
+    return err(
+        "One or more dependencies are unavailable.",
+        data={"status": overall, "checks": checks},
+    )

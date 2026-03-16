@@ -36,8 +36,9 @@ class UserOut(BaseModel):
 
 class UserContext(BaseModel):
     """Parsed JWT payload — injected into route handlers via Depends."""
+
     user_id: str
     username: str
     kb_id: str
-    kb_name: str   # knowledge base slug, used to derive Qdrant collection name
+    kb_name: str  # knowledge base slug, used to derive Qdrant collection name
     role: str

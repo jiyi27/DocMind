@@ -21,7 +21,7 @@ router = APIRouter(prefix="/kb", tags=["knowledge-base"])
 
 
 class KBCreate(BaseModel):
-    name: str           # slug, e.g. "india" → collection "docmind_india"
+    name: str  # slug, e.g. "india" → collection "docmind_india"
     display_name: str
     description: str = ""
 
@@ -37,6 +37,7 @@ class KBOut(BaseModel):
 # ---------------------------------------------------------------------------
 # POST /kb
 # ---------------------------------------------------------------------------
+
 
 @router.post("", status_code=status.HTTP_201_CREATED, summary="Create Knowledge Base")
 async def create_knowledge_base(
@@ -78,6 +79,7 @@ async def create_knowledge_base(
 # GET /kb
 # ---------------------------------------------------------------------------
 
+
 @router.get("", summary="List Knowledge Bases")
 async def list_knowledge_bases():
     """Return a list of all registered knowledge bases and their basic info."""
@@ -91,6 +93,7 @@ async def list_knowledge_bases():
 # GET /kb/{kb_id}
 # ---------------------------------------------------------------------------
 
+
 @router.get("/{kb_id}", summary="Get Knowledge Base Details")
 async def get_knowledge_base(kb_id: str):
     """Retrieve detailed configuration and statistics (e.g., total documents and chunks) for a specific KB."""
@@ -100,7 +103,9 @@ async def get_knowledge_base(kb_id: str):
 
         kb = await kb_repo.get_by_id(kb_id)
         if not kb:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Knowledge base not found")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Knowledge base not found"
+            )
 
         docs = await doc_repo.list_by_kb(kb_id)
         total_points = await doc_repo.sum_chunk_count_by_kb(kb_id)
@@ -111,6 +116,7 @@ async def get_knowledge_base(kb_id: str):
 # ---------------------------------------------------------------------------
 # DELETE /kb/{kb_id}
 # ---------------------------------------------------------------------------
+
 
 @router.delete("/{kb_id}", summary="Delete Knowledge Base")
 async def delete_knowledge_base(
@@ -124,7 +130,9 @@ async def delete_knowledge_base(
 
         kb = await kb_repo.get_by_id(kb_id)
         if not kb:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Knowledge base not found")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Knowledge base not found"
+            )
 
         # Delete all document records for this KB
         deleted_docs = await doc_repo.delete_by_kb(kb_id)
@@ -135,4 +143,7 @@ async def delete_knowledge_base(
         # Delete KB record
         await kb_repo.delete(kb_id)
 
-    return ok(data={"kb_id": kb_id, "documents_removed": deleted_docs}, message="Knowledge base deleted")
+    return ok(
+        data={"kb_id": kb_id, "documents_removed": deleted_docs},
+        message="Knowledge base deleted",
+    )

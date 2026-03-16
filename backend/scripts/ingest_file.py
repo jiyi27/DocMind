@@ -13,7 +13,12 @@ from pathlib import Path
 # Ensure project root is importable
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from docmind.core.metadata_config import BUSINESS_LINES, DEPARTMENTS, DOC_TYPES, SERVICES
+from docmind.core.metadata_config import (
+    BUSINESS_LINES,
+    DEPARTMENTS,
+    DOC_TYPES,
+    SERVICES,
+)
 from docmind.ingestion.graph import ingestion_graph
 
 
@@ -22,24 +27,34 @@ def _choices(values: list[str]) -> str:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Ingest a document into DocMind knowledge base")
+    parser = argparse.ArgumentParser(
+        description="Ingest a document into DocMind knowledge base"
+    )
     parser.add_argument("file", type=str, help="Path to the file (.pdf or .md)")
     parser.add_argument("--title", type=str, default="", help="Document title")
     parser.add_argument("--url", type=str, default="", help="Source URL")
     parser.add_argument(
-        "--doc-type", type=str, default="tech_spec",
+        "--doc-type",
+        type=str,
+        default="tech_spec",
         help=f"Document type ({_choices(DOC_TYPES)})",
     )
     parser.add_argument(
-        "--business-line", type=str, default="all",
+        "--business-line",
+        type=str,
+        default="all",
         help=f"Business line ({_choices(BUSINESS_LINES)})",
     )
     parser.add_argument(
-        "--service", type=str, default="all",
+        "--service",
+        type=str,
+        default="all",
         help=f"Service ({_choices(SERVICES)})",
     )
     parser.add_argument(
-        "--department", type=str, default="all",
+        "--department",
+        type=str,
+        default="all",
         help=f"Department ({_choices(DEPARTMENTS)})",
     )
 
@@ -63,10 +78,12 @@ def main():
     print(f"Metadata:  {metadata}")
 
     try:
-        result = ingestion_graph.invoke({
-            "file_path": str(file_path),
-            "metadata": metadata,
-        })
+        result = ingestion_graph.invoke(
+            {
+                "file_path": str(file_path),
+                "metadata": metadata,
+            }
+        )
     except Exception as exc:
         print(f"Error: Ingestion failed — {type(exc).__name__}: {exc}", file=sys.stderr)
         sys.exit(1)

@@ -17,6 +17,7 @@ from docmind.core.metadata_config import REQUIRED_FIELDS
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _full_payload(**overrides) -> dict:
     """Return a complete valid payload, with optional field overrides."""
     base = {
@@ -35,6 +36,7 @@ def _full_payload(**overrides) -> dict:
 # 1. 全量合法数据 — 应该成功
 # ---------------------------------------------------------------------------
 
+
 def test_valid_full_payload():
     m = IngestMetadata(**_full_payload())
     assert m.doc_type == "requirement"
@@ -47,8 +49,11 @@ def test_valid_full_payload():
 # 2. 逗号分隔多值解析
 # ---------------------------------------------------------------------------
 
+
 def test_comma_separated_values():
-    m = IngestMetadata(**_full_payload(business_line="india,pakistan", department="backend,qa"))
+    m = IngestMetadata(
+        **_full_payload(business_line="india,pakistan", department="backend,qa")
+    )
     assert m.business_line == ["india", "pakistan"]
     assert m.department == ["backend", "qa"]
 
@@ -56,6 +61,7 @@ def test_comma_separated_values():
 # ---------------------------------------------------------------------------
 # 3. 必填字段缺失 — 应该报错
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.parametrize("missing_field", list(REQUIRED_FIELDS))
 def test_required_field_missing(missing_field: str):
@@ -71,14 +77,17 @@ def test_required_field_missing(missing_field: str):
     )
 
 
-@pytest.mark.parametrize("empty_value,field", [
-    ("", "title"),
-    ("", "url"),
-    ("", "doc_type"),
-    ([], "business_line"),
-    ([], "service"),
-    ([], "department"),
-])
+@pytest.mark.parametrize(
+    "empty_value,field",
+    [
+        ("", "title"),
+        ("", "url"),
+        ("", "doc_type"),
+        ([], "business_line"),
+        ([], "service"),
+        ([], "department"),
+    ],
+)
 def test_required_field_empty(empty_value, field: str):
     """必填字段传空值时也应报错（仅当该字段在 REQUIRED_FIELDS 中）。"""
     if field not in REQUIRED_FIELDS:
@@ -92,12 +101,16 @@ def test_required_field_empty(empty_value, field: str):
 # 4. 非法枚举值 — 应该报错
 # ---------------------------------------------------------------------------
 
-@pytest.mark.parametrize("field,bad_value", [
-    ("doc_type", "unknown_type"),
-    ("business_line", "china"),
-    ("service", "payments"),
-    ("department", "design"),
-])
+
+@pytest.mark.parametrize(
+    "field,bad_value",
+    [
+        ("doc_type", "unknown_type"),
+        ("business_line", "china"),
+        ("service", "payments"),
+        ("department", "design"),
+    ],
+)
 def test_invalid_enum_value(field: str, bad_value: str):
     payload = _full_payload(**{field: bad_value})
     with pytest.raises(ValidationError):
@@ -108,14 +121,18 @@ def test_invalid_enum_value(field: str, bad_value: str):
 # 5. 可选字段缺失时使用默认值（仅当字段不在 REQUIRED_FIELDS 中）
 # ---------------------------------------------------------------------------
 
-@pytest.mark.parametrize("optional_field,default", [
-    ("title", ""),
-    ("url", ""),
-    ("doc_type", "tech_spec"),
-    ("business_line", ["all"]),
-    ("service", ["all"]),
-    ("department", ["all"]),
-])
+
+@pytest.mark.parametrize(
+    "optional_field,default",
+    [
+        ("title", ""),
+        ("url", ""),
+        ("doc_type", "tech_spec"),
+        ("business_line", ["all"]),
+        ("service", ["all"]),
+        ("department", ["all"]),
+    ],
+)
 def test_optional_field_uses_default(optional_field: str, default):
     """字段不在 REQUIRED_FIELDS 时，缺省应使用默认值而非报错。"""
     if optional_field in REQUIRED_FIELDS:

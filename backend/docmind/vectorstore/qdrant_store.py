@@ -66,10 +66,13 @@ def _ensure_collection(client: QdrantClient, col: str, embeddings: Embeddings) -
     """
     existing = {c.name for c in client.get_collections().collections}
     if col in existing:
-        logger.debug("vectorstore_collection_exists", {
-            "qdrant_url": settings.qdrant.url,
-            "collection": col,
-        })
+        logger.debug(
+            "vectorstore_collection_exists",
+            {
+                "qdrant_url": settings.qdrant.url,
+                "collection": col,
+            },
+        )
         return
 
     vector_size = _probe_vector_size(embeddings)
@@ -78,13 +81,16 @@ def _ensure_collection(client: QdrantClient, col: str, embeddings: Embeddings) -
         collection_name=col,
         vectors_config=VectorParams(size=vector_size, distance=_DISTANCE),
     )
-    logger.info("vectorstore_collection_created", {
-        "qdrant_url": settings.qdrant.url,
-        "collection": col,
-        "vector_size": vector_size,
-        "distance": str(_DISTANCE),
-        "embedding_model": settings.embedding.model,
-    })
+    logger.info(
+        "vectorstore_collection_created",
+        {
+            "qdrant_url": settings.qdrant.url,
+            "collection": col,
+            "vector_size": vector_size,
+            "distance": str(_DISTANCE),
+            "embedding_model": settings.embedding.model,
+        },
+    )
 
 
 def get_vector_store_for_kb(
@@ -96,7 +102,9 @@ def get_vector_store_for_kb(
     This is the primary entry point for production code.
     The collection name is derived as ``docmind_{kb_name}``.
     """
-    return get_vector_store(embeddings=embeddings, collection=kb_collection_name(kb_name))
+    return get_vector_store(
+        embeddings=embeddings, collection=kb_collection_name(kb_name)
+    )
 
 
 async def create_kb_collection(kb_name: str) -> None:
@@ -196,18 +204,26 @@ def get_chunks_by_doc_id(
             payload = p.payload or {}
             # langchain-qdrant stores text in payload["page_content"] and metadata in payload["metadata"]
             content: str = payload.get("page_content", "")
-            meta: dict = {k: v for k, v in payload.get("metadata", {}).items() if k not in _STRIP_KEYS}
-            items.append({
-                "point_id": str(p.id),
-                "content": content,
-                "char_count": len(content),
-                "metadata": meta,
-            })
+            meta: dict = {
+                k: v
+                for k, v in payload.get("metadata", {}).items()
+                if k not in _STRIP_KEYS
+            }
+            items.append(
+                {
+                    "point_id": str(p.id),
+                    "content": content,
+                    "char_count": len(content),
+                    "metadata": meta,
+                }
+            )
 
         return {"items": items, "total": total, "offset": offset, "limit": limit}
 
     except Exception as exc:
-        raise VectorStoreError(f"Failed to fetch chunks for doc '{doc_id}' from '{col}': {exc}") from exc
+        raise VectorStoreError(
+            f"Failed to fetch chunks for doc '{doc_id}' from '{col}': {exc}"
+        ) from exc
 
 
 def delete_documents_by_doc_id(kb_name: str, doc_id: str) -> None:
@@ -233,7 +249,9 @@ def delete_documents_by_doc_id(kb_name: str, doc_id: str) -> None:
         )
         logger.info("vectorstore_doc_deleted", {"collection": col, "doc_id": doc_id})
     except Exception as exc:
-        raise VectorStoreError(f"Failed to delete doc '{doc_id}' from '{col}': {exc}") from exc
+        raise VectorStoreError(
+            f"Failed to delete doc '{doc_id}' from '{col}': {exc}"
+        ) from exc
 
 
 def get_vector_store(
@@ -284,12 +302,15 @@ def get_vector_store(
         except VectorStoreError:
             raise
         except Exception as exc:
-            logger.error("vectorstore_connect_failed", {
-                "qdrant_url": settings.qdrant.url,
-                "collection": col,
-                "error_type": type(exc).__name__,
-                "error": str(exc),
-            })
+            logger.error(
+                "vectorstore_connect_failed",
+                {
+                    "qdrant_url": settings.qdrant.url,
+                    "collection": col,
+                    "error_type": type(exc).__name__,
+                    "error": str(exc),
+                },
+            )
             raise VectorStoreError(
                 f"Failed to connect to Qdrant at {settings.qdrant.url} "
                 f"(collection={col!r}): {exc}"
@@ -298,11 +319,14 @@ def get_vector_store(
         if embeddings is None:
             _store_cache[cache_key] = store
 
-        logger.debug("vectorstore_connected", {
-            "qdrant_url": settings.qdrant.url,
-            "collection": col,
-            "cached": embeddings is None,
-        })
+        logger.debug(
+            "vectorstore_connected",
+            {
+                "qdrant_url": settings.qdrant.url,
+                "collection": col,
+                "cached": embeddings is None,
+            },
+        )
         return store
 
 

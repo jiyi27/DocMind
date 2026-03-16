@@ -35,4 +35,6 @@ def decode_token(token: str) -> dict[str, Any]:
         jwt.ExpiredSignatureError  — token has expired
         jwt.InvalidTokenError      — token is invalid / tampered
     """
-    return jwt.decode(token, settings.jwt.secret_key, algorithms=[settings.jwt.algorithm])
+    return jwt.decode(
+        token, settings.jwt.secret_key, algorithms=[settings.jwt.algorithm]
+    )
