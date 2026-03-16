@@ -8,6 +8,8 @@
 - Test Single: `uv run pytest test/test_file.py::test_function_name`
 - CLI Ingestion: `make ingest FILE=path/to/file.md TITLE="My Doc"`
 
+**CRITICAL DIRECTIVE**: This is a monorepo. ALL backend commands must be run from the `/backend` directory. ALL frontend commands must be run from the `/frontend` directory. Do not run `uv` or `pnpm` commands from the root directory.
+
 ## Build And Test (Frontend)
 *Run all from the `/frontend` directory*
 - Install: `pnpm install`
@@ -54,15 +56,15 @@
 **DO NOT** write unit tests for every single function. It is bloated and inefficient. Instead, follow this funnel:
 
 1. **Static Analysis (Always First)**
-   - Backend: Run `uv run ruff check .` and `uv run ruff format .` to catch syntax/import errors.
-   - Frontend: Run `pnpm build` to catch unresolvable imports and template compilation errors.
+   - Backend: Must run from `backend/` directory (`cd backend && uv run ruff check .` and `uv run ruff format .`) to catch syntax/import errors.
+   - Frontend: Must run from `frontend/` directory (`cd frontend && pnpm build`) to catch unresolvable imports and template compilation errors.
 
 2. **Disposable Scripts (For Internal Logic)**
-   - When modifying DB queries, core logic, or LangChain/LangGraph nodes, write a quick `tmp_verify.py` script to test the specific function.
-   - Run it (`uv run python tmp_verify.py`), verify the `print()` output in the terminal, and **DELETE** the script before committing.
+   - When modifying DB queries, core logic, or LangGraph nodes, write a quick `tmp_verify.py` script inside the `backend/` directory to test the specific function.
+   - Run it (`cd backend && uv run python tmp_verify.py`), verify the `print()` output in the terminal, and **DELETE** the script before committing.
 
 3. **API Slice Testing (For Endpoints)**
-   - When modifying or adding FastAPI endpoints, prefer using FastAPI's `TestClient` in a single pytest file to verify the HTTP request/response cycle, rather than mocking deep internal functions.
+   - When modifying FastAPI endpoints, prefer using FastAPI's `TestClient` in a single pytest file (run via `cd backend && uv run pytest test/path_to_test.py`) to verify the HTTP cycle.
 
 4. **Targeted Unit Tests (For Complex Domain)**
-   - Only write permanent `pytest` unit tests for complex, pure functions (e.g., custom Markdown splitters, complex LangGraph state reducers, specific data transformers) where edge cases are frequent.
+   - Only write permanent `pytest` unit tests for complex, pure functions (e.g., custom Markdown splitters, complex LangGraph state reducers) where edge cases are frequent. Always run these from the `backend/` directory.
