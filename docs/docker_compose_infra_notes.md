@@ -148,6 +148,70 @@ docker compose exec ollama ollama pull nomic-embed-text:latest
 
 ---
 
+### 2.4 那么 `docker compose exec ollama ...` 是怎么知道要进哪个容器的
+
+这是一个很常见的疑问。
+
+比如这条命令：
+
+```bash
+docker compose exec ollama ollama pull nomic-embed-text:latest
+```
+
+很多人会想：
+
+“可是我自己都不知道容器名，它怎么知道要把模型装到哪个容器里？”
+
+答案是：  
+它不是靠“猜容器名”来找目标的，而是靠 **当前 compose 项目 + service 名** 来找。
+
+这里的 `ollama` 不是容器名，而是 `docker-compose.yml` 里的 service 名：
+
+```yaml
+services:
+  ollama:
+    image: ollama/ollama
+```
+
+`docker compose exec ollama ...` 的查找过程可以简单理解为：
+
+1. 先看你当前所在目录的 compose 项目
+2. 读取当前项目的 `docker-compose.yml`
+3. 找到 service 名叫 `ollama` 的服务
+4. 找到这个服务当前对应的运行中容器
+5. 在那个容器里执行命令
+
+所以我们不需要手动记住容器名。
+
+---
+
+### 2.5 那容器名是随机的吗
+
+也不是随机的。
+
+如果你不写 `container_name`，Compose 会按规则自动生成容器名，通常像这样：
+
+```text
+backend-ollama-1
+backend-qdrant-1
+```
+
+这个名字通常由三部分组成：
+
+- 项目名，例如 `backend`
+- service 名，例如 `ollama`
+- 实例序号，例如 `1`
+
+所以它不是随机字符串，而是 Compose 自动生成的“项目化名字”。
+
+只是我们通常不应该依赖这个名字来写脚本，因为：
+
+- 它是 Compose 内部生成的结果
+- 我们真正稳定依赖的应该是 service 名
+- service 名才是 compose 配置里的逻辑标识
+
+---
+
 ### 2.3 这两个命令为什么语义差很多
 
 表面上看，这两条命令都像是在“进入 Ollama 容器执行 pull”：
@@ -496,6 +560,28 @@ make infra-init
 ```bash
 make infra-up
 ```
+
+如果你是“直接退出了 Docker Desktop，然后重新打开”，最推荐执行的也是这一条：
+
+```bash
+cd backend
+make infra-up
+```
+
+原因是现在 `make infra-up` 实际执行的是：
+
+```bash
+docker compose up -d
+```
+
+这个命令比较稳，因为它会尽量把当前项目恢复到正确状态：
+
+- 容器在运行中：通常不会报错
+- 容器停止了：会启动
+- 容器不存在：会创建
+- 重复执行：通常也是安全的
+
+所以它不是“只负责启动已有容器”，而是“让当前 compose 项目回到应该运行的状态”。
 
 停止基础设施：
 
