@@ -49,7 +49,20 @@
 - Display API errors using Element Plus notifications (`ElMessage`) on the frontend.
 - Check `.env.example` to ensure required embedding and LLM API keys are present in `.env`.
 
-## Verification
-- Test single backend functions using the specific `pytest` command before delivering.
-- Run `uv run ruff format .` and `uv run ruff check .` after making backend modifications.
-- Ensure the frontend builds without errors (`pnpm build`) after structural UI changes.
+## Verification Strategy
+
+**DO NOT** write unit tests for every single function. It is bloated and inefficient. Instead, follow this funnel:
+
+1. **Static Analysis (Always First)**
+   - Backend: Run `uv run ruff check .` and `uv run ruff format .` to catch syntax/import errors.
+   - Frontend: Run `pnpm build` to catch unresolvable imports and template compilation errors.
+
+2. **Disposable Scripts (For Internal Logic)**
+   - When modifying DB queries, core logic, or LangChain/LangGraph nodes, write a quick `tmp_verify.py` script to test the specific function.
+   - Run it (`uv run python tmp_verify.py`), verify the `print()` output in the terminal, and **DELETE** the script before committing.
+
+3. **API Slice Testing (For Endpoints)**
+   - When modifying or adding FastAPI endpoints, prefer using FastAPI's `TestClient` in a single pytest file to verify the HTTP request/response cycle, rather than mocking deep internal functions.
+
+4. **Targeted Unit Tests (For Complex Domain)**
+   - Only write permanent `pytest` unit tests for complex, pure functions (e.g., custom Markdown splitters, complex LangGraph state reducers, specific data transformers) where edge cases are frequent.
