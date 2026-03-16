@@ -20,7 +20,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onBeforeUnmount, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import ChatSidebar from '@/components/chat/ChatSidebar.vue'
 import ChatMain from '@/components/chat/ChatMain.vue'
@@ -43,12 +43,33 @@ const loadingMore = ref(false)
 // Cache: sessionId → { id, title, messages[] }
 // Messages in cache use { role: 'user'|'assistant', content, sources? }
 const detailCache = new Map()
+let detailRequestToken = 0
+let activeStreamController = null
+let activeStreamSessionId = ''
+
+function syncActiveConversation(sessionId, conversation) {
+  if (activeChatId.value === sessionId) {
+    activeConversation.value = { ...conversation }
+  }
+}
+
+function abortActiveStream() {
+  if (!activeStreamController) return
+  activeStreamController.abort()
+  activeStreamController = null
+  activeStreamSessionId = ''
+  sending.value = false
+}
 
 onMounted(async () => {
   await loadChatList()
   if (chatList.value.length > 0) {
     selectChat(chatList.value[0].id)
   }
+})
+
+onBeforeUnmount(() => {
+  abortActiveStream()
 })
 
 async function loadChatList() {
@@ -81,11 +102,17 @@ async function loadMoreChats() {
 async function selectChat(chatId) {
   if (activeChatId.value === chatId && activeConversation.value) return
 
+  if (sending.value && activeStreamSessionId && activeStreamSessionId !== chatId) {
+    abortActiveStream()
+  }
+
   activeChatId.value = chatId
+  const requestToken = ++detailRequestToken
 
   const cached = detailCache.get(chatId)
   if (cached) {
     activeConversation.value = cached
+    loadingDetail.value = false
     return
   }
 
@@ -93,9 +120,13 @@ async function selectChat(chatId) {
   try {
     const detail = await fetchChatDetail(chatId)
     detailCache.set(chatId, detail)
-    activeConversation.value = detail
+    if (requestToken === detailRequestToken && activeChatId.value === chatId) {
+      activeConversation.value = detail
+    }
   } finally {
-    loadingDetail.value = false
+    if (requestToken === detailRequestToken && activeChatId.value === chatId) {
+      loadingDetail.value = false
+    }
   }
 }
 
@@ -177,9 +208,13 @@ async function sendMessage(input) {
   activeConversation.value = { ...conversation }
 
   sending.value = true
+  const controller = new AbortController()
+  activeStreamController = controller
+  activeStreamSessionId = sessionId
   try {
     let pendingSources = []
     await sendChatMessageStream(sessionId, input, {
+      signal: controller.signal,
       onSources(sources) {
         // Hold sources until stream is done — avoids showing them before the answer
         pendingSources = sources
@@ -187,12 +222,12 @@ async function sendMessage(input) {
       onChunk(text) {
         assistantMsg.content += text
         // Trigger Vue reactivity by replacing the reference
-        activeConversation.value = { ...conversation }
+        syncActiveConversation(sessionId, conversation)
       },
       onDone() {
         assistantMsg.streaming = false
         assistantMsg.sources = pendingSources
-        activeConversation.value = { ...conversation }
+        syncActiveConversation(sessionId, conversation)
 
         // Update sidebar preview counters
         const sidebarItem = chatList.value.find((c) => c.id === sessionId)
@@ -209,17 +244,27 @@ async function sendMessage(input) {
       onError(message) {
         assistantMsg.streaming = false
         assistantMsg.status = 'error'
-        activeConversation.value = { ...conversation }
+        syncActiveConversation(sessionId, conversation)
         ElMessage.error(message || 'Stream error, please try again')
       },
     })
-  } catch {
+  } catch (error) {
+    if (error?.name === 'AbortError') {
+      assistantMsg.streaming = false
+      syncActiveConversation(sessionId, conversation)
+      return
+    }
+
     // Network-level failure — mark the assistant bubble as error
     assistantMsg.streaming = false
     assistantMsg.status = 'error'
-    activeConversation.value = { ...conversation }
+    syncActiveConversation(sessionId, conversation)
     ElMessage.error('Failed to send message, please try again')
   } finally {
+    if (activeStreamController === controller) {
+      activeStreamController = null
+      activeStreamSessionId = ''
+    }
     sending.value = false
   }
 }

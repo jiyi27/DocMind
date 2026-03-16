@@ -50,6 +50,7 @@
 - Understand the custom LangGraph state-machine behavior before altering `docmind/ingestion/` nodes.
 - Display API errors using Element Plus notifications (`ElMessage`) on the frontend.
 - Check `.env.example` to ensure required embedding and LLM API keys are present in `.env`.
+- If code is modified, provide a concise English git commit message at the end of the response.
 
 ## Verification Strategy
 

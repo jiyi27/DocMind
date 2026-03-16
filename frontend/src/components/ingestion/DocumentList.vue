@@ -111,6 +111,14 @@ const loading = ref(false)
 const deletingId = ref(null)
 const router = useRouter()
 let pollingTimer = null
+let fetchGeneration = 0
+
+function clearPollingTimer() {
+  if (pollingTimer) {
+    clearTimeout(pollingTimer)
+    pollingTimer = null
+  }
+}
 
 function getFileIcon(fileName) {
   if (!fileName) return Document
@@ -148,6 +156,9 @@ function goToDetail(doc) {
 }
 
 async function fetchDocuments(showLoading = true) {
+  const generation = ++fetchGeneration
+  clearPollingTimer()
+
   if (showLoading) {
     loading.value = true
   }
@@ -162,7 +173,11 @@ async function fetchDocuments(showLoading = true) {
     const needsPolling = documents.value.some(
       doc => doc.status === 'pending' || doc.status === 'processing'
     )
-    
+
+    if (generation !== fetchGeneration) {
+      return
+    }
+
     if (needsPolling) {
       pollingTimer = setTimeout(() => fetchDocuments(false), 3000)
     }
@@ -216,9 +231,7 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
-  if (pollingTimer) {
-    clearTimeout(pollingTimer)
-  }
+  clearPollingTimer()
 })
 </script>
 

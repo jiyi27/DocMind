@@ -2,12 +2,23 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 
 export const useAuthStore = defineStore('auth', () => {
+  let initialUser = null
+  const storedUser = localStorage.getItem('user')
+
+  if (storedUser) {
+    try {
+      initialUser = JSON.parse(storedUser)
+    } catch {
+      localStorage.removeItem('user')
+    }
+  }
+
   // State
   // Initialize token from localStorage to maintain session on reload
   const token = ref(localStorage.getItem('token') || null)
 
   // Initialize user info from localStorage if available
-  const user = ref(JSON.parse(localStorage.getItem('user') || 'null'))
+  const user = ref(initialUser)
 
   // Initialize isSuperAdmin from localStorage
   const isSuperAdmin = ref(localStorage.getItem('isSuperAdmin') === 'true')

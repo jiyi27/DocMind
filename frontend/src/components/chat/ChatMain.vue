@@ -128,6 +128,14 @@ const emit = defineEmits(['send'])
 
 const inputText = ref('')
 const threadRef = ref(null)
+const AUTO_SCROLL_THRESHOLD = 50
+
+function isNearBottom() {
+  if (!threadRef.value) return true
+
+  const { scrollTop, scrollHeight, clientHeight } = threadRef.value
+  return scrollHeight - scrollTop - clientHeight <= AUTO_SCROLL_THRESHOLD
+}
 
 function submit() {
   const text = inputText.value.trim()
@@ -138,10 +146,13 @@ function submit() {
 
 // Auto-scroll to the bottom when new messages arrive, a chunk streams in, or sending state changes
 watch(
-  () => [props.conversation?.messages?.length, props.sending, streamingContent.value],
-  async () => {
+  () => [props.conversation?.id, props.conversation?.messages?.length, props.sending, streamingContent.value],
+  async ([conversationId], previousValues = []) => {
+    const [previousConversationId] = previousValues
+    const shouldAutoScroll = conversationId !== previousConversationId || isNearBottom()
+
     await nextTick()
-    if (threadRef.value) {
+    if (threadRef.value && shouldAutoScroll) {
       threadRef.value.scrollTop = threadRef.value.scrollHeight
     }
   },

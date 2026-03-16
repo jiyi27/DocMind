@@ -43,9 +43,9 @@ export function sendChatMessage(sessionId, chatInput) {
  *
  * @param {string} sessionId
  * @param {string} chatInput
- * @param {{ onSources, onChunk, onDone, onError }} callbacks
+ * @param {{ onSources, onChunk, onDone, onError, signal }} callbacks
  */
-export async function sendChatMessageStream(sessionId, chatInput, { onSources, onChunk, onDone, onError } = {}) {
+export async function sendChatMessageStream(sessionId, chatInput, { onSources, onChunk, onDone, onError, signal } = {}) {
   const baseURL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
   const token = localStorage.getItem('token')
 
@@ -56,6 +56,7 @@ export async function sendChatMessageStream(sessionId, chatInput, { onSources, o
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
     body: JSON.stringify({ sessionId, chatInput }),
+    signal,
   })
 
   if (!response.ok) {
