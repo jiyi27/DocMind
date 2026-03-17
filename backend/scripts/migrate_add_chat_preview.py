@@ -6,18 +6,23 @@ Usage:
 
 from __future__ import annotations
 
-import sqlite3
+import sys
+from pathlib import Path
 
-DB_PATH = "/backend/data/docmind.db"
+# Add the project root to sys.path so we can import docmind modules.
+project_root = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(project_root))
 
 
-def column_exists(cursor: sqlite3.Cursor, table: str, column: str) -> bool:
+def column_exists(cursor: object, table: str, column: str) -> bool:
     cursor.execute(f"PRAGMA table_info({table});")
     return any(row[1] == column for row in cursor.fetchall())
 
 
 def main() -> None:
-    conn = sqlite3.connect(DB_PATH)
+    from docmind.db.database import create_sync_connection
+
+    conn = create_sync_connection()
     try:
         cur = conn.cursor()
         if not column_exists(cur, "chat_sessions", "last_message_preview"):

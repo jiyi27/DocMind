@@ -9,36 +9,36 @@ sys.path.insert(0, str(project_root))
 
 async def migrate():
     """Add status, error_message, file_path, and strict_mode columns to documents table."""
-    from docmind.db.database import get_db
+    from docmind.db.database import create_async_connection
 
     print("Running migration: Add document status fields...")
-    async with get_db() as db:
-        try:
-            await db.execute(
-                "ALTER TABLE documents ADD COLUMN status TEXT DEFAULT 'pending'"
-            )
-            await db.execute(
-                "ALTER TABLE documents ADD COLUMN error_message TEXT DEFAULT ''"
-            )
-            await db.execute(
-                "ALTER TABLE documents ADD COLUMN file_path TEXT DEFAULT ''"
-            )
-            await db.execute(
-                "ALTER TABLE documents ADD COLUMN strict_mode INTEGER DEFAULT 1"
-            )
+    db = await create_async_connection()
+    try:
+        await db.execute(
+            "ALTER TABLE documents ADD COLUMN status TEXT DEFAULT 'pending'"
+        )
+        await db.execute(
+            "ALTER TABLE documents ADD COLUMN error_message TEXT DEFAULT ''"
+        )
+        await db.execute("ALTER TABLE documents ADD COLUMN file_path TEXT DEFAULT ''")
+        await db.execute(
+            "ALTER TABLE documents ADD COLUMN strict_mode INTEGER DEFAULT 1"
+        )
 
-            # Since existing docs are likely already done, let's mark them as completed
-            await db.execute(
-                "UPDATE documents SET status = 'completed' WHERE status = 'pending'"
-            )
-            await db.commit()
-            print("Migration completed successfully.")
-        except Exception as e:
-            if "duplicate column name" in str(e).lower():
-                print("Migration already applied. Columns exist.")
-            else:
-                print(f"Error during migration: {e}")
-                await db.rollback()
+        # Since existing docs are likely already done, let's mark them as completed.
+        await db.execute(
+            "UPDATE documents SET status = 'completed' WHERE status = 'pending'"
+        )
+        await db.commit()
+        print("Migration completed successfully.")
+    except Exception as e:
+        if "duplicate column name" in str(e).lower():
+            print("Migration already applied. Columns exist.")
+        else:
+            print(f"Error during migration: {e}")
+            await db.rollback()
+    finally:
+        await db.close()
 
 
 if __name__ == "__main__":

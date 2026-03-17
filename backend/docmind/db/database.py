@@ -1,17 +1,66 @@
-"""
-Async SQLite connection management via aiosqlite.
-"""
+"""SQLite connection infrastructure for API, worker threads, and scripts."""
 
 from __future__ import annotations
 
-import aiosqlite
 from contextlib import asynccontextmanager
+import os
+from pathlib import Path
+import sqlite3
 from typing import AsyncGenerator
+
+import aiosqlite
 
 from docmind.db.models import ALL_TABLES
 
-_DB_PATH = "data/docmind.db"
+_DEFAULT_DB_PATH = Path(__file__).resolve().parents[2] / "data" / "docmind.db"
+_PRAGMAS = (
+    "PRAGMA journal_mode = WAL;",
+    "PRAGMA synchronous = NORMAL;",
+    "PRAGMA foreign_keys = ON;",
+)
 _GLOBAL_CONN: aiosqlite.Connection | None = None
+
+
+def get_db_path() -> str:
+    """Return the configured SQLite database path."""
+    configured_path = os.getenv("DOCMIND_DB_PATH", "").strip()
+    if configured_path:
+        return configured_path
+    return str(_DEFAULT_DB_PATH)
+
+
+def _ensure_db_parent_dir(db_path: str) -> None:
+    Path(db_path).parent.mkdir(parents=True, exist_ok=True)
+
+
+async def _configure_async_connection(conn: aiosqlite.Connection) -> None:
+    conn.row_factory = aiosqlite.Row
+    for pragma in _PRAGMAS:
+        await conn.execute(pragma)
+
+
+def _configure_sync_connection(conn: sqlite3.Connection) -> None:
+    conn.row_factory = sqlite3.Row
+    for pragma in _PRAGMAS:
+        conn.execute(pragma)
+
+
+async def create_async_connection() -> aiosqlite.Connection:
+    """Create a fully configured aiosqlite connection."""
+    db_path = get_db_path()
+    _ensure_db_parent_dir(db_path)
+    conn = await aiosqlite.connect(db_path)
+    await _configure_async_connection(conn)
+    return conn
+
+
+def create_sync_connection() -> sqlite3.Connection:
+    """Create a fully configured sqlite3 connection for threads/scripts."""
+    db_path = get_db_path()
+    _ensure_db_parent_dir(db_path)
+    conn = sqlite3.connect(db_path)
+    _configure_sync_connection(conn)
+    return conn
 
 
 async def init_db() -> None:
@@ -20,13 +69,7 @@ async def init_db() -> None:
     if _GLOBAL_CONN is not None:
         return
 
-    _GLOBAL_CONN = await aiosqlite.connect(_DB_PATH)
-    _GLOBAL_CONN.row_factory = aiosqlite.Row
-
-    # --- SQLite Optimizations for High Concurrency ---
-    await _GLOBAL_CONN.execute("PRAGMA journal_mode = WAL;")
-    await _GLOBAL_CONN.execute("PRAGMA synchronous = NORMAL;")
-    await _GLOBAL_CONN.execute("PRAGMA foreign_keys = ON;")
+    _GLOBAL_CONN = await create_async_connection()
 
     for ddl in ALL_TABLES:
         await _GLOBAL_CONN.execute(ddl)
@@ -39,11 +82,6 @@ async def close_db() -> None:
     if _GLOBAL_CONN is not None:
         await _GLOBAL_CONN.close()
         _GLOBAL_CONN = None
-
-
-def get_db_path() -> str:
-    """Return the SQLite database path for worker threads and scripts."""
-    return _DB_PATH
 
 
 @asynccontextmanager
