@@ -188,7 +188,7 @@ def _build_settings() -> Settings:
             top_k=_require_int("TOP_K"),
             max_messages=_require_int("MAX_MESSAGES"),
             max_full_docs=int(os.getenv("MAX_FULL_DOCS", "2")),
-            max_full_doc_chars=int(os.getenv("MAX_FULL_DOC_CHARS", "50000")),
+            max_full_doc_chars=int(os.getenv("MAX_FULL_DOC_CHARS", "10000")),
         ),
         log=LogConfig(
             dir=_require_str("LOG_DIR"),
