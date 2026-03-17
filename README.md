@@ -118,6 +118,19 @@ make infra-init
 make infra-up
 ```
 
+**Stop infrastructure**:
+```bash
+make infra-down
+```
+
+**Execute commands inside containers**:
+```bash
+docker compose exec <service> <command>
+```
+
+> **Why use `docker compose exec` instead of `docker exec`?**
+> `docker compose exec` operates within the context of your current project, ensuring you target the correct service containers defined in your `docker-compose.yml`. Using `docker exec` relies on global container names, which can lead to conflicts, accidental operations on containers from other projects, or failures if container names change. Always prefer project-aware commands.
+
 ### 3. Configure Environment
 
 ```bash
