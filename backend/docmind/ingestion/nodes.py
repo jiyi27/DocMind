@@ -82,12 +82,22 @@ def _custom_split_markdown(
     current_headers = {}
 
     def build_breadcrumb(headers: dict) -> str:
-        """Build a plain-text breadcrumb from the current header context.
+        """Build a plain-text breadcrumb from the document title and current header context.
 
-        e.g. {"header_1": "Intro", "header_2": "Background"} → "Intro / Background"
+        e.g. title="API Guide", headers={"header_1": "Intro", "header_2": "Background"}
+             → "API Guide / Intro / Background"
+        Prepending the document title makes every chunk fully self-contained,
+        which improves retrieval quality even when chunks are read in isolation.
         Plain text (no Markdown symbols) is friendlier to embedding models.
         """
-        parts = [
+        parts = []
+
+        # Prepend document title if available
+        doc_title = base_meta.get("title", "").strip()
+        if doc_title:
+            parts.append(doc_title)
+
+        parts += [
             headers[f"header_{level}"]
             for level in sorted(int(k.split("_")[1]) for k in headers)
         ]
@@ -125,6 +135,10 @@ def _custom_split_markdown(
 
     header_pattern = re.compile(r"^(#{1,6})\s+(.*)")
 
+    def restore(m):
+        """Swap a placeholder token back to its original code block."""
+        return code_blocks[int(m.group(1))]
+
     for block in raw_blocks:
         # Check if this block is a header
         h_match = header_pattern.match(block)
@@ -143,11 +157,6 @@ def _custom_split_markdown(
                 del current_headers[k]
 
             current_headers[f"header_{level}"] = header_text
-
-        # Restore code blocks in this specific paragraph
-        def restore(m):
-            idx = int(m.group(1))
-            return code_blocks[idx]
 
         restored_block = re.sub(r"__CODE_BLOCK_(\d+)__", restore, block)
         block_len = len(restored_block)
