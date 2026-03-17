@@ -2,6 +2,8 @@
 Async SQLite connection management via aiosqlite.
 """
 
+from __future__ import annotations
+
 import aiosqlite
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
@@ -37,6 +39,11 @@ async def close_db() -> None:
     if _GLOBAL_CONN is not None:
         await _GLOBAL_CONN.close()
         _GLOBAL_CONN = None
+
+
+def get_db_path() -> str:
+    """Return the SQLite database path for worker threads and scripts."""
+    return _DB_PATH
 
 
 @asynccontextmanager

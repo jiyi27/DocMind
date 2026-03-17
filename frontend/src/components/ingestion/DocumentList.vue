@@ -221,7 +221,7 @@ async function handleDelete(doc) {
 
 // Expose refresh method so parent can call it after upload
 function refresh() {
-  fetchDocuments()
+  fetchDocuments(false)
 }
 
 defineExpose({ refresh })

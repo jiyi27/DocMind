@@ -25,10 +25,14 @@ async def lifespan(app: FastAPI):
 
     # Initialize SQLite database (creates tables if they don't exist)
     from docmind.db.database import close_db, init_db
+    from docmind.ingestion.worker import IngestionQueueWorker
 
     await init_db()
+    worker = IngestionQueueWorker()
+    worker.start()
 
     yield  # App is running
 
     # Cleanup resources on shutdown
+    worker.stop()
     await close_db()

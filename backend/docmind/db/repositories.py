@@ -312,6 +312,64 @@ class DocumentRepository:
 
 
 # ---------------------------------------------------------------------------
+# Ingestion Job Repository
+# ---------------------------------------------------------------------------
+
+
+class IngestionJobRepository:
+    def __init__(self, db: aiosqlite.Connection) -> None:
+        self.db = db
+
+    async def create_pending(
+        self,
+        document_id: str,
+        payload_json: str,
+    ) -> dict[str, Any]:
+        job_id = str(uuid.uuid4())
+        now = _now()
+        await self.db.execute(
+            """
+            INSERT INTO ingestion_jobs (
+                id,
+                document_id,
+                payload_json,
+                status,
+                attempt_count,
+                error_message,
+                claimed_at,
+                started_at,
+                finished_at,
+                created_at,
+                updated_at
+            )
+            VALUES (?, ?, ?, 'pending', 0, '', '', '', '', ?, ?)
+            """,
+            (job_id, document_id, payload_json, now, now),
+        )
+        await self.db.commit()
+        return {
+            "id": job_id,
+            "document_id": document_id,
+            "payload_json": payload_json,
+            "status": "pending",
+            "attempt_count": 0,
+            "error_message": "",
+            "claimed_at": "",
+            "started_at": "",
+            "finished_at": "",
+            "created_at": now,
+            "updated_at": now,
+        }
+
+    async def get_by_document_id(self, document_id: str) -> dict[str, Any] | None:
+        async with self.db.execute(
+            "SELECT * FROM ingestion_jobs WHERE document_id = ?",
+            (document_id,),
+        ) as cur:
+            return _row_to_dict(await cur.fetchone())
+
+
+# ---------------------------------------------------------------------------
 # Chat Session Repository
 # ---------------------------------------------------------------------------
 

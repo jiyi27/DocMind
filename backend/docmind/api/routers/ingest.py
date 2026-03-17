@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import uuid
 
 from fastapi import (
     APIRouter,
-    BackgroundTasks,
     Depends,
     File,
     Form,
@@ -22,8 +22,11 @@ from docmind.api.schemas import IngestMetadata
 from docmind.api.response import ok
 from docmind.auth.schemas import UserContext
 from docmind.db.database import get_db
-from docmind.db.repositories import DocumentRepository, KBRepository
-from docmind.ingestion.graph import ingestion_graph
+from docmind.db.repositories import (
+    DocumentRepository,
+    IngestionJobRepository,
+    KBRepository,
+)
 from docmind.vectorstore.qdrant_store import (
     delete_documents_by_doc_id,
     get_chunks_by_doc_id,
@@ -37,48 +40,6 @@ router = APIRouter(prefix="/ingest", tags=["ingestion"])
 # ---------------------------------------------------------------------------
 
 
-async def process_document_task(
-    doc_id: str,
-    file_path: str,
-    metadata_dict: dict,
-    user_id: str,
-    kb_name: str,
-    strict_mode: bool,
-    chunk_size: int,
-    max_chunk_size: int,
-):
-    """Background task to run the ingestion graph."""
-    try:
-        async with get_db() as db:
-            doc_repo = DocumentRepository(db)
-            await doc_repo.update_status(doc_id, "processing")
-
-        result = ingestion_graph.invoke(
-            {
-                "file_path": file_path,
-                "metadata": metadata_dict,
-                "user_id": user_id,
-                "doc_id": doc_id,
-                "kb_name": kb_name,
-                "strict_mode": strict_mode,
-                "chunk_size": chunk_size,
-                "max_chunk_size": max_chunk_size,
-            }
-        )
-
-        chunk_count = result.get("chunk_count", 0)
-        async with get_db() as db:
-            doc_repo = DocumentRepository(db)
-            await doc_repo.update_status(doc_id, "completed", chunk_count=chunk_count)
-
-    except Exception as e:
-        async with get_db() as db:
-            doc_repo = DocumentRepository(db)
-            await doc_repo.update_status(doc_id, "failed", error_message=str(e))
-    finally:
-        Path(file_path).unlink(missing_ok=True)
-
-
 @router.post(
     "/{kb_id}",
     status_code=status.HTTP_201_CREATED,
@@ -86,7 +47,6 @@ async def process_document_task(
 )
 async def ingest_document(
     kb_id: str,
-    background_tasks: BackgroundTasks,
     file: UploadFile = File(..., description="PDF or Markdown file to ingest"),
     title: str = Form(default=""),
     url: str = Form(default=""),
@@ -142,6 +102,7 @@ async def ingest_document(
     # Persist document record to SQLite as pending
     async with get_db() as db:
         doc_repo = DocumentRepository(db)
+        job_repo = IngestionJobRepository(db)
         doc = await doc_repo.create(
             user_id=current_user.user_id,
             kb_id=kb_id,
@@ -154,19 +115,20 @@ async def ingest_document(
             file_path=str(tmp_path),
             strict_mode=strict_mode,
         )
-
-    # Add background task
-    background_tasks.add_task(
-        process_document_task,
-        doc_id=doc_id,
-        file_path=str(tmp_path),
-        metadata_dict=metadata.model_dump(),
-        user_id=current_user.user_id,
-        kb_name=kb_name,
-        strict_mode=strict_mode,
-        chunk_size=chunk_size,
-        max_chunk_size=max_chunk_size,
-    )
+        payload = {
+            "file_path": str(tmp_path),
+            "metadata": metadata.model_dump(),
+            "user_id": current_user.user_id,
+            "doc_id": doc_id,
+            "kb_name": kb_name,
+            "strict_mode": strict_mode,
+            "chunk_size": chunk_size,
+            "max_chunk_size": max_chunk_size,
+        }
+        await job_repo.create_pending(
+            document_id=doc_id,
+            payload_json=json.dumps(payload, ensure_ascii=False),
+        )
 
     return ok(
         data={

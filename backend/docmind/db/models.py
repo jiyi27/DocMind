@@ -40,6 +40,22 @@ CREATE TABLE IF NOT EXISTS documents (
 );
 """
 
+CREATE_INGESTION_JOBS_TABLE = """
+CREATE TABLE IF NOT EXISTS ingestion_jobs (
+    id           TEXT PRIMARY KEY,
+    document_id  TEXT NOT NULL UNIQUE REFERENCES documents(id) ON DELETE CASCADE,
+    payload_json TEXT NOT NULL DEFAULT '{}',
+    status       TEXT NOT NULL DEFAULT 'pending',
+    attempt_count INTEGER NOT NULL DEFAULT 0,
+    error_message TEXT DEFAULT '',
+    claimed_at   TEXT DEFAULT '',
+    started_at   TEXT DEFAULT '',
+    finished_at  TEXT DEFAULT '',
+    created_at   TEXT NOT NULL,
+    updated_at   TEXT NOT NULL
+);
+"""
+
 CREATE_CHAT_SESSIONS_TABLE = """
 CREATE TABLE IF NOT EXISTS chat_sessions (
     id              TEXT PRIMARY KEY,
@@ -72,6 +88,7 @@ ALL_TABLES = [
     CREATE_KNOWLEDGE_BASES_TABLE,
     CREATE_USERS_TABLE,
     CREATE_DOCUMENTS_TABLE,
+    CREATE_INGESTION_JOBS_TABLE,
     CREATE_CHAT_SESSIONS_TABLE,
     CREATE_CHAT_MESSAGES_TABLE,
 ]
