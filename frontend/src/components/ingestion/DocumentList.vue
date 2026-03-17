@@ -30,15 +30,16 @@
           </el-icon>
           <div class="doc-info">
             <p class="doc-title">
-              {{ doc.title || doc.file_name }}
-              <el-tag v-if="doc.status === 'pending'" size="small" type="info" style="margin-left: 8px">Pending</el-tag>
-              <el-tag v-else-if="doc.status === 'processing'" size="small" type="warning" style="margin-left: 8px">
-                <el-icon class="is-loading"><Loading /></el-icon> Processing
+              <span class="doc-title-text">{{ doc.title || doc.file_name }}</span>
+              <el-tag v-if="doc.status === 'pending'" class="doc-status-tag" size="small" type="info">Pending</el-tag>
+              <el-tag v-else-if="doc.status === 'processing'" class="doc-status-tag doc-status-tag-processing" size="small" type="warning">
+                <el-icon class="doc-status-icon is-loading"><Loading /></el-icon>
+                <span>Processing</span>
               </el-tag>
-              <el-tag v-else-if="doc.status === 'failed'" size="small" type="danger" style="margin-left: 8px">
+              <el-tag v-else-if="doc.status === 'failed'" class="doc-status-tag" size="small" type="danger">
                 Failed
               </el-tag>
-              <el-tag v-else-if="doc.status === 'completed'" size="small" type="success" style="margin-left: 8px">
+              <el-tag v-else-if="doc.status === 'completed'" class="doc-status-tag" size="small" type="success">
                 Ready
               </el-tag>
             </p>
@@ -298,13 +299,50 @@ onUnmounted(() => {
 }
 
 .doc-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   font-size: 14px;
   font-weight: 600;
   color: #303133;
   margin: 0 0 6px;
+  min-width: 0;
+}
+
+.doc-title-text {
+  min-width: 0;
+  flex: 1;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.doc-status-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  vertical-align: middle;
+  line-height: 1;
+}
+
+.doc-status-tag :deep(.el-tag__content) {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  line-height: 1;
+}
+
+.doc-status-tag-processing {
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+.doc-status-icon {
+  font-size: 12px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
 }
 
 .doc-meta {
