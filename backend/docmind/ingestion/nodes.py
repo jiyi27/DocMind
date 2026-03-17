@@ -76,10 +76,10 @@ def _custom_split_markdown(
     # 2. Split by double newlines to get physical paragraphs
     raw_blocks = [b.strip() for b in text_no_code.split("\n\n") if b.strip()]
 
-    docs = []  # 最终结果列表
-    current_chunk_texts = []  # 当前 chunk 里已经装进来的 block 的文本列表
-    current_len = 0  # 当前 chunk 已经装进来的文本总长度（不包括 header 面包屑）
-    current_headers = {}  # 当前所在的标题层级上下文, e.g. {"header_1": "Intro", "header_2": "Background"}
+    docs = []
+    current_chunk_texts = []
+    current_len = 0
+    current_headers = {}
 
     def build_breadcrumb(headers: dict) -> str:
         """Build a plain-text breadcrumb from the document title and current header context.
@@ -103,7 +103,25 @@ def _custom_split_markdown(
         ]
         return " / ".join(parts)
 
-    # 把当前积累的内容打包成一个 Document, 放进结果列表里, 然后重置缓冲区
+    def collect_overlap_blocks(blocks: list[str]) -> tuple[list[str], int]:
+        """Keep as many trailing semantic blocks as fit within the overlap budget."""
+        if overlap <= 0 or len(blocks) <= 1:
+            return [], 0
+
+        kept_blocks_reversed: list[str] = []
+        kept_len = 0
+
+        for block in reversed(blocks):
+            separator_len = 2 if kept_blocks_reversed else 0
+            candidate_len = kept_len + separator_len + len(block)
+            if candidate_len > overlap:
+                break
+            kept_blocks_reversed.append(block)
+            kept_len = candidate_len
+
+        kept_blocks = list(reversed(kept_blocks_reversed))
+        return kept_blocks, kept_len
+
     def flush_chunk():
         nonlocal current_chunk_texts, current_len
         if not current_chunk_texts:
@@ -121,19 +139,7 @@ def _custom_split_markdown(
         meta.update(current_headers)
         docs.append(Document(page_content=merged_text, metadata=meta))
 
-        # 这段代码在 flush_chunk() 把当前积累的内容打包成一个 chunk 之后执行
-        # 目的是让相邻两个 chunk 之间有内容重叠，以避免语义在 chunk 边界处被硬切断
-        if overlap > 0 and len(current_chunk_texts) > 1:
-            last_block = current_chunk_texts[-1]
-            if len(last_block) <= overlap:
-                current_chunk_texts = [last_block]
-                current_len = len(last_block)
-            else:
-                current_chunk_texts = []
-                current_len = 0
-        else:
-            current_chunk_texts = []
-            current_len = 0
+        current_chunk_texts, current_len = collect_overlap_blocks(current_chunk_texts)
 
     header_pattern = re.compile(r"^(#{1,6})\s+(.*)")
 
@@ -159,6 +165,7 @@ def _custom_split_markdown(
                 del current_headers[k]
 
             current_headers[f"header_{level}"] = header_text
+            continue
 
         restored_block = re.sub(r"__CODE_BLOCK_(\d+)__", restore, block)
         block_len = len(restored_block)
