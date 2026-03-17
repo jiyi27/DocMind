@@ -5,13 +5,12 @@ from __future__ import annotations
 import json
 import sqlite3
 import threading
-import uuid
 from pathlib import Path
 from typing import Any
 
 from docmind.core import logger
+from docmind.core.time import utc_now_iso
 from docmind.db.database import get_db_path
-from docmind.db.repositories import _now
 from docmind.ingestion.graph import ingestion_graph
 
 POLL_INTERVAL_SECONDS = 1.0
@@ -67,7 +66,7 @@ class IngestionQueueWorker:
             conn.close()
 
     def _requeue_processing_jobs(self, conn: sqlite3.Connection) -> None:
-        now = _now()
+        now = utc_now_iso()
         conn.execute(
             """
             UPDATE ingestion_jobs
@@ -95,49 +94,6 @@ class IngestionQueueWorker:
         )
         conn.commit()
 
-    def enqueue(
-        self,
-        conn: sqlite3.Connection,
-        document_id: str,
-        payload: dict[str, Any],
-    ) -> dict[str, Any]:
-        job_id = str(uuid.uuid4())
-        now = _now()
-        payload_json = json.dumps(payload, ensure_ascii=False)
-        conn.execute(
-            """
-            INSERT INTO ingestion_jobs (
-                id,
-                document_id,
-                payload_json,
-                status,
-                attempt_count,
-                error_message,
-                claimed_at,
-                started_at,
-                finished_at,
-                created_at,
-                updated_at
-            )
-            VALUES (?, ?, ?, 'pending', 0, '', '', '', '', ?, ?)
-            """,
-            (job_id, document_id, payload_json, now, now),
-        )
-        conn.commit()
-        return {
-            "id": job_id,
-            "document_id": document_id,
-            "payload_json": payload_json,
-            "status": "pending",
-            "attempt_count": 0,
-            "error_message": "",
-            "claimed_at": "",
-            "started_at": "",
-            "finished_at": "",
-            "created_at": now,
-            "updated_at": now,
-        }
-
     def _claim_next_job(self, conn: sqlite3.Connection) -> dict[str, Any] | None:
         row = conn.execute(
             """
@@ -151,7 +107,7 @@ class IngestionQueueWorker:
         if row is None:
             return None
 
-        now = _now()
+        now = utc_now_iso()
         result = conn.execute(
             """
             UPDATE ingestion_jobs
@@ -223,7 +179,7 @@ class IngestionQueueWorker:
         document_id: str,
         chunk_count: int,
     ) -> None:
-        now = _now()
+        now = utc_now_iso()
         conn.execute(
             """
             UPDATE documents
@@ -254,7 +210,7 @@ class IngestionQueueWorker:
         document_id: str,
         error_message: str,
     ) -> None:
-        now = _now()
+        now = utc_now_iso()
         conn.execute(
             """
             UPDATE documents

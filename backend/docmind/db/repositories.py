@@ -5,14 +5,11 @@ Data access layer — CRUD operations for all entities.
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
 from typing import Any
 
 import aiosqlite
 
-
-def _now() -> str:
-    return datetime.now(timezone.utc).isoformat()
+from docmind.core.time import utc_now_iso
 
 
 def _row_to_dict(row: aiosqlite.Row | None) -> dict[str, Any] | None:
@@ -49,7 +46,7 @@ class KBRepository:
         self, name: str, display_name: str, description: str = ""
     ) -> dict[str, Any]:
         kb_id = str(uuid.uuid4())
-        now = _now()
+        now = utc_now_iso()
         await self.db.execute(
             "INSERT INTO knowledge_bases (id, name, display_name, description, created_at) VALUES (?, ?, ?, ?, ?)",
             (kb_id, name, display_name, description, now),
@@ -107,7 +104,7 @@ class UserRepository:
         role: str = "user",
     ) -> dict[str, Any]:
         user_id = str(uuid.uuid4())
-        now = _now()
+        now = utc_now_iso()
         await self.db.execute(
             "INSERT INTO users (id, username, hashed_password, kb_id, role, created_at) VALUES (?, ?, ?, ?, ?, ?)",
             (user_id, username, hashed_password, kb_id, role, now),
@@ -174,7 +171,7 @@ class DocumentRepository:
         strict_mode : bool
         """
         _id = doc_id or str(uuid.uuid4())
-        now = _now()
+        now = utc_now_iso()
         strict_int = 1 if strict_mode else 0
         await self.db.execute(
             """
@@ -328,7 +325,7 @@ class IngestionJobRepository:
         payload_json: str,
     ) -> dict[str, Any]:
         job_id = str(uuid.uuid4())
-        now = _now()
+        now = utc_now_iso()
         await self.db.execute(
             """
             INSERT INTO ingestion_jobs (
@@ -390,7 +387,7 @@ class ChatSessionRepository:
     ) -> dict[str, Any]:
         """Create a chat session record."""
         chat_id = session_id or str(uuid.uuid4())
-        now = _now()
+        now = utc_now_iso()
         await self.db.execute(
             """
             INSERT INTO chat_sessions (id, user_id, kb_id, title, status, message_count, last_message_at, last_message_preview, created_at, updated_at)
@@ -463,7 +460,7 @@ class ChatSessionRepository:
         last_message_preview: str | None = None,
     ) -> None:
         """Update session activity timestamps and optional message count/preview."""
-        now = _now()
+        now = utc_now_iso()
         if last_message_preview is None:
             await self.db.execute(
                 """
@@ -486,7 +483,7 @@ class ChatSessionRepository:
 
     async def update_title(self, session_id: str, title: str) -> None:
         """Overwrite the session title (used after async LLM title generation)."""
-        now = _now()
+        now = utc_now_iso()
         await self.db.execute(
             "UPDATE chat_sessions SET title = ?, updated_at = ? WHERE id = ?",
             (title, now, session_id),
@@ -515,7 +512,7 @@ class ChatMessageRepository:
     ) -> dict[str, Any]:
         """Create a chat message record."""
         _id = message_id or str(uuid.uuid4())
-        now = _now()
+        now = utc_now_iso()
         await self.db.execute(
             """
             INSERT INTO chat_messages (id, session_id, role, content, sources_json, model_name, token_count, created_at)
