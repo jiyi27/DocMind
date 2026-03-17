@@ -56,7 +56,7 @@ def load_document_node(state: IngestionState) -> dict:
 def _custom_split_markdown(
     doc: Document, target_size: int, max_size: int, overlap: int
 ) -> list[Document]:
-    """Strictly split Markdown respecting headers, code blocks, and paragraphs without Langchain's destructive header splitter."""
+    """Strictly split Markdown respecting headers, code blocks, and paragraphs without Lang chain's destructive header splitter."""
     text = doc.page_content
     base_meta = doc.metadata.copy()
 
@@ -277,7 +277,7 @@ def summarize_code_node(state: IngestionState) -> dict:
     for chunk in chunks:
         text = chunk.page_content.strip()
 
-        # Find all markdown code blocks in the chunk
+        # Find all Markdown code blocks in the chunk
         code_blocks = list(re.finditer(r"```(.*?)```", text, flags=re.DOTALL))
 
         has_summarized_code = False
