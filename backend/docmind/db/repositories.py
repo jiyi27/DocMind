@@ -21,6 +21,21 @@ def _row_to_dict(row: aiosqlite.Row | None) -> dict[str, Any] | None:
     return dict(row)
 
 
+def _document_list_query(where_clause: str) -> str:
+    return f"""
+        SELECT
+            d.*,
+            k.name AS kb_name,
+            k.display_name AS kb_display_name,
+            u.username AS uploader_name
+        FROM documents d
+        LEFT JOIN knowledge_bases k ON d.kb_id = k.id
+        LEFT JOIN users u ON d.user_id = u.id
+        WHERE {where_clause}
+        ORDER BY d.created_at DESC
+    """
+
+
 # ---------------------------------------------------------------------------
 # KnowledgeBase Repository
 # ---------------------------------------------------------------------------
@@ -223,6 +238,11 @@ class DocumentRepository:
         ) as cur:
             return _row_to_dict(await cur.fetchone())
 
+    async def get_by_id_with_display_info(self, doc_id: str) -> dict[str, Any] | None:
+        query = _document_list_query("d.id = ?")
+        async with self.db.execute(query, (doc_id,)) as cur:
+            return _row_to_dict(await cur.fetchone())
+
     async def list_by_user(self, user_id: str) -> list[dict[str, Any]]:
         async with self.db.execute(
             "SELECT * FROM documents WHERE user_id = ? ORDER BY created_at DESC",
@@ -233,13 +253,7 @@ class DocumentRepository:
 
     async def list_by_user_with_kb_info(self, user_id: str) -> list[dict[str, Any]]:
         """Return all documents uploaded by a specific user across all KBs, with KB display name."""
-        query = """
-            SELECT d.*, k.name AS kb_name, k.display_name AS kb_display_name
-            FROM documents d
-            LEFT JOIN knowledge_bases k ON d.kb_id = k.id
-            WHERE d.user_id = ?
-            ORDER BY d.created_at DESC
-        """
+        query = _document_list_query("d.user_id = ?")
         async with self.db.execute(query, (user_id,)) as cur:
             rows = await cur.fetchall()
             return [dict(r) for r in rows]
@@ -264,13 +278,7 @@ class DocumentRepository:
 
     async def list_by_kb_with_user_info(self, kb_id: str) -> list[dict[str, Any]]:
         """Return all documents within a specific KB with uploader username."""
-        query = """
-            SELECT d.*, u.username AS uploader_name
-            FROM documents d
-            LEFT JOIN users u ON d.user_id = u.id
-            WHERE d.kb_id = ?
-            ORDER BY d.created_at DESC
-        """
+        query = _document_list_query("d.kb_id = ?")
         async with self.db.execute(query, (kb_id,)) as cur:
             rows = await cur.fetchall()
             return [dict(r) for r in rows]
@@ -279,13 +287,7 @@ class DocumentRepository:
         self, user_id: str, kb_id: str
     ) -> list[dict[str, Any]]:
         """Return all documents uploaded by a specific user within a specific KB with uploader username."""
-        query = """
-            SELECT d.*, u.username AS uploader_name
-            FROM documents d
-            LEFT JOIN users u ON d.user_id = u.id
-            WHERE d.user_id = ? AND d.kb_id = ?
-            ORDER BY d.created_at DESC
-        """
+        query = _document_list_query("d.user_id = ? AND d.kb_id = ?")
         async with self.db.execute(query, (user_id, kb_id)) as cur:
             rows = await cur.fetchall()
             return [dict(r) for r in rows]

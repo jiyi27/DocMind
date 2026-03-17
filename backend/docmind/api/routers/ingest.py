@@ -18,6 +18,10 @@ from fastapi import (
 )
 
 from docmind.api.dependencies import get_current_user
+from docmind.api.serializers import (
+    serialize_document_list_item,
+    serialize_document_list_items,
+)
 from docmind.api.schemas import IngestMetadata
 from docmind.api.response import ok
 from docmind.auth.schemas import UserContext
@@ -103,7 +107,7 @@ async def ingest_document(
     async with get_db() as db:
         doc_repo = DocumentRepository(db)
         job_repo = IngestionJobRepository(db)
-        doc = await doc_repo.create(
+        await doc_repo.create(
             user_id=current_user.user_id,
             kb_id=kb_id,
             file_name=file_name,
@@ -129,15 +133,16 @@ async def ingest_document(
             document_id=doc_id,
             payload_json=json.dumps(payload, ensure_ascii=False),
         )
+        document_item = await doc_repo.get_by_id_with_display_info(doc_id)
+
+    if not document_item:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to load uploaded document metadata",
+        )
 
     return ok(
-        data={
-            "doc_id": doc["id"],
-            "status": "pending",
-            "chunk_count": 0,
-            "file_name": file_name,
-            "kb_name": kb_name,
-        },
+        data=serialize_document_list_item(document_item),
         message="Document uploaded and ingestion queued",
     )
 
@@ -155,7 +160,8 @@ async def list_documents(
     async with get_db() as db:
         doc_repo = DocumentRepository(db)
         docs = await doc_repo.list_by_user_with_kb_info(current_user.user_id)
-    return ok(data={"total": len(docs), "documents": docs})
+    items = serialize_document_list_items(docs)
+    return ok(data={"total": len(items), "documents": items})
 
 
 # ---------------------------------------------------------------------------
@@ -181,7 +187,8 @@ async def list_documents_by_kb(
                 current_user.user_id, kb_id
             )
 
-    return ok(data={"total": len(docs), "documents": docs})
+    items = serialize_document_list_items(docs)
+    return ok(data={"total": len(items), "documents": items})
 
 
 # ---------------------------------------------------------------------------
@@ -194,24 +201,14 @@ async def get_document(doc_id: str):
     """Return metadata for a single document."""
     async with get_db() as db:
         doc_repo = DocumentRepository(db)
-        doc = await doc_repo.get_by_id(doc_id)
+        doc = await doc_repo.get_by_id_with_display_info(doc_id)
 
     if not doc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Document not found"
         )
 
-    async with get_db() as db:
-        kb_repo = KBRepository(db)
-        kb = await kb_repo.get_by_id(doc["kb_id"])
-
-    return ok(
-        data={
-            **doc,
-            "kb_display_name": kb["display_name"] if kb else None,
-            "kb_name": kb["name"] if kb else None,
-        }
-    )
+    return ok(data=serialize_document_list_item(doc))
 
 
 # ---------------------------------------------------------------------------

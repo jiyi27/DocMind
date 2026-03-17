@@ -83,3 +83,20 @@ class ChatMessageCreate(BaseModel):
     sources: list[str] = Field(default_factory=list)
     model_name: str = ""
     token_count: int = 0
+
+
+class DocumentListItem(BaseModel):
+    id: str
+    user_id: str
+    kb_id: str
+    file_name: str
+    title: str
+    doc_type: str
+    chunk_count: int
+    status: str
+    error_message: str | None = None
+    created_at: str
+    strict_mode: bool
+    kb_name: str | None = None
+    kb_display_name: str | None = None
+    uploader_name: str | None = None
