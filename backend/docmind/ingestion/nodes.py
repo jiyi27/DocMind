@@ -15,6 +15,12 @@ from docmind.ingestion.state import IngestionState
 from docmind.ingestion.prompts import code_summarization_prompt
 from docmind.vectorstore.qdrant_store import get_vector_store_for_kb
 
+FENCED_BLOCK_PATTERN = re.compile(r"```.*?```", flags=re.DOTALL)
+LANGUAGE_FENCED_BLOCK_PATTERN = re.compile(
+    r"```(?P<language>[a-zA-Z0-9_+-]+)[ \t]*\n(?P<content>.*?)```",
+    flags=re.DOTALL,
+)
+
 
 def load_document_node(state: IngestionState) -> dict:
     """Load documents from the given file path.
@@ -53,6 +59,32 @@ def load_document_node(state: IngestionState) -> dict:
     return {"documents": docs}
 
 
+def _protect_fenced_blocks(text: str) -> tuple[str, list[str]]:
+    """Replace fenced blocks with placeholders so they stay atomic during splitting."""
+    fenced_blocks: list[str] = []
+
+    def replacer(match: re.Match[str]) -> str:
+        fenced_blocks.append(match.group(0))
+        return f"__CODE_BLOCK_{len(fenced_blocks) - 1}__"
+
+    text_without_fenced_blocks = FENCED_BLOCK_PATTERN.sub(replacer, text)
+    return text_without_fenced_blocks, fenced_blocks
+
+
+def _restore_fenced_block_placeholders(text: str, fenced_blocks: list[str]) -> str:
+    """Swap placeholder tokens back to their original fenced block content."""
+
+    def restore(match: re.Match[str]) -> str:
+        return fenced_blocks[int(match.group(1))]
+
+    return re.sub(r"__CODE_BLOCK_(\d+)__", restore, text)
+
+
+def _iter_language_fenced_blocks(text: str) -> list[re.Match[str]]:
+    """Return only fenced blocks that declare a language after opening backticks."""
+    return list(LANGUAGE_FENCED_BLOCK_PATTERN.finditer(text))
+
+
 def _custom_split_markdown(
     doc: Document, target_size: int, max_size: int, overlap: int
 ) -> list[Document]:
@@ -65,13 +97,7 @@ def _custom_split_markdown(
     # would cut them in half. By replacing each code block with a placeholder, the entire
     # block becomes a single line and won't be split. The `restore` function swaps the
     # placeholders back to the original code after all processing is done.
-    code_blocks = []
-
-    def replacer(match):
-        code_blocks.append(match.group(0))
-        return f"__CODE_BLOCK_{len(code_blocks) - 1}__"
-
-    text_no_code = re.sub(r"```.*?```", replacer, text, flags=re.DOTALL)
+    text_no_code, code_blocks = _protect_fenced_blocks(text)
 
     # 2. Split by double newlines to get physical paragraphs
     raw_blocks = [b.strip() for b in text_no_code.split("\n\n") if b.strip()]
@@ -143,10 +169,6 @@ def _custom_split_markdown(
 
     header_pattern = re.compile(r"^(#{1,6})\s+(.*)")
 
-    def restore(m):
-        """Swap a placeholder token back to its original code block."""
-        return code_blocks[int(m.group(1))]
-
     for block in raw_blocks:
         # Check if this block is a header
         h_match = header_pattern.match(block)
@@ -167,7 +189,7 @@ def _custom_split_markdown(
             current_headers[f"header_{level}"] = header_text
             continue
 
-        restored_block = re.sub(r"__CODE_BLOCK_(\d+)__", restore, block)
+        restored_block = _restore_fenced_block_placeholders(block, code_blocks)
         block_len = len(restored_block)
 
         # Strict validation against MAX_SIZE
@@ -318,8 +340,8 @@ def summarize_code_node(state: IngestionState) -> dict:
     for chunk in chunks:
         text = chunk.page_content.strip()
 
-        # Find all Markdown code blocks in the chunk
-        code_blocks = list(re.finditer(r"```(.*?)```", text, flags=re.DOTALL))
+        # Only summarize fenced code blocks that explicitly declare a language.
+        code_blocks = _iter_language_fenced_blocks(text)
 
         has_summarized_code = False
         new_text = text
@@ -328,7 +350,7 @@ def summarize_code_node(state: IngestionState) -> dict:
             full_code_block = match.group(0)
 
             # Skip summarization for very short snippets
-            if len(full_code_block) < 100:
+            if len(full_code_block) < 200:
                 continue
 
             # Extract headers for context
@@ -338,13 +360,8 @@ def summarize_code_node(state: IngestionState) -> dict:
                     headers.append(f"{k}: {v}")
             headers_str = " > ".join(headers) if headers else "无明确章节"
 
-            # Try to extract language from the first line
-            first_line = full_code_block.split("\n", 1)[0]
-            language = first_line.strip("`").strip() or "unknown"
-
-            code_content = full_code_block.strip("```").strip()
-            if code_content.startswith(language):
-                code_content = code_content[len(language) :].strip()
+            language = match.group("language").strip().lower()
+            code_content = match.group("content").strip()
 
             try:
                 result = chain.invoke(
