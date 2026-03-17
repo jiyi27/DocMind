@@ -13,7 +13,8 @@ from docmind.core.time import utc_now_iso
 from docmind.db.database import get_db_path
 from docmind.ingestion.graph import ingestion_graph
 
-POLL_INTERVAL_SECONDS = 1.0
+# Polling interval for checking the ingestion queue
+POLL_INTERVAL_SECONDS = 5.0
 
 
 class IngestionQueueWorker:
@@ -66,7 +67,17 @@ class IngestionQueueWorker:
             conn.close()
 
     def _requeue_processing_jobs(self, conn: sqlite3.Connection) -> None:
+        """Recovery routine executed ONCE at worker startup.
+
+        When the worker restarts (e.g., after a crash), any jobs left in
+        'processing' state are considered orphaned. This method resets them
+        to 'pending' so they can be re-claimed and re-processed.
+
+        Note: This runs only once at the beginning of `_run()`, before the
+        main polling loop starts. It does not run during normal operation.
+        """
         now = utc_now_iso()
+        # Step 1: Reset orphaned ingestion jobs to 'pending' for reprocessing
         conn.execute(
             """
             UPDATE ingestion_jobs
@@ -80,6 +91,7 @@ class IngestionQueueWorker:
             """,
             (now,),
         )
+        # Step 2: Sync the linked documents' status to match the reset jobs
         conn.execute(
             """
             UPDATE documents
