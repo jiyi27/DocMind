@@ -61,6 +61,10 @@ def _custom_split_markdown(
     base_meta = doc.metadata.copy()
 
     # 1. Protect code blocks
+    # Code blocks may contain blank lines (`\n\n`) internally. Splitting on `\n\n` directly
+    # would cut them in half. By replacing each code block with a placeholder, the entire
+    # block becomes a single line and won't be split. The `restore` function swaps the
+    # placeholders back to the original code after all processing is done.
     code_blocks = []
 
     def replacer(match):
@@ -77,12 +81,31 @@ def _custom_split_markdown(
     current_len = 0
     current_headers = {}
 
+    def build_breadcrumb(headers: dict) -> str:
+        """Build a plain-text breadcrumb from the current header context.
+
+        e.g. {"header_1": "Intro", "header_2": "Background"} → "Intro / Background"
+        Plain text (no Markdown symbols) is friendlier to embedding models.
+        """
+        parts = [
+            headers[f"header_{level}"]
+            for level in sorted(int(k.split("_")[1]) for k in headers)
+        ]
+        return " / ".join(parts)
+
     def flush_chunk():
         nonlocal current_chunk_texts, current_len
         if not current_chunk_texts:
             return
 
-        merged_text = "\n\n".join(current_chunk_texts)
+        body = "\n\n".join(current_chunk_texts)
+
+        # Prepend the header breadcrumb so every chunk is self-contained and
+        # embedding-friendly. The breadcrumb length is NOT counted toward
+        # current_len to keep the splitting logic unaffected.
+        breadcrumb = build_breadcrumb(current_headers)
+        merged_text = f"{breadcrumb}\n\n{body}" if breadcrumb else body
+
         meta = base_meta.copy()
         meta.update(current_headers)
         docs.append(Document(page_content=merged_text, metadata=meta))
