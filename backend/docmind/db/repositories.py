@@ -153,30 +153,15 @@ class DocumentRepository:
         error_message: str = "",
         file_path: str = "",
         strict_mode: bool = True,
+        retrieval_mode: str = "chunk",
     ) -> dict[str, Any]:
-        """Create a document record.
-
-        Parameters
-        ----------
-        user_id : str
-        kb_id : str
-        file_name : str
-        title : str
-        doc_type : str
-        chunk_count : int
-        doc_id : str
-        status : str
-        error_message : str
-        file_path : str
-        strict_mode : bool
-        """
         _id = doc_id or str(uuid.uuid4())
         now = utc_now_iso()
         strict_int = 1 if strict_mode else 0
         await self.db.execute(
             """
-            INSERT INTO documents (id, user_id, kb_id, file_name, title, doc_type, chunk_count, status, error_message, file_path, strict_mode, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO documents (id, user_id, kb_id, file_name, title, doc_type, chunk_count, status, error_message, file_path, strict_mode, retrieval_mode, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 _id,
@@ -190,6 +175,7 @@ class DocumentRepository:
                 error_message,
                 file_path,
                 strict_int,
+                retrieval_mode,
                 now,
             ),
         )
@@ -206,6 +192,7 @@ class DocumentRepository:
             "error_message": error_message,
             "file_path": file_path,
             "strict_mode": strict_int,
+            "retrieval_mode": retrieval_mode,
             "created_at": now,
         }
 

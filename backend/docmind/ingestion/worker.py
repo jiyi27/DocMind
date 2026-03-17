@@ -65,6 +65,7 @@ class IngestionQueueWorker:
         document_id = job["document_id"]
         file_path = payload["file_path"]
 
+        retrieval_mode = payload.get("retrieval_mode", "chunk")
         try:
             result = ingestion_graph.invoke(payload)
             chunk_count = result.get("chunk_count", 0)
@@ -85,4 +86,7 @@ class IngestionQueueWorker:
                 exc=exc,
             )
         finally:
-            Path(file_path).unlink(missing_ok=True)
+            # Keep the file for full_doc mode — it will be re-read at retrieval time.
+            # Delete it for chunk mode since it is no longer needed after ingestion.
+            if retrieval_mode != "full_doc":
+                Path(file_path).unlink(missing_ok=True)

@@ -76,6 +76,21 @@
         />
       </el-form-item>
 
+      <el-form-item label="Retrieval Mode">
+        <el-radio-group v-model="form.retrieval_mode" style="width: 100%">
+          <el-radio value="chunk">Fragment Mode</el-radio>
+          <el-radio value="full_doc">Full Article Mode</el-radio>
+        </el-radio-group>
+        <div style="font-size: 12px; color: #909399; line-height: 1.2; margin-top: 6px;">
+          <template v-if="form.retrieval_mode === 'chunk'">
+            Retrieve individual matched fragments. Best for FAQs, manuals, and reference docs.
+          </template>
+          <template v-else>
+            When any fragment matches, the entire article is fed to the LLM. Best for technical articles and design documents that require holistic understanding. Document size is limited.
+          </template>
+        </div>
+      </el-form-item>
+
       <el-form-item>
         <el-checkbox v-model="form.strict_mode">
           Strict Chunking Validation
@@ -155,6 +170,7 @@ const form = reactive({
   service: 'all',
   department: 'all',
   url: '',
+  retrieval_mode: 'chunk',
   strict_mode: true,
   chunk_size: 500,
   max_chunk_size: 1500,
@@ -185,6 +201,7 @@ async function handleUpload() {
   if (form.doc_type) formData.append('doc_type', form.doc_type)
   if (form.service) formData.append('service', form.service)
   if (form.department) formData.append('department', form.department)
+  formData.append('retrieval_mode', form.retrieval_mode)
   formData.append('strict_mode', form.strict_mode)
   formData.append('chunk_size', form.chunk_size)
   formData.append('max_chunk_size', form.max_chunk_size)
@@ -211,6 +228,7 @@ function resetForm() {
   form.service = 'all'
   form.department = 'all'
   form.url = ''
+  form.retrieval_mode = 'chunk'
   form.strict_mode = true
   form.chunk_size = 500
   form.max_chunk_size = 1500

@@ -5,6 +5,8 @@ from typing import Literal
 
 from docmind.core.metadata_config import DEPARTMENTS, DOC_TYPES, SERVICES
 
+RETRIEVAL_MODES = ("chunk", "full_doc")
+
 
 class IngestMetadata(BaseModel):
     """Metadata attached to an ingested document.
@@ -21,6 +23,10 @@ class IngestMetadata(BaseModel):
     service: list[str] = Field(default_factory=lambda: ["all"])
     department: list[str] = Field(default_factory=lambda: ["all"])
 
+    retrieval_mode: Literal["chunk", "full_doc"] = Field(
+        default="chunk",
+        description="'chunk': retrieve individual chunks. 'full_doc': retrieve the full article when any chunk matches.",
+    )
     strict_mode: bool = Field(
         default=True,
         description="Enable strict mode. If true, excessively long chunks will cause failure.",

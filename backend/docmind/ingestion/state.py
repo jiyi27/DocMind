@@ -38,6 +38,7 @@ class IngestionState(TypedDict, total=False):
     user_id: str
     doc_id: str
     kb_name: str
+    retrieval_mode: str
     strict_mode: bool
     chunk_size: int
     max_chunk_size: int

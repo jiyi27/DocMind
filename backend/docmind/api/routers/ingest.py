@@ -25,12 +25,14 @@ from docmind.api.serializers import (
 from docmind.api.schemas import IngestMetadata
 from docmind.api.response import ok
 from docmind.auth.schemas import UserContext
+from docmind.core.config import settings
 from docmind.db.database import get_db
 from docmind.db.repositories import (
     DocumentRepository,
     IngestionJobRepository,
     KBRepository,
 )
+from docmind.ingestion.loaders import load_document
 from docmind.vectorstore.qdrant_store import (
     delete_documents_by_doc_id,
     get_chunks_by_doc_id,
@@ -57,6 +59,7 @@ async def ingest_document(
     doc_type: str = Form(default="all"),
     service: str = Form(default="all"),
     department: str = Form(default="all"),
+    retrieval_mode: str = Form(default="chunk", description="'chunk' or 'full_doc'"),
     strict_mode: bool = Form(
         default=True, description="Enable strict chunking validation"
     ),
@@ -77,6 +80,12 @@ async def ingest_document(
             status_code=status.HTTP_404_NOT_FOUND, detail="Knowledge base not found"
         )
 
+    if retrieval_mode not in ("chunk", "full_doc"):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="retrieval_mode must be 'chunk' or 'full_doc'",
+        )
+
     kb_name = kb["name"]
     file_name = file.filename or "unknown"
 
@@ -86,6 +95,7 @@ async def ingest_document(
         doc_type=doc_type,
         service=service,  # type: ignore
         department=department,  # type: ignore
+        retrieval_mode=retrieval_mode,  # type: ignore
         strict_mode=strict_mode,
         chunk_size=chunk_size,
         max_chunk_size=max_chunk_size,
@@ -93,8 +103,9 @@ async def ingest_document(
 
     doc_id = str(uuid.uuid4())
 
-    # Write uploaded file to disk temporarily because document loaders
-    # (PDF/Markdown parsers) expect file paths, not byte streams.
+    # Write uploaded file to disk. For full_doc mode the file is kept permanently
+    # so it can be re-read at retrieval time. For chunk mode it is deleted by the
+    # worker after ingestion completes.
     upload_dir = Path("data/uploads")
     upload_dir.mkdir(parents=True, exist_ok=True)
     tmp_path = upload_dir / f"{doc_id}_{file_name}"
@@ -102,6 +113,29 @@ async def ingest_document(
     content = await file.read()
     with open(tmp_path, "wb") as f:
         f.write(content)
+
+    # For full_doc mode: parse the document now and enforce the character limit.
+    # This gives the user immediate feedback without waiting for the ingestion worker.
+    if retrieval_mode == "full_doc":
+        try:
+            docs = load_document(str(tmp_path))
+            total_chars = sum(len(d.page_content) for d in docs)
+        except Exception as exc:
+            tmp_path.unlink(missing_ok=True)
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Failed to parse document: {exc}",
+            )
+        max_chars = settings.retrieval.max_full_doc_chars
+        if total_chars > max_chars:
+            tmp_path.unlink(missing_ok=True)
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=(
+                    f"Document too large for Full Article mode: {total_chars:,} chars "
+                    f"(limit: {max_chars:,}). Use Fragment mode or split the document."
+                ),
+            )
 
     # Persist document record to SQLite as pending
     async with get_db() as db:
@@ -118,6 +152,7 @@ async def ingest_document(
             status="pending",
             file_path=str(tmp_path),
             strict_mode=strict_mode,
+            retrieval_mode=retrieval_mode,
         )
         payload = {
             "file_path": str(tmp_path),
@@ -125,6 +160,7 @@ async def ingest_document(
             "user_id": current_user.user_id,
             "doc_id": doc_id,
             "kb_name": kb_name,
+            "retrieval_mode": retrieval_mode,
             "strict_mode": strict_mode,
             "chunk_size": chunk_size,
             "max_chunk_size": max_chunk_size,

@@ -35,7 +35,8 @@ CREATE TABLE IF NOT EXISTS documents (
     status        TEXT DEFAULT 'pending',
     error_message TEXT DEFAULT '',
     file_path     TEXT DEFAULT '',
-    strict_mode   INTEGER DEFAULT 1,
+    strict_mode     INTEGER DEFAULT 1,
+    retrieval_mode  TEXT DEFAULT 'chunk',
     created_at  TEXT NOT NULL
 );
 """

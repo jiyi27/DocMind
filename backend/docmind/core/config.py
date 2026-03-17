@@ -87,6 +87,8 @@ class RetrievalConfig:
 
     top_k: int
     max_messages: int  # Max number of messages to keep in conversation history (oldest are dropped first).
+    max_full_docs: int  # Max number of full-article documents to include in a single retrieval context.
+    max_full_doc_chars: int  # Max characters allowed per full-article document (upload validation + retrieval truncation).
 
 
 @dataclass(frozen=True)
@@ -185,6 +187,8 @@ def _build_settings() -> Settings:
         retrieval=RetrievalConfig(
             top_k=_require_int("TOP_K"),
             max_messages=_require_int("MAX_MESSAGES"),
+            max_full_docs=int(os.getenv("MAX_FULL_DOCS", "2")),
+            max_full_doc_chars=int(os.getenv("MAX_FULL_DOC_CHARS", "50000")),
         ),
         log=LogConfig(
             dir=_require_str("LOG_DIR"),

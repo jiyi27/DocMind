@@ -50,11 +50,17 @@ def load_document_node(state: IngestionState) -> dict:
     doc_id = state.get("doc_id", "")
     user_id = state.get("user_id", "")
     kb_name = state.get("kb_name", "")
+    retrieval_mode = state.get("retrieval_mode", "chunk")
+    file_path = state.get("file_path", "")
     for doc in docs:
         doc.metadata.update(metadata)
         doc.metadata["doc_id"] = doc_id
         doc.metadata["user_id"] = user_id
         doc.metadata["kb_name"] = kb_name
+        doc.metadata["retrieval_mode"] = retrieval_mode
+        # Stored so retrieve_node can re-read the full file for full_doc mode.
+        if retrieval_mode == "full_doc":
+            doc.metadata["file_path"] = file_path
 
     return {"documents": docs}
 
