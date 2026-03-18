@@ -3,7 +3,7 @@
     <div class="header-left">
       <router-link to="/" class="brand">
         <el-icon class="logo-icon"><Reading /></el-icon>
-        <span class="logo-text">DocMind</span>
+        <span class="logo-text">SurfinDocMind</span>
       </router-link>
       <nav class="main-nav">
         <router-link
