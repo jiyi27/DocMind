@@ -6,7 +6,6 @@ import re
 from typing import Callable
 
 from langchain_core.documents import Document
-from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 from docmind.core.config import settings
 from docmind.core import logger
@@ -18,6 +17,46 @@ from docmind.ingestion.prompts import code_summarization_prompt
 from docmind.vectorstore.qdrant_store import get_vector_store_for_kb
 
 FENCED_BLOCK_PATTERN = re.compile(r"```.*?```", flags=re.DOTALL)
+
+
+def _halve_text(text: str, max_size: int) -> list[str]:
+    """Recursively halve *text* until every piece is ≤ *max_size* chars.
+
+    Prefers splitting at a natural newline near the midpoint (±100 chars).
+    Falls back to a hard character split when no newline is available.
+    """
+    if len(text) <= max_size:
+        return [text]
+    mid = len(text) // 2
+    split_pos = text.rfind("\n", max(0, mid - 100), mid + 100)
+    if split_pos == -1:
+        split_pos = mid
+    result = []
+    for part in (text[:split_pos].strip(), text[split_pos:].strip()):
+        if part:
+            result.extend(_halve_text(part, max_size))
+    return result
+
+
+def _collect_overlap_blocks(blocks: list[str], overlap: int) -> tuple[list[str], int]:
+    """Return trailing blocks that fit within the *overlap* character budget.
+
+    Iterates *blocks* in reverse, accumulating until the budget is exhausted.
+    The returned list is in original (forward) order.
+    """
+    if overlap <= 0 or len(blocks) <= 1:
+        return [], 0
+    kept_reversed: list[str] = []
+    kept_len = 0
+    for blk in reversed(blocks):
+        sep = 2 if kept_reversed else 0
+        if kept_len + sep + len(blk) > overlap:
+            break
+        kept_reversed.append(blk)
+        kept_len += sep + len(blk)
+    return list(reversed(kept_reversed)), kept_len
+
+
 # (?P<language>[a-zA-Z0-9_+-]+) and (?P<content>.*?): Named Capturing Group
 # Assigns a unique label to the captured sub-pattern,
 # allowing for retrieval via the variable name rather than a numeric index.
@@ -163,7 +202,7 @@ def _iter_language_fenced_blocks(text: str) -> list[re.Match[str]]:
 
 
 def _custom_split_markdown(
-    doc: Document, target_size: int, max_size: int, overlap: int
+    doc: Document, target_size: int, max_size: int, overlap: int, strict: bool
 ) -> list[Document]:
     """Strictly split Markdown respecting headers, code blocks, blockquotes, tables, and paragraphs.
 
@@ -208,20 +247,6 @@ def _custom_split_markdown(
         ]
         return " / ".join(parts)
 
-    def collect_overlap_blocks(blocks: list[str]) -> tuple[list[str], int]:
-        """Keep as many trailing semantic blocks as fit within the overlap budget."""
-        if overlap <= 0 or len(blocks) <= 1:
-            return [], 0
-        kept_reversed: list[str] = []
-        kept_len = 0
-        for blk in reversed(blocks):
-            sep = 2 if kept_reversed else 0
-            if kept_len + sep + len(blk) > overlap:
-                break
-            kept_reversed.append(blk)
-            kept_len += sep + len(blk)
-        return list(reversed(kept_reversed)), kept_len
-
     # --- Chunk accumulator state ---
     # current_texts / current_len track the blocks being packed into the next chunk.
     # flush_chunk() seals the current chunk and seeds the next one with overlap blocks.
@@ -240,22 +265,32 @@ def _custom_split_markdown(
         meta = base_meta.copy()
         meta.update(current_headers)
         docs.append(Document(page_content=merged, metadata=meta))
-        current_texts, current_len = collect_overlap_blocks(current_texts)
+        current_texts, current_len = _collect_overlap_blocks(current_texts, overlap)
+
+    def _pack(text: str) -> None:
+        """Append a single already-validated/restored text block into the current chunk."""
+        nonlocal current_len
+        n = len(text)
+        if current_len > 0 and current_len + n + 2 > target_size:
+            flush_chunk()
+        current_texts.append(text)
+        current_len += n + (2 if len(current_texts) > 1 else 0)
 
     def append_content_block(block: str) -> None:
-        nonlocal current_len
         restored = _restore_all(block)
         block_len = len(restored)
-        if block_len > max_size:
-            snippet = restored[:50].replace("\n", " ") + "..."
-            raise ValueError(
-                f"Strict mode validation failed: a semantic block exceeds the max length "
-                f"of {max_size} chars (actual: {block_len}). Snippet: '{snippet}'"
-            )
-        if current_len > 0 and current_len + block_len + 2 > target_size:
-            flush_chunk()
-        current_texts.append(restored)
-        current_len += block_len + (2 if len(current_texts) > 1 else 0)
+        if strict:
+            if block_len > max_size:
+                snippet = restored[:50].replace("\n", " ") + "..."
+                raise ValueError(
+                    f"Strict mode validation failed: a semantic block exceeds the max length "
+                    f"of {max_size} chars (actual: {block_len}). Snippet: '{snippet}'"
+                )
+            _pack(restored)
+        else:
+            pieces = _halve_text(restored, target_size) if block_len > target_size else [restored]
+            for piece in pieces:
+                _pack(piece)
 
     # --- 4. Block classifier + typed handlers ---
     _HEADER_RE = re.compile(r"^(#{1,6})\s+(.*)")
@@ -301,56 +336,53 @@ def _custom_split_markdown(
     return docs
 
 
-def _strict_split_pdf(
-    doc: Document, target_size: int, max_size: int, overlap: int
+def _split_pdf(
+    doc: Document, target_size: int, max_size: int, overlap: int, strict: bool
 ) -> list[Document]:
-    """Strictly split plain text (PDF) by physical paragraphs."""
+    """Split plain text (PDF) by physical paragraphs.
+
+    In strict mode, raises if any paragraph exceeds *max_size*.
+    In non-strict mode, recursively halves oversized paragraphs instead.
+    """
     raw_chunks = [c.strip() for c in doc.page_content.split("\n\n") if c.strip()]
 
-    docs = []
-    current_chunks = []
+    docs: list[Document] = []
+    current_chunks: list[str] = []
     current_len = 0
+
+    def flush() -> None:
+        nonlocal current_chunks, current_len
+        if not current_chunks:
+            return
+        docs.append(
+            Document(
+                page_content="\n\n".join(current_chunks),
+                metadata=doc.metadata.copy(),
+            )
+        )
+        current_chunks, current_len = _collect_overlap_blocks(current_chunks, overlap)
+
+    def _pack(chunk: str) -> None:
+        nonlocal current_len
+        n = len(chunk)
+        if current_len > 0 and current_len + n + 2 > target_size:
+            flush()
+        current_chunks.append(chunk)
+        current_len += n + (2 if len(current_chunks) > 1 else 0)
 
     for chunk in raw_chunks:
         block_len = len(chunk)
-        if block_len > max_size:
+        if strict and block_len > max_size:
             snippet = chunk[:50].replace("\n", " ") + "..."
             raise ValueError(
                 f"Strict mode validation failed: A semantic block (e.g., paragraph) "
                 f"exceeds the max length of {max_size} chars (actual: {block_len}). Snippet: '{snippet}'"
             )
+        pieces = _halve_text(chunk, target_size) if block_len > target_size else [chunk]
+        for piece in pieces:
+            _pack(piece)
 
-        if current_len > 0 and current_len + block_len + 2 > target_size:
-            docs.append(
-                Document(
-                    page_content="\n\n".join(current_chunks),
-                    metadata=doc.metadata.copy(),
-                )
-            )
-
-            # overlap logic
-            if overlap > 0 and len(current_chunks) > 1:
-                last_block = current_chunks[-1]
-                if len(last_block) <= overlap:
-                    current_chunks = [last_block]
-                    current_len = len(last_block)
-                else:
-                    current_chunks = []
-                    current_len = 0
-            else:
-                current_chunks = []
-                current_len = 0
-
-        current_chunks.append(chunk)
-        current_len += block_len + (2 if len(current_chunks) > 1 else 0)
-
-    if current_chunks:
-        docs.append(
-            Document(
-                page_content="\n\n".join(current_chunks), metadata=doc.metadata.copy()
-            )
-        )
-
+    flush()
     return docs
 
 
@@ -366,29 +398,20 @@ def split_text_node(state: IngestionState) -> dict:
         final_chunks = []
 
         for doc in state["documents"]:
-            if strict_mode:
-                file_name = doc.metadata.get("file_name", "")
-                is_md = file_name.lower().endswith(".md") or file_name.lower().endswith(
-                    ".markdown"
+            file_name = doc.metadata.get("file_name", "")
+            is_md = file_name.lower().endswith(".md") or file_name.lower().endswith(
+                ".markdown"
+            )
+            if is_md:
+                final_chunks.extend(
+                    _custom_split_markdown(
+                        doc, target_size, max_size, chunk_overlap, strict_mode
+                    )
                 )
-
-                if is_md:
-                    final_chunks.extend(
-                        _custom_split_markdown(
-                            doc, target_size, max_size, chunk_overlap
-                        )
-                    )
-                else:
-                    final_chunks.extend(
-                        _strict_split_pdf(doc, target_size, max_size, chunk_overlap)
-                    )
             else:
-                # Fallback to violent recursive character splitting using target_size
-                splitter = RecursiveCharacterTextSplitter(
-                    chunk_size=target_size,
-                    chunk_overlap=chunk_overlap,
+                final_chunks.extend(
+                    _split_pdf(doc, target_size, max_size, chunk_overlap, strict_mode)
                 )
-                final_chunks.extend(splitter.split_documents([doc]))
 
     except Exception as exc:
         logger.error(
