@@ -516,7 +516,33 @@ graph.add_conditional_edges("check_inventory", route_after_inventory)
 - 中间上下文不多
 - 后续扩展概率低
 
-这时直接写函数往往更简单。
+这时直接写函数往往更简单
+
+### 8.1. 一个更本质的判断信号
+
+除了流程复杂度，还有一个更根本的问题可以帮助判断：
+
+相同的输入，在不同的处理阶段，含义会不同吗？
+
+如果答案是"会"，状态机通常是合适的。
+如果答案是"不会"，状态机很可能是过度设计。
+
+举个对比：
+
+- 词法分析器：遇到 `"` 这个字符，在"普通文本"状态下意味着"进入字符串"，在"字符串内部"状态下意味着"结束字符串"。同一个输入，不同状态下含义完全不同 → 状态机合适
+- Markdown 段落打包器：遇到一个段落块，不管当前积累了多少内容，处理逻辑都一样（header 就更新上下文，content 就追加进篮子）。输入的处理方式不依赖"当前处于哪个阶段" → 状态机不合适，用积累器就够了
+
+这个信号比"步骤多不多""分支多不多"更根本：它关注的是"上下文是否改变了对输入的解释方式"，而不只是"流程是否复杂"
+
+### 8.2. 状态机本身也有成本
+
+状态机的价值是真实的，但引入它也有代价：
+
+- 需要显式定义状态枚举和转移规则，代码量增加
+- 阅读时需要同时理解节点、路由、graph 三层结构
+- 对于简单流程，反而比直接写函数更难看懂
+
+所以它是一个权衡，不是"更高级就更好", 判断标准始终是：这个流程的复杂度，是否真的需要用状态机来管理？
 
 ## 9. 结论
 
@@ -531,3 +557,47 @@ graph.add_conditional_edges("check_inventory", route_after_inventory)
 
 - 普通方式更像写一个大流程函数
 - 状态机方式更像搭一个可维护、可扩展的流程系统
+
+除了 状态机 还有个 dispatch table
+
+```python
+from enum import Enum, auto
+
+class BlockType(Enum):
+    HEADER = auto()
+    CONTENT = auto()
+    # 将来可以加 TABLE / FRONTMATTER / HTML_COMMENT 等
+
+def classify_block(block: str) -> BlockType:
+    if re.match(r"^#{1,6}\s+", block):
+        return BlockType.HEADER
+    return BlockType.CONTENT
+  
+def _handle_header(block: str, ctx: ChunkContext) -> None:
+    ctx.flush()
+    level = len(re.match(r"^(#+)", block).group(1))
+    header_text = block.lstrip("#").strip()
+    # 清除同级及以下 header
+    ctx.headers = {k: v for k, v in ctx.headers.items()
+                   if int(k.split("_")[1]) < level}
+    ctx.headers[f"header_{level}"] = header_text
+
+def _handle_content(block: str, ctx: ChunkContext) -> None:
+    restored = _restore_fenced_block_placeholders(block, ctx.code_blocks)
+    block_len = len(restored)
+    if block_len > ctx.max_size:
+        raise ValueError(...)
+    if ctx.current_len > 0 and ctx.current_len + block_len + 2 > ctx.target_size:
+        ctx.flush()
+    ctx.texts.append(restored)
+    ctx.current_len += block_len + (2 if len(ctx.texts) > 1 else 0)
+
+HANDLERS: dict[BlockType, Callable] = {
+    BlockType.HEADER:  _handle_header,
+    BlockType.CONTENT: _handle_content,
+}
+
+for block in raw_blocks:
+    block_type = classify_block(block)
+    HANDLERS[block_type](block, ctx)
+```

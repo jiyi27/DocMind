@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from typing import Callable
 
 from langchain_core.documents import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
@@ -24,6 +25,8 @@ LANGUAGE_FENCED_BLOCK_PATTERN = re.compile(
     r"```(?P<language>[a-zA-Z0-9_+-]+)[ \t]*\n(?P<content>.*?)```",
     flags=re.DOTALL,
 )
+BLOCKQUOTE_PATTERN = re.compile(r"(?:^[ \t]*>[ \t]?.*\n?)+", flags=re.MULTILINE)
+TABLE_PATTERN = re.compile(r"(?:^[ \t]*\|.+\|[ \t]*\n)+", flags=re.MULTILINE)
 
 
 def load_document_node(state: IngestionState) -> dict:
@@ -90,6 +93,68 @@ def _restore_fenced_block_placeholders(text: str, fenced_blocks: list[str]) -> s
     return re.sub(r"__CODE_BLOCK_(\d+)__", restore, text)
 
 
+def _protect_blockquotes(text: str) -> tuple[str, list[str]]:
+    """Replace contiguous blockquote regions with placeholders so they stay atomic.
+
+    The '>' prefix is stripped from each line so the restored text is clean prose
+    without Markdown syntax noise.
+    """
+    blocks: list[str] = []
+
+    def replacer(m: re.Match[str]) -> str:
+        clean_lines = [
+            re.sub(r"^[ \t]*>[ \t]?", "", line) for line in m.group(0).splitlines()
+        ]
+        blocks.append("\n".join(clean_lines).strip())
+        return f"\n\n__BLOCKQUOTE_{len(blocks) - 1}__\n\n"
+
+    return BLOCKQUOTE_PATTERN.sub(replacer, text), blocks
+
+
+def _restore_blockquote_placeholders(text: str, blocks: list[str]) -> str:
+    return re.sub(r"__BLOCKQUOTE_(\d+)__", lambda m: blocks[int(m.group(1))], text)
+
+
+def _table_to_prose(raw_table: str) -> str:
+    """Convert a Markdown pipe table to readable 'key: value' lines.
+
+    If the table doesn't match the standard header-separator-data layout,
+    the original text is returned unchanged.
+    """
+    lines = [l.strip() for l in raw_table.strip().splitlines() if l.strip()]
+    sep_idx = next(
+        (i for i, l in enumerate(lines) if re.match(r"^\|[-| :]+\|$", l)), None
+    )
+    if sep_idx is None or sep_idx == 0:
+        return raw_table
+
+    headers = [c.strip() for c in lines[0].strip("|").split("|")]
+    rows = []
+    for line in lines[sep_idx + 1 :]:
+        cells = [c.strip() for c in line.strip("|").split("|")]
+        pairs = ", ".join(
+            f"{h}: {c}" for h, c in zip(headers, cells) if c
+        )
+        if pairs:
+            rows.append(pairs)
+    return "\n".join(rows)
+
+
+def _protect_tables(text: str) -> tuple[str, list[str]]:
+    """Replace pipe tables with placeholders, storing converted prose."""
+    blocks: list[str] = []
+
+    def replacer(m: re.Match[str]) -> str:
+        blocks.append(_table_to_prose(m.group(0)))
+        return f"\n\n__TABLE_{len(blocks) - 1}__\n\n"
+
+    return TABLE_PATTERN.sub(replacer, text), blocks
+
+
+def _restore_table_placeholders(text: str, blocks: list[str]) -> str:
+    return re.sub(r"__TABLE_(\d+)__", lambda m: blocks[int(m.group(1))], text)
+
+
 def _iter_language_fenced_blocks(text: str) -> list[re.Match[str]]:
     """Return only fenced blocks that declare a language after opening backticks."""
     # finditer 是“迭代匹配”：它会在文本中不断搜索直到没有更多匹配项，
@@ -100,44 +165,45 @@ def _iter_language_fenced_blocks(text: str) -> list[re.Match[str]]:
 def _custom_split_markdown(
     doc: Document, target_size: int, max_size: int, overlap: int
 ) -> list[Document]:
-    """Strictly split Markdown respecting headers, code blocks, and paragraphs without Lang chain's destructive header splitter."""
+    """Strictly split Markdown respecting headers, code blocks, blockquotes, tables, and paragraphs.
+
+    Processing order:
+      1. Protect fenced code blocks  (they contain blank lines that would confuse paragraph splitting)
+      2. Protect blockquotes         (strip '>' prefix noise; keep multi-paragraph quotes atomic)
+      3. Protect tables              (convert pipe syntax to 'key: value' prose; keep tables atomic)
+      4. Split on blank lines → raw blocks
+      5. Dispatch each block to a typed handler via a lookup table
+      6. Restore all placeholders in the final chunks
+    """
     text = doc.page_content
     base_meta = doc.metadata.copy()
 
-    # 1. Protect code blocks
-    # they may contain blank lines (`\n\n`) internally. Splitting on `\n\n` directly
-    # would cut them in half. By replacing each code block with a placeholder, the entire
-    # block becomes a single line and won't be split. The `restore` function swaps the
-    # placeholders back to the original code after all processing is done.
-    text_no_code, code_blocks = _protect_fenced_blocks(text)
+    # ── 1–3. Protect atomic structures before paragraph splitting ─────────────
+    text, code_blocks = _protect_fenced_blocks(text)
+    text, bq_blocks = _protect_blockquotes(text)
+    text, table_blocks = _protect_tables(text)
 
-    # 2. Split by double newlines to get physical paragraphs
-    raw_blocks = [b.strip() for b in text_no_code.split("\n\n") if b.strip()]
+    # ── helpers ───────────────────────────────────────────────────────────────
 
-    docs = []
-    current_chunk_texts = []
-    current_len = 0
-    current_headers = {}
+    def _restore_all(s: str) -> str:
+        s = _restore_fenced_block_placeholders(s, code_blocks)
+        s = _restore_blockquote_placeholders(s, bq_blocks)
+        s = _restore_table_placeholders(s, table_blocks)
+        return s
 
     def build_breadcrumb(headers: dict) -> str:
-        """Build a plain-text breadcrumb from the document title and current header context.
+        """Plain-text breadcrumb from title + current header path.
 
-        e.g. title="API Guide", headers={"header_1": "Intro", "header_2": "Background"}
-             → "API Guide / Intro / Background"
-        Prepending the document title makes every chunk fully self-contained,
-        which improves retrieval quality even when chunks are read in isolation.
-        Plain text (no Markdown symbols) is friendlier to embedding models.
+        e.g. "API Guide / Intro / Background"
+        Makes every chunk self-contained for retrieval without Markdown symbols.
         """
         parts = []
-
-        # Prepend document title if available
         doc_title = base_meta.get("title", "").strip()
         if doc_title:
             parts.append(doc_title)
-
         parts += [
-            headers[f"header_{_level}"]
-            for _level in sorted(int(k.split("_")[1]) for k in headers)
+            headers[f"header_{lvl}"]
+            for lvl in sorted(int(k.split("_")[1]) for k in headers)
         ]
         return " / ".join(parts)
 
@@ -145,82 +211,86 @@ def _custom_split_markdown(
         """Keep as many trailing semantic blocks as fit within the overlap budget."""
         if overlap <= 0 or len(blocks) <= 1:
             return [], 0
-
-        kept_blocks_reversed: list[str] = []
+        kept_reversed: list[str] = []
         kept_len = 0
-
-        for _block in reversed(blocks):
-            separator_len = 2 if kept_blocks_reversed else 0
-            candidate_len = kept_len + separator_len + len(_block)
-            if candidate_len > overlap:
+        for blk in reversed(blocks):
+            sep = 2 if kept_reversed else 0
+            if kept_len + sep + len(blk) > overlap:
                 break
-            kept_blocks_reversed.append(_block)
-            kept_len = candidate_len
+            kept_reversed.append(blk)
+            kept_len += sep + len(blk)
+        return list(reversed(kept_reversed)), kept_len
 
-        kept_blocks = list(reversed(kept_blocks_reversed))
-        return kept_blocks, kept_len
+    # ── mutable accumulator state ─────────────────────────────────────────────
+    docs: list[Document] = []
+    current_texts: list[str] = []
+    current_len = 0
+    current_headers: dict[str, str] = {}
 
-    def flush_chunk():
-        nonlocal current_chunk_texts, current_len
-        if not current_chunk_texts:
+    def flush_chunk() -> None:
+        nonlocal current_texts, current_len
+        if not current_texts:
             return
-
-        body = "\n\n".join(current_chunk_texts)
-
-        # Prepend the header breadcrumb so every chunk is self-contained and
-        # embedding-friendly. The breadcrumb length is NOT counted toward
-        # current_len to keep the splitting logic unaffected.
+        body = "\n\n".join(current_texts)
         breadcrumb = build_breadcrumb(current_headers)
-        merged_text = f"{breadcrumb}\n\n{body}" if breadcrumb else body
-
+        merged = f"{breadcrumb}\n\n{body}" if breadcrumb else body
         meta = base_meta.copy()
         meta.update(current_headers)
-        docs.append(Document(page_content=merged_text, metadata=meta))
+        docs.append(Document(page_content=merged, metadata=meta))
+        current_texts, current_len = collect_overlap_blocks(current_texts)
 
-        current_chunk_texts, current_len = collect_overlap_blocks(current_chunk_texts)
-
-    header_pattern = re.compile(r"^(#{1,6})\s+(.*)")
-
-    for block in raw_blocks:
-        # Check if this block is a header
-        h_match = header_pattern.match(block)
-        if h_match:
-            level = len(h_match.group(1))
-            header_text = h_match.group(2).strip()
-
-            # Flush current chunk before changing headers context to prevent semantic leakage
-            flush_chunk()
-
-            # Remove any existing headers that are at the same or deeper level
-            keys_to_remove = [
-                k for k in current_headers.keys() if int(k.split("_")[1]) >= level
-            ]
-            for k in keys_to_remove:
-                del current_headers[k]
-
-            current_headers[f"header_{level}"] = header_text
-            continue
-
-        restored_block = _restore_fenced_block_placeholders(block, code_blocks)
-        block_len = len(restored_block)
-
-        # Strict validation against MAX_SIZE
+    def append_content_block(block: str) -> None:
+        nonlocal current_len
+        restored = _restore_all(block)
+        block_len = len(restored)
         if block_len > max_size:
-            snippet = restored_block[:50].replace("\n", " ") + "..."
+            snippet = restored[:50].replace("\n", " ") + "..."
             raise ValueError(
-                f"Strict mode validation failed: A semantic block (e.g., paragraph or code block) "
-                f"exceeds the max length of {max_size} chars (actual: {block_len}). Snippet: '{snippet}'"
+                f"Strict mode validation failed: a semantic block exceeds the max length "
+                f"of {max_size} chars (actual: {block_len}). Snippet: '{snippet}'"
             )
-
-        # If adding this block exceeds target_size, flush the current basket first
         if current_len > 0 and current_len + block_len + 2 > target_size:
             flush_chunk()
+        current_texts.append(restored)
+        current_len += block_len + (2 if len(current_texts) > 1 else 0)
 
-        # Add the block to the current basket
-        current_chunk_texts.append(restored_block)
-        current_len += block_len + (2 if len(current_chunk_texts) > 1 else 0)
+    # ── 4. Split and dispatch ─────────────────────────────────────────────────
+    _HEADER_RE = re.compile(r"^(#{1,6})\s+(.*)")
+    _IMAGE_RE = re.compile(r"^!\[.*?\]\(.*?\)\s*$")
 
-    # Flush any remaining text
+    def _handle_header(block: str) -> None:
+        h_match = _HEADER_RE.match(block)
+        assert h_match
+        level = len(h_match.group(1))
+        flush_chunk()
+        for k in [k for k in current_headers if int(k.split("_")[1]) >= level]:
+            del current_headers[k]
+        current_headers[f"header_{level}"] = h_match.group(2).strip()
+
+    def _handle_image(block: str) -> None:
+        # TODO: implement image processing (OCR or multimodal model)
+        pass
+
+    def _handle_content(block: str) -> None:
+        append_content_block(block)
+
+    def classify(block: str) -> str:
+        if _HEADER_RE.match(block):
+            return "header"
+        if _IMAGE_RE.match(block):
+            return "image"
+        return "content"
+
+    HANDLERS: dict[str, Callable[[str], None]] = {
+        "header": _handle_header,
+        "image": _handle_image,
+        "content": _handle_content,
+    }
+
+    raw_blocks = [b.strip() for b in text.split("\n\n") if b.strip()]
+    for block in raw_blocks:
+        HANDLERS[classify(block)](block)
+
     flush_chunk()
     return docs
 
@@ -314,7 +384,6 @@ def split_text_node(state: IngestionState) -> dict:
                 )
                 final_chunks.extend(splitter.split_documents([doc]))
 
-        chunks: list[Document] = final_chunks
     except Exception as exc:
         logger.error(
             "ingest_split_failed",
@@ -327,7 +396,7 @@ def split_text_node(state: IngestionState) -> dict:
         )
         raise
 
-    return {"chunks": chunks}
+    return {"chunks": final_chunks}
 
 
 def summarize_code_node(state: IngestionState) -> dict:
