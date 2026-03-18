@@ -15,7 +15,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from docmind.core.metadata_config import (
     BUSINESS_LINES,
-    DEPARTMENTS,
     DOC_TYPES,
     SERVICES,
 )
@@ -51,12 +50,6 @@ def main():
         default="all",
         help=f"Service ({_choices(SERVICES)})",
     )
-    parser.add_argument(
-        "--department",
-        type=str,
-        default="all",
-        help=f"Department ({_choices(DEPARTMENTS)})",
-    )
 
     args = parser.parse_args()
 
@@ -71,7 +64,6 @@ def main():
         "doc_type": args.doc_type,
         "business_line": args.business_line,
         "service": args.service,
-        "department": args.department,
     }
 
     print(f"Ingesting: {file_path.name}")

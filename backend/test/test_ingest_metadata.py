@@ -24,9 +24,7 @@ def _full_payload(**overrides) -> dict:
         "title": "测试文档",
         "url": "https://example.com",
         "doc_type": "requirement",
-        "business_line": "india",
         "service": "risk",
-        "department": "backend",
     }
     base.update(overrides)
     return base
@@ -40,9 +38,7 @@ def _full_payload(**overrides) -> dict:
 def test_valid_full_payload():
     m = IngestMetadata(**_full_payload())
     assert m.doc_type == "requirement"
-    assert m.business_line == ["india"]
     assert m.service == ["risk"]
-    assert m.department == ["backend"]
 
 
 # ---------------------------------------------------------------------------
@@ -51,11 +47,8 @@ def test_valid_full_payload():
 
 
 def test_comma_separated_values():
-    m = IngestMetadata(
-        **_full_payload(business_line="india,pakistan", department="backend,qa")
-    )
-    assert m.business_line == ["india", "pakistan"]
-    assert m.department == ["backend", "qa"]
+    m = IngestMetadata(**_full_payload(service="risk,admin"))
+    assert m.service == ["risk", "admin"]
 
 
 # ---------------------------------------------------------------------------
@@ -83,9 +76,7 @@ def test_required_field_missing(missing_field: str):
         ("", "title"),
         ("", "url"),
         ("", "doc_type"),
-        ([], "business_line"),
         ([], "service"),
-        ([], "department"),
     ],
 )
 def test_required_field_empty(empty_value, field: str):
@@ -106,9 +97,7 @@ def test_required_field_empty(empty_value, field: str):
     "field,bad_value",
     [
         ("doc_type", "unknown_type"),
-        ("business_line", "china"),
         ("service", "payments"),
-        ("department", "design"),
     ],
 )
 def test_invalid_enum_value(field: str, bad_value: str):
@@ -128,9 +117,7 @@ def test_invalid_enum_value(field: str, bad_value: str):
         ("title", ""),
         ("url", ""),
         ("doc_type", "tech_spec"),
-        ("business_line", ["all"]),
         ("service", ["all"]),
-        ("department", ["all"]),
     ],
 )
 def test_optional_field_uses_default(optional_field: str, default):

@@ -60,14 +60,6 @@
         </el-col>
       </el-row>
 
-      <el-form-item label="Department">
-        <el-input
-          v-model="form.department"
-          placeholder="e.g. all or dept1,dept2"
-          clearable
-        />
-      </el-form-item>
-
       <el-form-item label="Source URL (optional)">
         <el-input
           v-model="form.url"
@@ -168,7 +160,6 @@ const form = reactive({
   title: '',
   doc_type: 'all',
   service: 'all',
-  department: 'all',
   url: '',
   retrieval_mode: 'chunk',
   strict_mode: true,
@@ -200,7 +191,6 @@ async function handleUpload() {
   if (form.url) formData.append('url', form.url)
   if (form.doc_type) formData.append('doc_type', form.doc_type)
   if (form.service) formData.append('service', form.service)
-  if (form.department) formData.append('department', form.department)
   formData.append('retrieval_mode', form.retrieval_mode)
   formData.append('strict_mode', form.strict_mode)
   formData.append('chunk_size', form.chunk_size)
@@ -226,7 +216,6 @@ function resetForm() {
   form.title = ''
   form.doc_type = 'all'
   form.service = 'all'
-  form.department = 'all'
   form.url = ''
   form.retrieval_mode = 'chunk'
   form.strict_mode = true

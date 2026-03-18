@@ -5,7 +5,7 @@ from typing import Literal
 from pydantic import BaseModel, Field, field_validator
 
 from docmind.core.config import settings
-from docmind.core.metadata_config import DEPARTMENTS, DOC_TYPES, SERVICES
+from docmind.core.metadata_config import DOC_TYPES, SERVICES
 from docmind.ingestion.constants import DEFAULT_RETRIEVAL_MODE, DEFAULT_STRICT_MODE
 
 
@@ -22,7 +22,6 @@ class IngestMetadata(BaseModel):
 
     # Multi-value fields (support comma-separated string input from form data)
     service: list[str] = Field(default_factory=lambda: ["all"])
-    department: list[str] = Field(default_factory=lambda: ["all"])
 
     retrieval_mode: Literal["chunk", "full_doc"] = Field(
         default=DEFAULT_RETRIEVAL_MODE,
@@ -48,7 +47,7 @@ class IngestMetadata(BaseModel):
             raise ValueError(f"doc_type must be one of {DOC_TYPES}, got '{v}'")
         return v
 
-    @field_validator("service", "department", mode="before")
+    @field_validator("service", mode="before")
     @classmethod
     def parse_list_field(cls, v: object) -> list[str]:
         """Accept comma-separated string or list from form/JSON input."""
@@ -62,16 +61,6 @@ class IngestMetadata(BaseModel):
         invalid = [x for x in v if x not in SERVICES]
         if invalid:
             raise ValueError(f"Invalid service values {invalid}. Allowed: {SERVICES}")
-        return v
-
-    @field_validator("department")
-    @classmethod
-    def validate_department(cls, v: list[str]) -> list[str]:
-        invalid = [x for x in v if x not in DEPARTMENTS]
-        if invalid:
-            raise ValueError(
-                f"Invalid department values {invalid}. Allowed: {DEPARTMENTS}"
-            )
         return v
 
 

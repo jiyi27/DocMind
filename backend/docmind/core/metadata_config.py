@@ -26,18 +26,9 @@ SERVICES: list[str] = [
     "all",
 ]
 
-DEPARTMENTS: list[str] = [
-    "backend",
-    "qa",
-    "ios",
-    "android",
-    "web",
-    "all",
-]
-
 # -------------------------------------------------------
 # 必填字段控制 — 在此集合中添加/删除字段名即可
-# 可选值: "title", "url", "doc_type", "service", "department"
+# 可选值: "title", "url", "doc_type", "service"
 # Note: "business_line" has been removed — it is now derived from the user's JWT.
 # -------------------------------------------------------
 REQUIRED_FIELDS: set[str] = {
@@ -45,5 +36,4 @@ REQUIRED_FIELDS: set[str] = {
     "url",
     "doc_type",
     "service",
-    "department",
 }

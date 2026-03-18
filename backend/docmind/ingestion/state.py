@@ -15,7 +15,7 @@ class IngestionState(TypedDict, total=False):
     file_path : str
         Path to the file to ingest.
     metadata : dict
-        User-provided metadata (title, url, doc_type, service, department).
+        User-provided metadata (title, url, doc_type, service).
     user_id : str
         ID of the user who uploaded the document.
     doc_id : str

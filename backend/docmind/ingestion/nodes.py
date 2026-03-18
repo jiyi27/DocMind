@@ -30,7 +30,7 @@ def load_document_node(state: IngestionState) -> dict:
     """Load documents from the given file path.
 
     PDF → one Document per page; Markdown → one Document for the whole file.
-    User-supplied metadata (title, doc_type, department, etc.) is stamped onto
+    User-supplied metadata (title, doc_type, service, etc.) is stamped onto
     every Document here so all downstream chunks inherit it automatically.
     """
     file_path = state["file_path"]

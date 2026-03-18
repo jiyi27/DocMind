@@ -75,7 +75,6 @@ Authorization: Bearer {{token}}
 ### 上传文档
 # doc_type:   requirement | postmortem | pitfall | sharing | tech_spec
 # service:    collection | risk | admin | all  （逗号分隔多值）
-# department: backend | qa | ios | android | web | all  （逗号分隔多值）
 # 知识库由登录用户的 JWT 自动决定，无需手动指定
 # @name ingest
 POST {{baseUrl}}/ingest
@@ -103,10 +102,6 @@ all
 Content-Disposition: form-data; name="service"
 
 all
-------Boundary
-Content-Disposition: form-data; name="department"
-
-all
 ------Boundary--
 
 ###
@@ -126,4 +121,3 @@ Content-Type: application/json
   "chatInput": "刚才说的第三点，能详细说说吗？",
   "sessionId": "user-123"
 }
-

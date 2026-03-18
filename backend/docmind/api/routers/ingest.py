@@ -63,7 +63,6 @@ async def ingest_document(
     url: str = Form(default=""),
     doc_type: str = Form(default="all"),
     service: str = Form(default="all"),
-    department: str = Form(default="all"),
     retrieval_mode: str = Form(
         default=DEFAULT_RETRIEVAL_MODE, description="'chunk' or 'full_doc'"
     ),
@@ -104,7 +103,6 @@ async def ingest_document(
         url=url,
         doc_type=doc_type,
         service=service,  # type: ignore
-        department=department,  # type: ignore
         retrieval_mode=retrieval_mode,  # type: ignore
         strict_mode=strict_mode,
         chunk_size=chunk_size,

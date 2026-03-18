@@ -138,7 +138,6 @@ The backend uses a standard response structure for successful business logic and
     *   `url`: `(String)` Optional.
     *   `doc_type`: `(String)` Optional (e.g., "tech_spec", "requirement").
     *   `service`: `(String)` Optional.
-    *   `department`: `(String)` Optional.
 *   **Response `data` (code: 0)**: Contains `doc_id`, `chunk_count`, and ingestion `status`.
 
 ### 3.2 List Documents (Current User)
@@ -214,8 +213,7 @@ The backend uses a standard response structure for successful business logic and
             "title": "Document Title",
             "url": "https://example.com/doc",
             "doc_type": "tech_spec",
-            "service": ["auth", "billing"],
-            "department": ["engineering"]
+            "service": ["auth", "billing"]
           }
         }
       ],

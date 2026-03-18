@@ -4,7 +4,7 @@ import http from './http'
  * Upload and ingest document
  * POST /ingest/{kb_id}
  * @param {string} kbId - Target Knowledge Base UUID
- * @param {FormData} formData - Contains file, title, url, doc_type, service, department
+ * @param {FormData} formData - Contains file, title, url, doc_type, service
  */
 export function uploadDocument(kbId, formData) {
     return http.post(`/ingest/${kbId}`, formData, {
