@@ -78,6 +78,7 @@ class IngestionConfig:
     """Document ingestion pipeline configuration."""
 
     chunk_size: int
+    max_chunk_size: int
     chunk_overlap: int
 
 
@@ -182,6 +183,7 @@ def _build_settings() -> Settings:
         ),
         ingestion=IngestionConfig(
             chunk_size=_require_int("CHUNK_SIZE"),
+            max_chunk_size=_require_int("MAX_CHUNK_SIZE"),
             chunk_overlap=_require_int("CHUNK_OVERLAP"),
         ),
         retrieval=RetrievalConfig(

@@ -282,7 +282,7 @@ def split_text_node(state: IngestionState) -> dict:
     try:
         # Use values passed from user form (state), fallback to settings
         target_size = state.get("chunk_size", settings.ingestion.chunk_size)
-        max_size = state.get("max_chunk_size", 1500)
+        max_size = state.get("max_chunk_size", settings.ingestion.max_chunk_size)
         chunk_overlap = settings.ingestion.chunk_overlap
         strict_mode = state.get("strict_mode", True)
 

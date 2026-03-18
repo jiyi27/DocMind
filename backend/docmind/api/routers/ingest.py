@@ -63,9 +63,12 @@ async def ingest_document(
     strict_mode: bool = Form(
         default=True, description="Enable strict chunking validation"
     ),
-    chunk_size: int = Form(default=500, description="Target chunk size"),
+    chunk_size: int = Form(
+        default=settings.ingestion.chunk_size, description="Target chunk size"
+    ),
     max_chunk_size: int = Form(
-        default=1500, description="Max allowed chunk size for code blocks"
+        default=settings.ingestion.max_chunk_size,
+        description="Max allowed chunk size for code blocks",
     ),
     current_user: UserContext = Depends(get_current_user),
 ):

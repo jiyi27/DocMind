@@ -26,9 +26,11 @@ def cmd_retrieve(kb_name: str, query: str) -> None:
     raw_results = store.similarity_search_with_score(query, k=settings.retrieval.top_k)
 
     print(f"\nQuery : {query!r}")
-    print(f"KB    : {kb_name}  |  top_k={settings.retrieval.top_k}  "
-          f"max_full_docs={settings.retrieval.max_full_docs}  "
-          f"max_full_doc_chars={settings.retrieval.max_full_doc_chars:,}")
+    print(
+        f"KB    : {kb_name}  |  top_k={settings.retrieval.top_k}  "
+        f"max_full_docs={settings.retrieval.max_full_docs}  "
+        f"max_full_doc_chars={settings.retrieval.max_full_doc_chars:,}"
+    )
     print(f"\nRaw Qdrant hits ({len(raw_results)}):")
     print(SEPARATOR)
     for rank, (doc, score) in enumerate(raw_results, 1):
@@ -36,7 +38,9 @@ def cmd_retrieve(kb_name: str, query: str) -> None:
         mode = meta.get("retrieval_mode", "chunk")
         doc_id = meta.get("doc_id", "?")
         title = meta.get("title") or meta.get("file_name", "?")
-        print(f"  [{rank}] score={score:.4f}  mode={mode}  doc_id={doc_id[:8]}…  {title!r}")
+        print(
+            f"  [{rank}] score={score:.4f}  mode={mode}  doc_id={doc_id[:8]}…  {title!r}"
+        )
 
     # 2. Call the real production retrieve() — identical to what the API does
     context, sources = retrieve(query, kb_name)
@@ -50,7 +54,8 @@ def cmd_retrieve(kb_name: str, query: str) -> None:
     else:
         # Split back into numbered blocks for readability
         import re
-        blocks = re.split(r'(?=\[\d+\] )', context)
+
+        blocks = re.split(r"(?=\[\d+\] )", context)
         for block in blocks:
             block = block.strip()
             if not block:
@@ -82,7 +87,9 @@ def cmd_chunks(kb_name: str, doc_id: str) -> None:
     for item in result["items"]:
         mode = item["metadata"].get("retrieval_mode", "chunk")
         preview = item["content"][:120].replace("\n", " ")
-        print(f"  point_id={item['point_id'][:8]}…  mode={mode}  {item['char_count']:,} chars")
+        print(
+            f"  point_id={item['point_id'][:8]}…  mode={mode}  {item['char_count']:,} chars"
+        )
         print(f"  {preview}…\n")
 
 

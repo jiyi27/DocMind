@@ -1,8 +1,10 @@
 from __future__ import annotations
 
-from pydantic import BaseModel, Field, field_validator
 from typing import Literal
 
+from pydantic import BaseModel, Field, field_validator
+
+from docmind.core.config import settings
 from docmind.core.metadata_config import DEPARTMENTS, DOC_TYPES, SERVICES
 
 RETRIEVAL_MODES = ("chunk", "full_doc")
@@ -32,10 +34,11 @@ class IngestMetadata(BaseModel):
         description="Enable strict mode. If true, excessively long chunks will cause failure.",
     )
     chunk_size: int = Field(
-        default=500, description="Target chunk size for semantic merging."
+        default=settings.ingestion.chunk_size,
+        description="Target chunk size for semantic merging.",
     )
     max_chunk_size: int = Field(
-        default=1500,
+        default=settings.ingestion.max_chunk_size,
         description="Maximum allowed size for an atomic block (e.g., code block).",
     )
 
