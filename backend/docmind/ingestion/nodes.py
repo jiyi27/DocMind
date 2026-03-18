@@ -178,14 +178,15 @@ def _custom_split_markdown(
     text = doc.page_content
     base_meta = doc.metadata.copy()
 
-    # ── 1–3. Protect atomic structures before paragraph splitting ─────────────
+    # 1–3. Protect atomic structures before paragraph splitting
     text, code_blocks = _protect_fenced_blocks(text)
     text, bq_blocks = _protect_blockquotes(text)
     text, table_blocks = _protect_tables(text)
 
-    # ── helpers ───────────────────────────────────────────────────────────────
+    # --- Helpers (restore, breadcrumb, overlap) ---
 
     def _restore_all(s: str) -> str:
+        """Swap all placeholders back to their original content in one pass."""
         s = _restore_fenced_block_placeholders(s, code_blocks)
         s = _restore_blockquote_placeholders(s, bq_blocks)
         s = _restore_table_placeholders(s, table_blocks)
@@ -221,7 +222,9 @@ def _custom_split_markdown(
             kept_len += sep + len(blk)
         return list(reversed(kept_reversed)), kept_len
 
-    # ── mutable accumulator state ─────────────────────────────────────────────
+    # --- Chunk accumulator state ---
+    # current_texts / current_len track the blocks being packed into the next chunk.
+    # flush_chunk() seals the current chunk and seeds the next one with overlap blocks.
     docs: list[Document] = []
     current_texts: list[str] = []
     current_len = 0
@@ -254,7 +257,7 @@ def _custom_split_markdown(
         current_texts.append(restored)
         current_len += block_len + (2 if len(current_texts) > 1 else 0)
 
-    # ── 4. Split and dispatch ─────────────────────────────────────────────────
+    # --- 4. Block classifier + typed handlers ---
     _HEADER_RE = re.compile(r"^(#{1,6})\s+(.*)")
     _IMAGE_RE = re.compile(r"^!\[.*?\]\(.*?\)\s*$")
 
@@ -272,6 +275,7 @@ def _custom_split_markdown(
         pass
 
     def _handle_content(block: str) -> None:
+        # Regular paragraph / prose block — pack into the current chunk.
         append_content_block(block)
 
     def classify(block: str) -> str:
@@ -287,10 +291,12 @@ def _custom_split_markdown(
         "content": _handle_content,
     }
 
+    # --- 5. Dispatch each paragraph-level block to its handler ---
     raw_blocks = [b.strip() for b in text.split("\n\n") if b.strip()]
     for block in raw_blocks:
         HANDLERS[classify(block)](block)
 
+    # --- 6. Seal the final in-progress chunk ---
     flush_chunk()
     return docs
 
