@@ -16,6 +16,9 @@ from docmind.ingestion.prompts import code_summarization_prompt
 from docmind.vectorstore.qdrant_store import get_vector_store_for_kb
 
 FENCED_BLOCK_PATTERN = re.compile(r"```.*?```", flags=re.DOTALL)
+# (?P<language>[a-zA-Z0-9_+-]+) and (?P<content>.*?): Named Capturing Group
+# Assigns a unique label to the captured sub-pattern,
+# allowing for retrieval via the variable name rather than a numeric index.
 LANGUAGE_FENCED_BLOCK_PATTERN = re.compile(
     r"```(?P<language>[a-zA-Z0-9_+-]+)[ \t]*\n(?P<content>.*?)```",
     flags=re.DOTALL,
@@ -88,6 +91,8 @@ def _restore_fenced_block_placeholders(text: str, fenced_blocks: list[str]) -> s
 
 def _iter_language_fenced_blocks(text: str) -> list[re.Match[str]]:
     """Return only fenced blocks that declare a language after opening backticks."""
+    # finditer 是“迭代匹配”：它会在文本中不断搜索直到没有更多匹配项，
+    # 相比 findall，它保留了匹配结果的完整内部状态（如起始索引、结束索引、命名捕获组数据）
     return list(LANGUAGE_FENCED_BLOCK_PATTERN.finditer(text))
 
 
@@ -99,7 +104,7 @@ def _custom_split_markdown(
     base_meta = doc.metadata.copy()
 
     # 1. Protect code blocks
-    # Code blocks may contain blank lines (`\n\n`) internally. Splitting on `\n\n` directly
+    # they may contain blank lines (`\n\n`) internally. Splitting on `\n\n` directly
     # would cut them in half. By replacing each code block with a placeholder, the entire
     # block becomes a single line and won't be split. The `restore` function swaps the
     # placeholders back to the original code after all processing is done.
@@ -130,8 +135,8 @@ def _custom_split_markdown(
             parts.append(doc_title)
 
         parts += [
-            headers[f"header_{level}"]
-            for level in sorted(int(k.split("_")[1]) for k in headers)
+            headers[f"header_{_level}"]
+            for _level in sorted(int(k.split("_")[1]) for k in headers)
         ]
         return " / ".join(parts)
 
@@ -143,12 +148,12 @@ def _custom_split_markdown(
         kept_blocks_reversed: list[str] = []
         kept_len = 0
 
-        for block in reversed(blocks):
+        for _block in reversed(blocks):
             separator_len = 2 if kept_blocks_reversed else 0
-            candidate_len = kept_len + separator_len + len(block)
+            candidate_len = kept_len + separator_len + len(_block)
             if candidate_len > overlap:
                 break
-            kept_blocks_reversed.append(block)
+            kept_blocks_reversed.append(_block)
             kept_len = candidate_len
 
         kept_blocks = list(reversed(kept_blocks_reversed))
