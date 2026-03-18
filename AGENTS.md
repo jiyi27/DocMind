@@ -33,6 +33,7 @@
 - **Backend Types**: Use strict Python 3.12+ typing (e.g., `list[str]`, `dict[str, Any]` instead of `typing.List`).
 - **Backend Naming**: `snake_case` for variables/functions/modules, `PascalCase` for classes.
 - **Backend Errors**: Raise standard exceptions in core logic; catch and translate to `HTTPException` inside `docmind/api/`.
+- **Backend Defaults**: Define business defaults in exactly one place. Prefer API/schema defaults for request-time behavior, or shared constants/config for cross-layer defaults. Do not repeat literal defaults like `"chunk"` or `True` across router/node/worker code.
 - **Frontend Paradigm**: Use Vue 3 Composition API (`<script setup>`) exclusively.
 - **Frontend Naming**: Component files must use `PascalCase` (e.g., `ChatMain.vue`).
 - **Frontend Styling**: Prefer Tailwind CSS utility classes over custom CSS/SCSS blocks.
@@ -48,6 +49,7 @@
 ### ALWAYS
 - Group Python imports properly (Standard library -> Third-party -> Local `docmind.*` modules).
 - Understand the custom LangGraph state-machine behavior before altering `docmind/ingestion/` nodes.
+- When adding or changing config/default values, keep `.env`, `.env.example`, and the startup validation path consistent so missing values fail fast instead of silently falling back.
 - Display API errors using Element Plus notifications (`ElMessage`) on the frontend.
 - Check `.env.example` to ensure required embedding and LLM API keys are present in `.env`.
 - If code is modified, provide a concise English git commit message at the end of the response.

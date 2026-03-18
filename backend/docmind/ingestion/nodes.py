@@ -10,6 +10,7 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from docmind.core.config import settings
 from docmind.core import logger
 from docmind.core.llm import get_llm
+from docmind.ingestion.constants import DEFAULT_RETRIEVAL_MODE, DEFAULT_STRICT_MODE
 from docmind.ingestion.loaders import load_document
 from docmind.ingestion.state import IngestionState
 from docmind.ingestion.prompts import code_summarization_prompt
@@ -53,7 +54,7 @@ def load_document_node(state: IngestionState) -> dict:
     doc_id = state.get("doc_id", "")
     user_id = state.get("user_id", "")
     kb_name = state.get("kb_name", "")
-    retrieval_mode = state.get("retrieval_mode", "chunk")
+    retrieval_mode = state.get("retrieval_mode", DEFAULT_RETRIEVAL_MODE)
     file_path = state.get("file_path", "")
     for doc in docs:
         doc.metadata.update(metadata)
@@ -284,7 +285,7 @@ def split_text_node(state: IngestionState) -> dict:
         target_size = state.get("chunk_size", settings.ingestion.chunk_size)
         max_size = state.get("max_chunk_size", settings.ingestion.max_chunk_size)
         chunk_overlap = settings.ingestion.chunk_overlap
-        strict_mode = state.get("strict_mode", True)
+        strict_mode = state.get("strict_mode", DEFAULT_STRICT_MODE)
 
         final_chunks = []
 
@@ -319,7 +320,7 @@ def split_text_node(state: IngestionState) -> dict:
             "ingest_split_failed",
             {
                 "doc_count": len(state["documents"]),
-                "strict_mode": state.get("strict_mode", True),
+                "strict_mode": state.get("strict_mode", DEFAULT_STRICT_MODE),
                 "error_type": type(exc).__name__,
                 "error": str(exc),
             },

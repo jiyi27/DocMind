@@ -10,6 +10,7 @@ from typing import Any
 from docmind.core import logger
 from docmind.db.database import create_sync_connection
 from docmind.db.ingestion_queue import IngestionQueueRepository
+from docmind.ingestion.constants import DEFAULT_RETRIEVAL_MODE
 from docmind.ingestion.graph import ingestion_graph
 
 # Polling interval for checking the ingestion queue
@@ -65,7 +66,7 @@ class IngestionQueueWorker:
         document_id = job["document_id"]
         file_path = payload["file_path"]
 
-        retrieval_mode = payload.get("retrieval_mode", "chunk")
+        retrieval_mode = payload.get("retrieval_mode", DEFAULT_RETRIEVAL_MODE)
         try:
             result = ingestion_graph.invoke(payload)
             chunk_count = result.get("chunk_count", 0)

@@ -32,6 +32,11 @@ from docmind.db.repositories import (
     IngestionJobRepository,
     KBRepository,
 )
+from docmind.ingestion.constants import (
+    DEFAULT_RETRIEVAL_MODE,
+    DEFAULT_STRICT_MODE,
+    RETRIEVAL_MODES,
+)
 from docmind.ingestion.loaders import load_document
 from docmind.vectorstore.qdrant_store import (
     delete_documents_by_doc_id,
@@ -59,9 +64,11 @@ async def ingest_document(
     doc_type: str = Form(default="all"),
     service: str = Form(default="all"),
     department: str = Form(default="all"),
-    retrieval_mode: str = Form(default="chunk", description="'chunk' or 'full_doc'"),
+    retrieval_mode: str = Form(
+        default=DEFAULT_RETRIEVAL_MODE, description="'chunk' or 'full_doc'"
+    ),
     strict_mode: bool = Form(
-        default=True, description="Enable strict chunking validation"
+        default=DEFAULT_STRICT_MODE, description="Enable strict chunking validation"
     ),
     chunk_size: int = Form(
         default=settings.ingestion.chunk_size, description="Target chunk size"
@@ -83,7 +90,7 @@ async def ingest_document(
             status_code=status.HTTP_404_NOT_FOUND, detail="Knowledge base not found"
         )
 
-    if retrieval_mode not in ("chunk", "full_doc"):
+    if retrieval_mode not in RETRIEVAL_MODES:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="retrieval_mode must be 'chunk' or 'full_doc'",

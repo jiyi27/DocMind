@@ -9,6 +9,7 @@ from langchain_core.messages import AnyMessage, HumanMessage
 from docmind.core import logger
 from docmind.core.config import settings
 from docmind.core.llm import get_llm
+from docmind.ingestion.constants import DEFAULT_RETRIEVAL_MODE
 from docmind.ingestion.loaders import load_document
 from docmind.retrieval.prompts import rag_prompt
 from docmind.retrieval.state import RAGState
@@ -65,7 +66,7 @@ def retrieve_node(state: RAGState) -> dict:
 
     for doc, _score in results:
         meta = doc.metadata or {}
-        retrieval_mode = meta.get("retrieval_mode", "chunk")
+        retrieval_mode = meta.get("retrieval_mode", DEFAULT_RETRIEVAL_MODE)
 
         if retrieval_mode == "full_doc":
             doc_id = meta.get("doc_id", "")

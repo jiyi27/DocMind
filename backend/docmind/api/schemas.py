@@ -6,8 +6,7 @@ from pydantic import BaseModel, Field, field_validator
 
 from docmind.core.config import settings
 from docmind.core.metadata_config import DEPARTMENTS, DOC_TYPES, SERVICES
-
-RETRIEVAL_MODES = ("chunk", "full_doc")
+from docmind.ingestion.constants import DEFAULT_RETRIEVAL_MODE, DEFAULT_STRICT_MODE
 
 
 class IngestMetadata(BaseModel):
@@ -26,11 +25,11 @@ class IngestMetadata(BaseModel):
     department: list[str] = Field(default_factory=lambda: ["all"])
 
     retrieval_mode: Literal["chunk", "full_doc"] = Field(
-        default="chunk",
+        default=DEFAULT_RETRIEVAL_MODE,
         description="'chunk': retrieve individual chunks. 'full_doc': retrieve the full article when any chunk matches.",
     )
     strict_mode: bool = Field(
-        default=True,
+        default=DEFAULT_STRICT_MODE,
         description="Enable strict mode. If true, excessively long chunks will cause failure.",
     )
     chunk_size: int = Field(

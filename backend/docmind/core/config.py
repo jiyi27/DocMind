@@ -118,7 +118,7 @@ class AdminConfig:
     super_admin_usernames: Comma-separated list of usernames that are granted
         super-admin privileges (e.g. creating / deleting knowledge bases and
         other privileged operations).  These users must still authenticate via
-        JWT — this list only controls *what* they are allowed to do after login.
+        JWT — this list only controls *what* they are allowed to do after log in.
 
         Example env value:  SUPER_ADMIN_USERNAMES=super_admin,alice,bob
     """
@@ -189,8 +189,8 @@ def _build_settings() -> Settings:
         retrieval=RetrievalConfig(
             top_k=_require_int("TOP_K"),
             max_messages=_require_int("MAX_MESSAGES"),
-            max_full_docs=int(os.getenv("MAX_FULL_DOCS", "2")),
-            max_full_doc_chars=int(os.getenv("MAX_FULL_DOC_CHARS", "10000")),
+            max_full_docs=_require_int("MAX_FULL_DOCS"),
+            max_full_doc_chars=_require_int("MAX_FULL_DOC_CHARS"),
         ),
         log=LogConfig(
             dir=_require_str("LOG_DIR"),
