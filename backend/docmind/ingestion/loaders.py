@@ -41,8 +41,8 @@ def load_pdf(file_path: str | Path) -> list[Document]:
 
         if len(md_text.replace(" ", "").replace("\n", "")) < _PDF_MIN_TEXT_LENGTH:
             raise DocumentError(
-                "无法提取文本：该 PDF 可能是扫描件或图片型文档，暂不支持。"
-                "请转换为可复制文字的 PDF 后重新上传。"
+                "Unable to extract text: This PDF might be a scanned or image-based document, which is not supported. "
+                "Please convert it to a text-selectable PDF and try uploading again."
             )
 
         logger.debug(
