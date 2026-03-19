@@ -6,6 +6,8 @@ from typing import Required, TypedDict
 
 from langchain_core.messages import AnyMessage
 
+from docmind.retrieval.context import ContextItem
+
 
 class RAGState(TypedDict, total=False):
     """State flowing through the RAG chat graph.
@@ -22,10 +24,16 @@ class RAGState(TypedDict, total=False):
         Knowledge base slug — selects the Qdrant collection to search (required).
     retrieved_docs : list
         Raw documents retrieved from the vector store.
+    context_items : list[ContextItem]
+        Structured retrieval results, one per retrieved chunk.  The generate
+        node assembles the LLM message from this list rather than from the
+        flat ``context`` string.
     context : str
-        Formatted context string assembled from retrieved docs.
+        Compatibility shim: flat text context derived from ``context_items``.
+        Kept so that ``stream_generate`` (which accepts a plain string) does
+        not require a signature change in Step 1.
     sources : list[str]
-        Formatted source references for citation.
+        Formatted source references for citation, derived from ``context_items``.
     messages : list[AnyMessage]
         Full conversation history (prior turns) injected by the caller.
         The generate node appends the current HumanMessage before invoking
@@ -40,7 +48,8 @@ class RAGState(TypedDict, total=False):
 
     # Optional fields populated by graph nodes
     retrieved_docs: list
-    context: str
+    context_items: list[ContextItem]
+    context: str  # compatibility shim derived from context_items
     sources: list[str]
     messages: list[AnyMessage]
     answer: str

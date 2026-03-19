@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import AsyncGenerator
 
+from langchain_core.documents import Document
 from langchain_core.messages import AnyMessage, HumanMessage
 
 from docmind.core import logger
@@ -11,6 +12,7 @@ from docmind.core.config import settings
 from docmind.core.llm import get_llm
 from docmind.ingestion.constants import DEFAULT_RETRIEVAL_MODE
 from docmind.ingestion.loaders import load_document
+from docmind.retrieval.context import ContextItem
 from docmind.retrieval.prompts import rag_prompt
 from docmind.retrieval.state import RAGState
 from docmind.vectorstore.qdrant_store import get_vector_store_for_kb
@@ -25,6 +27,126 @@ def _load_full_text(file_path: str) -> str:
     return "\n\n".join(d.page_content for d in docs)
 
 
+def _build_source_label(index: int, title: str, url: str) -> str:
+    """Format a single citation line from index, title, and URL."""
+    if url and title:
+        return f"[{index}] [{title}]({url})"
+    if url:
+        return f"[{index}] [{url}]({url})"
+    if title:
+        return f"[{index}] {title}"
+    return f"[{index}] unknown source"
+
+
+def _resolve_chunk(
+    index: int,
+    doc: Document,
+    *,
+    max_full_doc_chars: int,
+    seen_full_doc_ids: set[str],
+    full_doc_count: int,
+    max_full_docs: int,
+    kb_name: str,
+) -> tuple[ContextItem | None, int]:
+    """Convert one Qdrant result into a ContextItem.
+
+    Handles three retrieval scenarios:
+    - full_doc  : load and truncate the original file from disk
+    - code_mixed: restore original source code from metadata
+    - text/other: use the indexed page_content directly
+
+    Returns ``(item, updated_full_doc_count)``.  Returns ``(None, count)``
+    when the doc should be skipped (duplicate full_doc, missing file_path, etc.).
+    """
+    meta = doc.metadata or {}
+    retrieval_mode = meta.get("retrieval_mode", DEFAULT_RETRIEVAL_MODE)
+    title = meta.get("title") or meta.get("file_name") or meta.get("source", "")
+    url = meta.get("url", "")
+    source_label = _build_source_label(index, title, url)
+
+    if retrieval_mode == "full_doc":
+        doc_id = meta.get("doc_id", "")
+
+        if doc_id in seen_full_doc_ids:
+            return None, full_doc_count
+        if full_doc_count >= max_full_docs:
+            return None, full_doc_count
+
+        file_path = meta.get("file_path", "")
+        if not file_path:
+            logger.warning(
+                "full_doc_missing_file_path",
+                {"doc_id": doc_id, "kb_name": kb_name},
+            )
+            return None, full_doc_count
+
+        try:
+            full_text = _load_full_text(file_path)
+        except Exception as exc:
+            logger.warning(
+                "full_doc_load_failed",
+                {"doc_id": doc_id, "file_path": file_path, "error": str(exc)},
+            )
+            return None, full_doc_count
+
+        if len(full_text) > max_full_doc_chars:
+            full_text = full_text[:max_full_doc_chars]
+
+        seen_full_doc_ids.add(doc_id)
+        return (
+            ContextItem(
+                index=index,
+                chunk_type="full_doc",
+                content=full_text,
+                title=title,
+                url=url,
+                source_label=source_label,
+            ),
+            full_doc_count + 1,
+        )
+
+    # Chunk retrieval modes — restore original content when available
+    chunk_type = meta.get("chunk_type", "text")
+    if chunk_type == "code_mixed" and "original_content" in meta:
+        content = meta["original_content"]
+        resolved_type: str = "code"
+    elif chunk_type == "image":
+        # Step 1: image chunks fall through as text (caption in page_content).
+        # image_url is recorded for Step 2 multimodal assembly.
+        return (
+            ContextItem(
+                index=index,
+                chunk_type="image",
+                content=doc.page_content,
+                image_url=meta.get("image_url"),
+                title=title,
+                url=url,
+                source_label=source_label,
+            ),
+            full_doc_count,
+        )
+    else:
+        content = doc.page_content
+        resolved_type = "text"
+
+    return (
+        ContextItem(
+            index=index,
+            chunk_type=resolved_type,  # type: ignore[arg-type]
+            content=content,
+            title=title,
+            url=url,
+            source_label=source_label,
+        ),
+        full_doc_count,
+    )
+
+
+def _build_context_string(items: list[ContextItem]) -> str:
+    """Flatten ContextItems to the numbered text block expected by the RAG prompt."""
+    return "\n\n".join(f"[{it.index}] {it.content}" for it in items)
+
+
 def retrieve_node(state: RAGState) -> dict:
     """Retrieve relevant documents from Qdrant based on the user query.
 
@@ -34,7 +156,8 @@ def retrieve_node(state: RAGState) -> dict:
         - chunk docs: always included
         - full_doc docs: deduped by doc_id, capped at max_full_docs; full text
           loaded from disk and truncated to max_full_doc_chars
-    - Formats retrieved docs into context string and citation sources
+    - Returns structured ``context_items`` list and a flat ``context`` string
+      (compatibility shim) plus ``sources`` for citation.
     """
     query = state["query"]
     kb_name = state["kb_name"]
@@ -57,78 +180,37 @@ def retrieve_node(state: RAGState) -> dict:
     max_full_docs = settings.retrieval.max_full_docs
     max_full_doc_chars = settings.retrieval.max_full_doc_chars
 
-    context_parts: list[str] = []
-    sources: list[str] = []
+    context_items: list[ContextItem] = []
     retrieved_docs = []
-
     seen_full_doc_ids: set[str] = set()
     full_doc_count = 0
 
-    for doc, _score in results:
-        meta = doc.metadata or {}
-        retrieval_mode = meta.get("retrieval_mode", DEFAULT_RETRIEVAL_MODE)
+    for i, (doc, _score) in enumerate(results, 1):
+        item, full_doc_count = _resolve_chunk(
+            index=i,
+            doc=doc,
+            max_full_doc_chars=max_full_doc_chars,
+            seen_full_doc_ids=seen_full_doc_ids,
+            full_doc_count=full_doc_count,
+            max_full_docs=max_full_docs,
+            kb_name=kb_name,
+        )
+        if item is not None:
+            context_items.append(item)
+            retrieved_docs.append(doc)
 
-        if retrieval_mode == "full_doc":
-            doc_id = meta.get("doc_id", "")
-            if doc_id in seen_full_doc_ids:
-                continue
-            if full_doc_count >= max_full_docs:
-                continue
-
-            file_path = meta.get("file_path", "")
-            if not file_path:
-                logger.warning(
-                    "full_doc_missing_file_path",
-                    {"doc_id": doc_id, "kb_name": kb_name},
-                )
-                continue
-
-            try:
-                full_text = _load_full_text(file_path)
-            except Exception as exc:
-                logger.warning(
-                    "full_doc_load_failed",
-                    {
-                        "doc_id": doc_id,
-                        "file_path": file_path,
-                        "error": str(exc),
-                    },
-                )
-                continue
-
-            if len(full_text) > max_full_doc_chars:
-                full_text = full_text[:max_full_doc_chars]
-
-            context_content = full_text
-            seen_full_doc_ids.add(doc_id)
-            full_doc_count += 1
-        else:
-            # Determine if we should use original code or the indexed summary
-            if meta.get("chunk_type") == "code" and "original_code" in meta:
-                context_content = meta["original_code"]
-            else:
-                context_content = doc.page_content
-
-        i = len(context_parts) + 1
-        context_parts.append(f"[{i}] {context_content}")
-        retrieved_docs.append(doc)
-
-        url = meta.get("url", "")
-        title = meta.get("title") or meta.get("file_name") or meta.get("source", "")
-
-        if url and title:
-            sources.append(f"[{i}] [{title}]({url})")
-        elif url:
-            sources.append(f"[{i}] [{url}]({url})")
-        elif title:
-            sources.append(f"[{i}] {title}")
-        else:
-            sources.append(f"[{i}] unknown source")
+    # Re-index so citation numbers are contiguous after skipped docs
+    for pos, item in enumerate(context_items, 1):
+        if item.index != pos:
+            item.index = pos
+            item.source_label = _build_source_label(pos, item.title, item.url)
 
     return {
         "retrieved_docs": retrieved_docs,
-        "context": "\n\n".join(context_parts),
-        "sources": sources,
+        "context_items": context_items,
+        # Compatibility shim: flat string for stream_generate and rag_graph
+        "context": _build_context_string(context_items),
+        "sources": [it.source_label for it in context_items],
     }
 
 
@@ -138,13 +220,15 @@ def generate_node(state: RAGState) -> dict:
     The caller injects the full prior history via state["messages"]. This node
     appends the current HumanMessage and invokes the LLM, then returns only the
     generated answer. Persistence is handled upstream by the chat router.
+
+    Step 1: uses the flat ``context`` string; image chunks are treated as text
+    (their captions are included in the context block).  Step 2 will assemble
+    multimodal message content using ``context_items`` directly.
     """
     try:
         llm = get_llm()
         chain = rag_prompt | llm
 
-        # History is pre-truncated by the chat router before being passed in.
-        # Append the current turn and invoke the LLM.
         messages = list(state.get("messages", []))
         messages.append(HumanMessage(content=state["query"]))
 

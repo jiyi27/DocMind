@@ -307,6 +307,9 @@ def _custom_split_markdown(
         for k in [k for k in current_headers if int(k.split("_")[1]) >= level]:
             del current_headers[k]
         current_headers[f"header_{level}"] = h_match.group(2).strip()
+        trailing = block[h_match.end() :].strip()
+        if trailing:
+            dispatch_block(trailing)
 
     def _handle_image(block: str) -> None:
         # TODO: implement image processing (OCR or multimodal model)
@@ -329,10 +332,13 @@ def _custom_split_markdown(
         "content": _handle_content,
     }
 
+    def dispatch_block(block: str) -> None:
+        HANDLERS[classify(block)](block)
+
     # --- 5. Dispatch each paragraph-level block to its handler ---
     raw_blocks = [b.strip() for b in text.split("\n\n") if b.strip()]
     for block in raw_blocks:
-        HANDLERS[classify(block)](block)
+        dispatch_block(block)
 
     # --- 6. Seal the final in-progress chunk ---
     flush_chunk()

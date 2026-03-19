@@ -168,6 +168,7 @@ def main() -> None:
     try:
         if args.legacy_pdf:
             from langchain_community.document_loaders import PyPDFLoader
+
             documents = PyPDFLoader(str(file_path)).load()
             for doc in documents:
                 doc.metadata["file_name"] = file_path.name
@@ -176,7 +177,13 @@ def main() -> None:
             chunks = []
             for doc in documents:
                 chunks.extend(
-                    _split_pdf(doc, args.chunk_size, args.max_chunk_size, args.chunk_overlap, args.strict_mode)
+                    _split_pdf(
+                        doc,
+                        args.chunk_size,
+                        args.max_chunk_size,
+                        args.chunk_overlap,
+                        args.strict_mode,
+                    )
                 )
         else:
             loaded = load_document_node(state)
