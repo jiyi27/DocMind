@@ -297,7 +297,8 @@ def _custom_split_markdown(
 
     # --- 4. Block classifier + typed handlers ---
     _HEADER_RE = re.compile(r"^(#{1,6})\s+(.*)")
-    _IMAGE_RE = re.compile(r"^!\[.*?\]\(.*?\)\s*$")
+    # Captures alt text and URL separately for image blocks.
+    _IMAGE_RE = re.compile(r"^!\[(?P<alt>[^\]]*)\]\((?P<url>[^)]+)\)\s*$")
 
     def _handle_header(block: str) -> None:
         h_match = _HEADER_RE.match(block)
@@ -312,8 +313,33 @@ def _custom_split_markdown(
             dispatch_block(trailing)
 
     def _handle_image(block: str) -> None:
-        # TODO: implement image processing (OCR or multimodal model)
-        pass
+        """Emit an image Document placeholder.
+
+        Only HTTP/HTTPS URLs are kept — local paths or data URIs are silently
+        skipped because they cannot be reliably accessed during summarization.
+        The placeholder's page_content is the alt text (or "[image]" if absent);
+        summarize_image_node replaces it with the actual summary later.
+        """
+        match = _IMAGE_RE.match(block)
+        if not match:
+            return
+        url = match.group("url").strip()
+        alt = match.group("alt").strip()
+        if not url.startswith(("http://", "https://")):
+            return  # skip non-accessible URLs
+        flush_chunk()
+        docs.append(
+            Document(
+                page_content=alt or "[image]",
+                metadata={
+                    **base_meta,
+                    **current_headers,
+                    "chunk_type": "image",
+                    "image_url": url,
+                    "alt_text": alt,
+                },
+            )
+        )
 
     def _handle_content(block: str) -> None:
         # Regular paragraph / prose block — pack into the current chunk.
@@ -526,6 +552,63 @@ def summarize_code_node(state: IngestionState) -> dict:
         processed_chunks.append(chunk)
 
     return {"chunks": processed_chunks}
+
+
+def summarize_image_node(state: IngestionState) -> dict:
+    """Fetch and summarize image chunks produced by split_text_node.
+
+    For each chunk whose chunk_type is "image", the configured ImageProcessor
+    is called to produce a text description that replaces the placeholder
+    page_content. The image_url metadata key is preserved so the retrieval
+    layer can surface it in sources.
+
+    Any error (network failure, LLM error, OCR failure, etc.) propagates up to
+    the worker, which records it against the document and marks the job as failed.
+    """
+    chunks = state.get("chunks", [])
+    if not chunks:
+        return {"chunks": []}
+
+    mode = settings.ingestion.image_processor
+    if mode == "none":
+        return {"chunks": chunks}
+
+    from docmind.ingestion.image_processor import ImageFetchError, get_image_processor
+
+    processor = get_image_processor()
+
+    for chunk in chunks:
+        if chunk.metadata.get("chunk_type") != "image":
+            continue
+        url = chunk.metadata.get("image_url", "")
+        if not url:
+            continue
+        try:
+            summary = processor.process(url)
+        except ImageFetchError as exc:
+            # Dead or unreachable URL — skip this image and continue ingestion.
+            logger.warning(
+                "image_fetch_skipped",
+                {
+                    "doc_id": chunk.metadata.get("doc_id"),
+                    "image_url": url,
+                    "error": str(exc),
+                },
+            )
+            continue
+        if summary:
+            chunk.page_content = summary
+        logger.debug(
+            "image_summarized",
+            {
+                "doc_id": chunk.metadata.get("doc_id"),
+                "image_url": url,
+                "summary_len": len(summary),
+                "processor": mode,
+            },
+        )
+
+    return {"chunks": chunks}
 
 
 def embed_and_store_node(state: IngestionState) -> dict:

@@ -88,6 +88,15 @@ class LLMConfig:
 
 
 @dataclass(frozen=True)
+class ImageVisionConfig:
+    """Vision LLM used for image summarization (multimodal mode only)."""
+
+    api_key: str
+    model: str
+    base_url: str
+
+
+@dataclass(frozen=True)
 class IngestionConfig:
     """Document ingestion pipeline configuration."""
 
@@ -95,6 +104,10 @@ class IngestionConfig:
     max_chunk_size: int
     chunk_overlap: int
     enable_code_summarization: bool
+    # Image processing backend: "multimodal" | "ocr" | "none"
+    image_processor: str
+    # Vision LLM settings — required when image_processor == "multimodal"
+    image_vision: ImageVisionConfig
 
 
 @dataclass(frozen=True)
@@ -174,6 +187,33 @@ class Settings:
         return list(_MISSING)
 
 
+_VALID_IMAGE_PROCESSOR_MODES = {"multimodal", "ocr", "none"}
+
+
+def _load_image_processor_mode() -> str:
+    """Read and validate IMAGE_PROCESSOR; record in _MISSING if invalid."""
+    mode = os.getenv("IMAGE_PROCESSOR", "none").strip().lower()
+    if mode not in _VALID_IMAGE_PROCESSOR_MODES:
+        _MISSING.append(
+            f"IMAGE_PROCESSOR (value {mode!r} is not valid; must be one of: "
+            f"{sorted(_VALID_IMAGE_PROCESSOR_MODES)})"
+        )
+    return mode
+
+
+def _load_image_vision_config() -> "ImageVisionConfig":
+    """Read IMAGE_VISION_* vars; require all three when IMAGE_PROCESSOR=multimodal."""
+    mode = os.getenv("IMAGE_PROCESSOR", "none").strip().lower()
+    if mode == "multimodal":
+        return ImageVisionConfig(
+            api_key=_require_str("IMAGE_VISION_API_KEY"),
+            model=_require_str("IMAGE_VISION_MODEL"),
+            base_url=_require_str("IMAGE_VISION_BASE_URL"),
+        )
+    # For ocr / none, the vision fields are unused; store empty strings.
+    return ImageVisionConfig(api_key="", model="", base_url="")
+
+
 def _build_settings() -> Settings:
     """Construct Settings by reading all required environment variables."""
     return Settings(
@@ -201,6 +241,8 @@ def _build_settings() -> Settings:
             max_chunk_size=_require_int("MAX_CHUNK_SIZE"),
             chunk_overlap=_require_int("CHUNK_OVERLAP"),
             enable_code_summarization=_require_bool("ENABLE_CODE_SUMMARIZATION"),
+            image_processor=_load_image_processor_mode(),
+            image_vision=_load_image_vision_config(),
         ),
         retrieval=RetrievalConfig(
             top_k=_require_int("TOP_K"),
