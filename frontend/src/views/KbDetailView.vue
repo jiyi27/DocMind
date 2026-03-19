@@ -325,6 +325,8 @@ function handleDeleted() {
   display: flex;
   align-items: flex-start;
   gap: 8px;
+  flex: 1;
+  min-width: 0;
 }
 
 .header-actions {
@@ -337,6 +339,7 @@ function handleDeleted() {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  min-width: 0;
 }
 
 .kb-display-name {
@@ -357,12 +360,17 @@ function handleDeleted() {
   font-size: 13px;
   color: #606266;
   line-height: 1.5;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 600px;
 }
 
 .kb-overview {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 16px;
+  padding-left: 40px;
 }
 
 .overview-card {
@@ -428,6 +436,7 @@ function handleDeleted() {
   grid-template-columns: 420px 1fr;
   gap: 24px;
   align-items: start;
+  padding-left: 40px;
 }
 
 .upload-column,
