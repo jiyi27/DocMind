@@ -1,4 +1,6 @@
-# DocMind Project Contract
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Build And Test (Backend)
 *Run all from the `/backend` directory*
