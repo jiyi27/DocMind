@@ -42,6 +42,7 @@ class IngestionState(TypedDict, total=False):
     strict_mode: bool
     chunk_size: int
     max_chunk_size: int
+    chunk_overlap: int
     documents: list[Document]
     chunks: list[Document]
     status: str

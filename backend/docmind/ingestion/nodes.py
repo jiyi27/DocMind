@@ -160,9 +160,10 @@ def _table_to_prose(raw_table: str) -> str:
     If the table doesn't match the standard header-separator-data layout,
     the original text is returned unchanged.
     """
-    lines = [l.strip() for l in raw_table.strip().splitlines() if l.strip()]
+    lines = [line.strip() for line in raw_table.strip().splitlines() if line.strip()]
     sep_idx = next(
-        (i for i, l in enumerate(lines) if re.match(r"^\|[-| :]+\|$", l)), None
+        (i for i, line in enumerate(lines) if re.match(r"^\|[-| :]+\|$", line)),
+        None,
     )
     if sep_idx is None or sep_idx == 0:
         return raw_table
@@ -171,9 +172,7 @@ def _table_to_prose(raw_table: str) -> str:
     rows = []
     for line in lines[sep_idx + 1 :]:
         cells = [c.strip() for c in line.strip("|").split("|")]
-        pairs = ", ".join(
-            f"{h}: {c}" for h, c in zip(headers, cells) if c
-        )
+        pairs = ", ".join(f"{h}: {c}" for h, c in zip(headers, cells) if c)
         if pairs:
             rows.append(pairs)
     return "\n".join(rows)
@@ -288,7 +287,11 @@ def _custom_split_markdown(
                 )
             _pack(restored)
         else:
-            pieces = _halve_text(restored, target_size) if block_len > target_size else [restored]
+            pieces = (
+                _halve_text(restored, target_size)
+                if block_len > target_size
+                else [restored]
+            )
             for piece in pieces:
                 _pack(piece)
 
@@ -392,7 +395,7 @@ def split_text_node(state: IngestionState) -> dict:
         # Use values passed from user form (state), fallback to settings
         target_size = state.get("chunk_size", settings.ingestion.chunk_size)
         max_size = state.get("max_chunk_size", settings.ingestion.max_chunk_size)
-        chunk_overlap = settings.ingestion.chunk_overlap
+        chunk_overlap = state.get("chunk_overlap", settings.ingestion.chunk_overlap)
         strict_mode = state.get("strict_mode", DEFAULT_STRICT_MODE)
 
         final_chunks = []
