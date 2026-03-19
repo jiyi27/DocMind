@@ -90,19 +90,19 @@ def main() -> None:
     parser.add_argument(
         "--chunk-size",
         type=int,
-        default=260,
+        default=500,
         help="Target chunk size passed into split_text_node.",
     )
     parser.add_argument(
         "--max-chunk-size",
         type=int,
-        default=420,
+        default=1000,
         help="Max semantic block size used by strict mode.",
     )
     parser.add_argument(
         "--chunk-overlap",
         type=int,
-        default=100,
+        default=120,
         help="Overlap budget passed into split_text_node.",
     )
     parser.add_argument(

@@ -39,6 +39,20 @@ def _require_int(env_var: str) -> int:
         return 0
 
 
+def _require_bool(env_var: str) -> bool:
+    """Return *env_var* parsed as bool, recording it as missing/invalid if needed."""
+    raw = os.getenv(env_var, "").strip().lower()
+    if not raw:
+        _MISSING.append(env_var)
+        return False  # sentinel; process will exit before this value is used
+    if raw in {"1", "true", "yes", "y", "on"}:
+        return True
+    if raw in {"0", "false", "no", "n", "off"}:
+        return False
+    _MISSING.append(f"{env_var} (value {raw!r} is not a valid boolean)")
+    return False
+
+
 # Accumulates names of missing / invalid env vars during module import.
 _MISSING: list[str] = []
 
@@ -80,6 +94,7 @@ class IngestionConfig:
     chunk_size: int
     max_chunk_size: int
     chunk_overlap: int
+    enable_code_summarization: bool
 
 
 @dataclass(frozen=True)
@@ -185,6 +200,7 @@ def _build_settings() -> Settings:
             chunk_size=_require_int("CHUNK_SIZE"),
             max_chunk_size=_require_int("MAX_CHUNK_SIZE"),
             chunk_overlap=_require_int("CHUNK_OVERLAP"),
+            enable_code_summarization=_require_bool("ENABLE_CODE_SUMMARIZATION"),
         ),
         retrieval=RetrievalConfig(
             top_k=_require_int("TOP_K"),

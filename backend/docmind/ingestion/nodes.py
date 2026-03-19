@@ -445,6 +445,9 @@ def summarize_code_node(state: IngestionState) -> dict:
     chunks = state.get("chunks", [])
     if not chunks:
         return {"chunks": []}
+    if not settings.ingestion.enable_code_summarization:
+        # Global ingestion toggle: keep chunking behavior unchanged, only skip LLM summarization.
+        return {"chunks": chunks}
 
     llm = get_llm()
     chain = code_summarization_prompt | llm
