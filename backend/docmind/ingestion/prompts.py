@@ -25,3 +25,12 @@ code_summarization_prompt = PromptTemplate.from_template(
 【摘要示例参考】
 用于初始化 Qdrant 向量数据库连接的 Python 配置代码。核心逻辑包括使用 QdrantClient 建立连接，并通过 _ensure_collection 方法检查和自动创建 docmind 集合。涉及的关键变量和类有 settings.qdrant.url、QdrantVectorStore 和 Embeddings。适用于系统部署、知识库初始化或排查向量库连接失败等场景。"""
 )
+
+image_summarization_prompt = (
+    "Describe this image concisely and accurately. "
+    "Prioritize any visible text, document structure, labels, tables, diagrams, "
+    "or data shown in the image. "
+    "Summarize the key information in a way that is useful for semantic retrieval. "
+    "Reply in the same language as the text in the image "
+    "(Chinese if Chinese text is present, otherwise English)."
+)

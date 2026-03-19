@@ -15,7 +15,11 @@ import urllib.error
 import urllib.request
 from abc import ABC, abstractmethod
 
+from langchain_core.messages import HumanMessage
+
 from docmind.core import logger
+from docmind.core.llm import get_image_llm
+from docmind.ingestion.prompts import image_summarization_prompt
 
 
 class ImageFetchError(Exception):
@@ -31,13 +35,6 @@ class ImageProcessor(ABC):
 class MultimodalProcessor(ImageProcessor):
     """Generates a natural-language description of an image via a vision LLM."""
 
-    def __init__(self, api_key: str, model: str, base_url: str) -> None:
-        # Import lazily to avoid hard dependency when multimodal is not used.
-        from openai import OpenAI  # langchain-openai bundles openai
-
-        self._client = OpenAI(api_key=api_key, base_url=base_url)
-        self._model = model
-
     def process(self, image_url: str) -> str:
         image_data = _fetch_image_bytes(image_url)
         b64 = base64.standard_b64encode(image_data).decode()
@@ -45,33 +42,25 @@ class MultimodalProcessor(ImageProcessor):
         suffix = image_url.rsplit(".", 1)[-1].lower() if "." in image_url else "jpeg"
         mime = _MIME_MAP.get(suffix, "image/jpeg")
         data_url = f"data:{mime};base64,{b64}"
+        llm = get_image_llm()
 
-        response = self._client.chat.completions.create(
-            model=self._model,
-            messages=[
-                {
-                    "role": "user",
-                    "content": [
+        response = llm.invoke(
+            [
+                HumanMessage(
+                    content=[
+                        {
+                            "type": "text",
+                            "text": image_summarization_prompt,
+                        },
                         {
                             "type": "image_url",
                             "image_url": {"url": data_url},
                         },
-                        {
-                            "type": "text",
-                            "text": (
-                                "Describe this image concisely and accurately. "
-                                "Focus on key information, text visible in the image, "
-                                "and any diagrams or data. "
-                                "Reply in the same language as the text in the image "
-                                "(Chinese if Chinese text is present, otherwise English)."
-                            ),
-                        },
-                    ],
-                }
-            ],
-            max_tokens=512,
+                    ]
+                )
+            ]
         )
-        return response.choices[0].message.content or ""
+        return _message_content_to_text(response.content)
 
 
 class OCRProcessor(ImageProcessor):
@@ -119,6 +108,23 @@ _MIME_MAP: dict[str, str] = {
 _FETCH_TIMEOUT = 15  # seconds
 
 
+def _message_content_to_text(content: str | list[object]) -> str:
+    """Normalize LangChain message content into plain text."""
+    if isinstance(content, str):
+        return content
+
+    parts: list[str] = []
+    for item in content:
+        if isinstance(item, str):
+            parts.append(item)
+            continue
+        if isinstance(item, dict):
+            text = item.get("text")
+            if isinstance(text, str):
+                parts.append(text)
+    return "\n".join(part.strip() for part in parts if part.strip()).strip()
+
+
 def _fetch_image_bytes(url: str) -> bytes:
     """Download image bytes from an HTTP/HTTPS URL.
 
@@ -129,14 +135,18 @@ def _fetch_image_bytes(url: str) -> bytes:
     """
     if not url.startswith(("http://", "https://")):
         raise ValueError(f"Only HTTP/HTTPS URLs are supported, got: {url!r}")
-    req = urllib.request.Request(url, headers={"User-Agent": "DocMind-ImageProcessor/1.0"})
+    req = urllib.request.Request(
+        url, headers={"User-Agent": "DocMind-ImageProcessor/1.0"}
+    )
     try:
         with urllib.request.urlopen(req, timeout=_FETCH_TIMEOUT) as resp:  # noqa: S310
             return resp.read()
     except urllib.error.HTTPError as exc:
         raise ImageFetchError(f"HTTP {exc.code} fetching image: {url}") from exc
     except urllib.error.URLError as exc:
-        raise ImageFetchError(f"Failed to reach image URL: {url} — {exc.reason}") from exc
+        raise ImageFetchError(
+            f"Failed to reach image URL: {url} — {exc.reason}"
+        ) from exc
     except TimeoutError as exc:
         raise ImageFetchError(f"Timed out fetching image: {url}") from exc
 
@@ -157,12 +167,10 @@ def get_image_processor() -> ImageProcessor:
     mode = settings.ingestion.image_processor
     if mode == "multimodal":
         vision = settings.ingestion.image_vision
-        logger.debug("image_processor_init", {"mode": "multimodal", "model": vision.model})
-        return MultimodalProcessor(
-            api_key=vision.api_key,
-            model=vision.model,
-            base_url=vision.base_url,
+        logger.debug(
+            "image_processor_init", {"mode": "multimodal", "model": vision.model}
         )
+        return MultimodalProcessor()
     if mode == "ocr":
         logger.debug("image_processor_init", {"mode": "ocr"})
         return OCRProcessor()
