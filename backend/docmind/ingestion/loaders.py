@@ -15,27 +15,39 @@ DocumentLoadError = DocumentError
 UnsupportedFileTypeError = DocumentError
 
 
+_PDF_MIN_TEXT_LENGTH = 50  # non-whitespace characters
+
+
 def load_pdf(file_path: str | Path) -> list[Document]:
     """Load a PDF file and return a single Markdown Document via pymupdf4llm.
 
-    pymupdf4llm converts PDF layout (fonts, headings, tables) into structured
-    Markdown, preserving heading hierarchy so the Markdown splitter can produce
-    semantically coherent chunks — much better than plain-text extraction.
+    pymupdf4llm reads the PDF's internal text layer and font metadata to infer
+    heading levels, producing structured Markdown that the downstream splitter
+    can handle properly.
+
+    Scanned / image-only PDFs have no text layer — pymupdf4llm returns an
+    empty or near-empty string for them. We detect this early and raise a
+    user-facing DocumentError rather than silently producing empty chunks.
 
     Raises
     ------
     DocumentLoadError
-        If the PDF is corrupted or cannot be parsed.
+        If the PDF is corrupted, cannot be parsed, or contains no extractable
+        text (e.g. scanned / image-based PDF).
     """
     path = Path(file_path)
     try:
         md_text = pymupdf4llm.to_markdown(str(path))
+
+        if len(md_text.replace(" ", "").replace("\n", "")) < _PDF_MIN_TEXT_LENGTH:
+            raise DocumentError(
+                "无法提取文本：该 PDF 可能是扫描件或图片型文档，暂不支持。"
+                "请转换为可复制文字的 PDF 后重新上传。"
+            )
+
         logger.debug(
             "loader_pdf_success",
-            {
-                "file_path": str(path),
-                "content_length": len(md_text),
-            },
+            {"file_path": str(path), "content_length": len(md_text)},
         )
         return [
             Document(
@@ -43,6 +55,8 @@ def load_pdf(file_path: str | Path) -> list[Document]:
                 metadata={"source": str(path), "file_name": path.name},
             )
         ]
+    except DocumentError:
+        raise
     except Exception as exc:
         logger.error(
             "loader_pdf_failed",

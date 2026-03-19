@@ -24,7 +24,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from langchain_core.documents import Document
 
-from docmind.ingestion.nodes import load_document_node, split_text_node
+from docmind.ingestion.nodes import load_document_node, split_text_node, _split_pdf
 
 SECTION_LINE = "=" * 88
 SUBSECTION_LINE = "-" * 88
@@ -127,6 +127,11 @@ def main() -> None:
         action="store_true",
         help="Print chunk metadata alongside content. Off by default.",
     )
+    parser.add_argument(
+        "--legacy-pdf",
+        action="store_true",
+        help="Use the old PyPDFLoader + plain-text splitter (pre-pymupdf4llm) for comparison.",
+    )
 
     args = parser.parse_args()
 
@@ -161,13 +166,26 @@ def main() -> None:
     print()
 
     try:
-        loaded = load_document_node(state)
-        documents = loaded["documents"]
-        if args.show_documents:
-            _print_documents(documents)
+        if args.legacy_pdf:
+            from langchain_community.document_loaders import PyPDFLoader
+            documents = PyPDFLoader(str(file_path)).load()
+            for doc in documents:
+                doc.metadata["file_name"] = file_path.name
+            if args.show_documents:
+                _print_documents(documents)
+            chunks = []
+            for doc in documents:
+                chunks.extend(
+                    _split_pdf(doc, args.chunk_size, args.max_chunk_size, args.chunk_overlap, args.strict_mode)
+                )
+        else:
+            loaded = load_document_node(state)
+            documents = loaded["documents"]
+            if args.show_documents:
+                _print_documents(documents)
+            result = split_text_node({**state, **loaded})
+            chunks = result["chunks"]
 
-        result = split_text_node({**state, **loaded})
-        chunks = result["chunks"]
         _print_chunks(chunks, show_metadata=args.show_metadata)
     except Exception as exc:
         print(
