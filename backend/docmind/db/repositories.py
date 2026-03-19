@@ -43,13 +43,38 @@ class KBRepository:
         self.db = db
 
     async def create(
-        self, name: str, display_name: str, description: str = ""
+        self,
+        name: str,
+        display_name: str,
+        description: str = "",
+        embedding_provider: str = "openai_compatible",
+        embedding_model: str = "",
+        embedding_base_url: str = "",
+        embedding_api_key: str = "",
+        vector_dimension: int = 0,
     ) -> dict[str, Any]:
         kb_id = str(uuid.uuid4())
         now = utc_now_iso()
         await self.db.execute(
-            "INSERT INTO knowledge_bases (id, name, display_name, description, created_at) VALUES (?, ?, ?, ?, ?)",
-            (kb_id, name, display_name, description, now),
+            """
+            INSERT INTO knowledge_bases
+                (id, name, display_name, description, created_at,
+                 embedding_provider, embedding_model, embedding_base_url,
+                 embedding_api_key, vector_dimension)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                kb_id,
+                name,
+                display_name,
+                description,
+                now,
+                embedding_provider,
+                embedding_model,
+                embedding_base_url,
+                embedding_api_key,
+                vector_dimension,
+            ),
         )
         await self.db.commit()
         return {
@@ -58,6 +83,11 @@ class KBRepository:
             "display_name": display_name,
             "description": description,
             "created_at": now,
+            "embedding_provider": embedding_provider,
+            "embedding_model": embedding_model,
+            "embedding_base_url": embedding_base_url,
+            "embedding_api_key": embedding_api_key,
+            "vector_dimension": vector_dimension,
         }
 
     async def get_by_id(self, kb_id: str) -> dict[str, Any] | None:
@@ -72,12 +102,55 @@ class KBRepository:
         ) as cur:
             return _row_to_dict(await cur.fetchone())
 
+    async def get_embedding_params(self, kb_name: str) -> dict[str, Any] | None:
+        """Return the embedding config columns for a KB, or None if not found."""
+        async with self.db.execute(
+            "SELECT embedding_provider, embedding_model, embedding_base_url, "
+            "embedding_api_key, vector_dimension FROM knowledge_bases WHERE name = ?",
+            (kb_name,),
+        ) as cur:
+            return _row_to_dict(await cur.fetchone())
+
     async def list_all(self) -> list[dict[str, Any]]:
         async with self.db.execute(
             "SELECT * FROM knowledge_bases ORDER BY created_at"
         ) as cur:
             rows = await cur.fetchall()
             return [dict(r) for r in rows]
+
+    async def update_metadata(
+        self,
+        kb_id: str,
+        display_name: str,
+        description: str,
+    ) -> dict[str, Any] | None:
+        await self.db.execute(
+            """
+            UPDATE knowledge_bases
+            SET display_name = ?, description = ?
+            WHERE id = ?
+            """,
+            (display_name, description, kb_id),
+        )
+        await self.db.commit()
+        return await self.get_by_id(kb_id)
+
+    async def update_embedding_connection(
+        self,
+        kb_id: str,
+        embedding_base_url: str,
+        embedding_api_key: str,
+    ) -> dict[str, Any] | None:
+        await self.db.execute(
+            """
+            UPDATE knowledge_bases
+            SET embedding_base_url = ?, embedding_api_key = ?
+            WHERE id = ?
+            """,
+            (embedding_base_url, embedding_api_key, kb_id),
+        )
+        await self.db.commit()
+        return await self.get_by_id(kb_id)
 
     async def delete(self, kb_id: str) -> bool:
         cur = await self.db.execute(

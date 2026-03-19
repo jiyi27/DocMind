@@ -4,13 +4,26 @@ DDL statements for all database tables.
 
 CREATE_KNOWLEDGE_BASES_TABLE = """
 CREATE TABLE IF NOT EXISTS knowledge_bases (
-    id           TEXT PRIMARY KEY,
-    name         TEXT UNIQUE NOT NULL,
-    display_name TEXT NOT NULL,
-    description  TEXT DEFAULT '',
-    created_at   TEXT NOT NULL
+    id                  TEXT PRIMARY KEY,
+    name                TEXT UNIQUE NOT NULL,
+    display_name        TEXT NOT NULL,
+    description         TEXT DEFAULT '',
+    created_at          TEXT NOT NULL,
+    embedding_provider  TEXT NOT NULL DEFAULT 'openai_compatible',
+    embedding_model     TEXT NOT NULL DEFAULT '',
+    embedding_base_url  TEXT NOT NULL DEFAULT '',
+    embedding_api_key   TEXT NOT NULL DEFAULT '',
+    vector_dimension    INTEGER NOT NULL DEFAULT 0
 );
 """
+
+MIGRATE_KNOWLEDGE_BASES_EMBEDDING_COLUMNS = [
+    "ALTER TABLE knowledge_bases ADD COLUMN embedding_provider TEXT NOT NULL DEFAULT 'openai_compatible'",
+    "ALTER TABLE knowledge_bases ADD COLUMN embedding_model TEXT NOT NULL DEFAULT ''",
+    "ALTER TABLE knowledge_bases ADD COLUMN embedding_base_url TEXT NOT NULL DEFAULT ''",
+    "ALTER TABLE knowledge_bases ADD COLUMN embedding_api_key TEXT NOT NULL DEFAULT ''",
+    "ALTER TABLE knowledge_bases ADD COLUMN vector_dimension INTEGER NOT NULL DEFAULT 0",
+]
 
 CREATE_USERS_TABLE = """
 CREATE TABLE IF NOT EXISTS users (
@@ -84,6 +97,11 @@ CREATE TABLE IF NOT EXISTS chat_messages (
     created_at  TEXT NOT NULL
 );
 """
+
+__all__ = [
+    "ALL_TABLES",
+    "MIGRATE_KNOWLEDGE_BASES_EMBEDDING_COLUMNS",
+]
 
 ALL_TABLES = [
     CREATE_KNOWLEDGE_BASES_TABLE,

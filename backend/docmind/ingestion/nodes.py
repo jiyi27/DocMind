@@ -14,6 +14,7 @@ from docmind.ingestion.constants import DEFAULT_RETRIEVAL_MODE, DEFAULT_STRICT_M
 from docmind.ingestion.loaders import load_document
 from docmind.ingestion.state import IngestionState
 from docmind.ingestion.prompts import code_summarization_prompt
+from docmind.core.embedding import get_embedding_for_kb
 from docmind.vectorstore.qdrant_store import get_vector_store_for_kb
 
 FENCED_BLOCK_PATTERN = re.compile(r"```.*?```", flags=re.DOTALL)
@@ -617,7 +618,8 @@ def embed_and_store_node(state: IngestionState) -> dict:
     kb_name = state["kb_name"]
 
     try:
-        store = get_vector_store_for_kb(kb_name)
+        emb = get_embedding_for_kb(kb_name)
+        store = get_vector_store_for_kb(kb_name, embeddings=emb)
         store.add_documents(chunks)
     except Exception as exc:
         logger.error(

@@ -1,6 +1,6 @@
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
-import { getKbs, getKbDetail, createKb, deleteKb } from '@/api/kb'
+import { getKbs, getKbDetail, createKb, deleteKb, updateKb, updateKbEmbeddingConnection } from '@/api/kb'
 
 export const useKbStore = defineStore('kb', () => {
     // State
@@ -51,6 +51,24 @@ export const useKbStore = defineStore('kb', () => {
         }
     }
 
+    async function updateKbInfo(kbId, payload) {
+        const data = await updateKb(kbId, payload)
+        kbList.value = kbList.value.map((kb) => (kb.id === kbId ? { ...kb, ...data } : kb))
+        if (currentKb.value?.id === kbId) {
+            currentKb.value = { ...currentKb.value, ...data }
+        }
+        return data
+    }
+
+    async function updateKbConnection(kbId, payload) {
+        const data = await updateKbEmbeddingConnection(kbId, payload)
+        kbList.value = kbList.value.map((kb) => (kb.id === kbId ? { ...kb, ...data } : kb))
+        if (currentKb.value?.id === kbId) {
+            currentKb.value = { ...currentKb.value, ...data }
+        }
+        return data
+    }
+
     function setCurrentKb(kb) {
         currentKb.value = kb
     }
@@ -69,6 +87,8 @@ export const useKbStore = defineStore('kb', () => {
         fetchKbDetail,
         addKb,
         removeKb,
+        updateKbInfo,
+        updateKbConnection,
         setCurrentKb,
         clearKbs,
     }

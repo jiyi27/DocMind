@@ -2,7 +2,7 @@
   <el-dialog
     v-model="visible"
     title="Create Knowledge Base"
-    width="480px"
+    width="560px"
     :close-on-click-modal="false"
     @closed="resetForm"
   >
@@ -38,6 +38,55 @@
           placeholder="Optional. Briefly describe the purpose of this knowledge base."
         />
       </el-form-item>
+
+      <div class="section-title">Embedding Settings</div>
+
+      <el-alert
+        v-if="embeddingOptions.creation_hint"
+        :title="embeddingOptions.creation_hint"
+        type="warning"
+        :closable="false"
+        show-icon
+        class="section-alert"
+      />
+
+      <el-form-item label="Provider" prop="embedding.provider">
+        <el-select
+          v-model="form.embedding.provider"
+          placeholder="Select embedding provider"
+          class="full-width"
+          @change="handleProviderChange"
+        >
+          <el-option
+            v-for="provider in embeddingProviders"
+            :key="provider.value"
+            :label="provider.label"
+            :value="provider.value"
+          />
+        </el-select>
+        <div v-if="selectedProvider?.description" class="form-hint">
+          {{ selectedProvider.description }}
+        </div>
+      </el-form-item>
+
+      <el-form-item
+        v-for="field in selectedFields"
+        :key="field.name"
+        :label="field.label"
+        :prop="`embedding.${field.name}`"
+        :rules="buildEmbeddingFieldRules(field)"
+      >
+        <el-input
+          v-model="form.embedding[field.name]"
+          :type="field.type === 'password' ? 'password' : 'text'"
+          :placeholder="field.placeholder || ''"
+          :show-password="field.type === 'password'"
+          clearable
+        />
+        <div class="form-hint">
+          {{ field.help }}
+        </div>
+      </el-form-item>
     </el-form>
 
     <template #footer>
@@ -50,7 +99,9 @@
 </template>
 
 <script setup>
-import { ref, reactive } from 'vue'
+import { computed, reactive, ref } from 'vue'
+import { getKbEmbeddingOptions } from '@/api/kb'
+import { ElMessage } from 'element-plus'
 
 const emit = defineEmits(['success'])
 
@@ -62,7 +113,21 @@ const form = reactive({
   name: '',
   display_name: '',
   description: '',
+  embedding: {
+    provider: 'openai_compatible',
+    model: '',
+    base_url: '',
+    api_key: '',
+  },
 })
+
+const embeddingOptions = reactive({
+  creation_hint: '',
+  default_provider: 'openai_compatible',
+  providers: [],
+})
+
+const embeddingLoading = ref(false)
 
 const rules = {
   name: [
@@ -78,9 +143,52 @@ const rules = {
     { required: true, message: 'Please enter a display name', trigger: 'blur' },
     { min: 1, max: 128, message: 'Length must be between 1 and 128 characters', trigger: 'blur' },
   ],
+  'embedding.provider': [
+    { required: true, message: 'Please select an embedding provider', trigger: 'change' },
+  ],
+}
+
+const embeddingProviders = computed(() => embeddingOptions.providers || [])
+
+const selectedProvider = computed(() => {
+  return embeddingProviders.value.find((provider) => provider.value === form.embedding.provider) || null
+})
+
+const selectedFields = computed(() => selectedProvider.value?.fields || [])
+
+function buildEmbeddingFieldRules(field) {
+  const rulesForField = []
+  if (field.required) {
+    rulesForField.push({
+      required: true,
+      message: `Please enter ${field.label.toLowerCase()}`,
+      trigger: 'blur',
+    })
+  }
+  return rulesForField
+}
+
+async function loadEmbeddingOptions() {
+  if (embeddingProviders.value.length > 0 || embeddingLoading.value) {
+    return
+  }
+
+  embeddingLoading.value = true
+  try {
+    const data = await getKbEmbeddingOptions()
+    embeddingOptions.creation_hint = data.creation_hint || ''
+    embeddingOptions.default_provider = data.default_provider || 'openai_compatible'
+    embeddingOptions.providers = Array.isArray(data.providers) ? data.providers : []
+    form.embedding.provider = embeddingOptions.default_provider
+  } catch (error) {
+    ElMessage.error('Failed to load embedding options')
+  } finally {
+    embeddingLoading.value = false
+  }
 }
 
 function open() {
+  loadEmbeddingOptions()
   visible.value = true
 }
 
@@ -88,7 +196,23 @@ function resetForm() {
   form.name = ''
   form.display_name = ''
   form.description = ''
+  form.embedding.provider = embeddingOptions.default_provider || 'openai_compatible'
+  form.embedding.model = ''
+  form.embedding.base_url = ''
+  form.embedding.api_key = ''
   formRef.value?.clearValidate()
+}
+
+function handleProviderChange() {
+  form.embedding.model = ''
+  form.embedding.base_url = ''
+  form.embedding.api_key = ''
+  formRef.value?.clearValidate([
+    'embedding.provider',
+    'embedding.model',
+    'embedding.base_url',
+    'embedding.api_key',
+  ])
 }
 
 async function handleSubmit() {
@@ -97,7 +221,20 @@ async function handleSubmit() {
 
   loading.value = true
   try {
-    emit('success', { ...form })
+    const payload = {
+      name: form.name,
+      display_name: form.display_name,
+      description: form.description,
+      embedding: {
+        provider: form.embedding.provider,
+      },
+    }
+
+    selectedFields.value.forEach((field) => {
+      payload.embedding[field.name] = form.embedding[field.name]?.trim?.() || ''
+    })
+
+    emit('success', payload)
     visible.value = false
   } finally {
     loading.value = false
@@ -108,6 +245,21 @@ defineExpose({ open })
 </script>
 
 <style scoped>
+.section-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #303133;
+  margin: 6px 0 12px;
+}
+
+.section-alert {
+  margin-bottom: 18px;
+}
+
+.full-width {
+  width: 100%;
+}
+
 .form-hint {
   font-size: 12px;
   color: #909399;

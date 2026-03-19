@@ -10,7 +10,7 @@ from typing import AsyncGenerator
 
 import aiosqlite
 
-from docmind.db.models import ALL_TABLES
+from docmind.db.models import ALL_TABLES, MIGRATE_KNOWLEDGE_BASES_EMBEDDING_COLUMNS
 
 _DEFAULT_DB_PATH = Path(__file__).resolve().parents[2] / "data" / "docmind.db"
 _PRAGMAS = (
@@ -63,6 +63,17 @@ def create_sync_connection() -> sqlite3.Connection:
     return conn
 
 
+async def _migrate_db(conn: aiosqlite.Connection) -> None:
+    """Apply idempotent schema migrations for existing databases."""
+    for stmt in MIGRATE_KNOWLEDGE_BASES_EMBEDDING_COLUMNS:
+        try:
+            await conn.execute(stmt)
+        except Exception:
+            # Column already exists — safe to ignore.
+            pass
+    await conn.commit()
+
+
 async def init_db() -> None:
     """Create all tables if they don't exist. Called once at app startup."""
     global _GLOBAL_CONN
@@ -74,6 +85,8 @@ async def init_db() -> None:
     for ddl in ALL_TABLES:
         await _GLOBAL_CONN.execute(ddl)
     await _GLOBAL_CONN.commit()
+
+    await _migrate_db(_GLOBAL_CONN)
 
 
 async def close_db() -> None:

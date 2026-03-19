@@ -36,6 +36,14 @@
       <h3 class="kb-display-name">{{ kb.display_name }}</h3>
       <p class="kb-name">{{ kb.name }}</p>
       <p class="kb-description">{{ kb.description || 'No description' }}</p>
+      <div v-if="kb.embedding_provider || kb.embedding_model" class="kb-meta">
+        <el-tag size="small" type="info" effect="plain">
+          {{ kb.embedding_provider || 'embedding' }}
+        </el-tag>
+        <el-tag v-if="kb.embedding_model" size="small" effect="plain">
+          {{ kb.embedding_model }}
+        </el-tag>
+      </div>
     </div>
 
     <div class="kb-card-footer">
@@ -210,6 +218,13 @@ function formatDate(dateStr) {
 .kb-card-footer {
   border-top: 1px solid #f0f0f0;
   padding-top: 12px;
+}
+
+.kb-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
 }
 
 .kb-date {

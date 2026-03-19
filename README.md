@@ -23,7 +23,7 @@ A robust, multi-tenant RAG (Retrieval-Augmented Generation) Knowledge Base syste
 - **Relational Metadata Management**: Uses SQLite to track Users, Knowledge Bases, Documents, and Chat Sessions with full history.
 - **High-Performance Vector Search**: Uses **Qdrant** for scalable similarity search with dynamic collection creation per knowledge base (`docmind_{kb_name}`).
 - **Source Citations & Traceability**: Every chat response includes cited source references linked back to the original document chunks, enabling full answer provenance and auditability.
-- **Flexible LLM & Embeddings**: OpenAI-compatible endpoints for both LLM and embeddings — swap providers (Ollama, OpenAI, OpenRouter, etc.) by changing environment variables only.
+- **Flexible LLM & Per-KB Embeddings**: LLMs remain globally configured via environment variables, while each knowledge base can bind its own embedding provider/model/connection settings.
 - **Streaming Chat**: Server-Sent Events (SSE) support for real-time token-by-token response streaming.
 - **Full-Stack Application**: Vue 3 frontend with a complete UI covering authentication, knowledge base management, document ingestion, and conversational chat.
 
@@ -34,7 +34,7 @@ A robust, multi-tenant RAG (Retrieval-Augmented Generation) Knowledge Base syste
 - **Package Manager**: `uv`
 - **Workflow Orchestration**: LangGraph, LangChain
 - **Vector Database**: Qdrant (Docker)
-- **Embedding Model**: Any OpenAI-compatible endpoint (default: Ollama `nomic-embed-text`)
+- **Embedding Model**: Per-knowledge-base embedding configuration (supports OpenAI-compatible endpoints and HuggingFace models)
 - **LLM**: Any OpenAI-compatible endpoint (default: OpenRouter `google/gemini-2.5-flash`)
 - **Relational DB**: SQLite
 
@@ -144,12 +144,19 @@ Edit `.env` and set the required values — at minimum:
 | `LLM_API_KEY`           | API key for your LLM provider (e.g. OpenRouter key)                                                        |
 | `LLM_MODEL`             | Model name (default: `google/gemini-2.5-flash`)                                                            |
 | `LLM_BASE_URL`          | OpenAI-compatible endpoint (default: `https://openrouter.ai/api/v1`)                                       |
-| `EMBEDDING_BASE_URL`    | Embedding endpoint (default: `http://localhost:11434/v1` for Ollama)                                       |
-| `EMBEDDING_MODEL`       | Embedding model (default: `nomic-embed-text:latest`)                                                       |
 | `JWT_SECRET_KEY`        | Random secret for signing JWTs — generate with: `python -c "import secrets; print(secrets.token_hex(32))"` |
 | `SUPER_ADMIN_USERNAMES` | Comma-separated usernames that get super-admin privileges                                                  |
 
 See `.env.example` for all available options including chunking, retrieval, and logging settings.
+
+### Knowledge Base Embedding Configuration
+
+When creating a knowledge base, you can choose the embedding provider and model for that KB. The selected embedding configuration is persisted with the knowledge base and reused for both ingestion and retrieval.
+
+- `embedding_provider`, `embedding_model`, and `vector_dimension` are treated as part of the KB's vector identity and should not be changed after creation.
+- `embedding_base_url` and `embedding_api_key` can be updated later for connection changes such as key rotation or endpoint migration.
+- Embedding settings must now be entered explicitly when creating a knowledge base. The backend returns provider-specific field metadata, including placeholders and help text, via `GET /kb/embedding-options`.
+- DocMind no longer silently falls back to global embedding environment variables when a KB is missing persisted embedding config. Misconfigured KBs now fail fast to avoid vector/model drift.
 
 ### 4. Run the Backend
 
@@ -179,7 +186,10 @@ DocMind exposes a complete RESTful API. Key endpoints:
 | `POST`   | `/auth/register`               | Register a new user                                   |
 | `POST`   | `/auth/login`                  | Login and obtain a JWT                                |
 | `GET`    | `/kb`                          | List accessible knowledge bases                       |
+| `GET`    | `/kb/embedding-options`        | List available embedding providers and field metadata |
 | `POST`   | `/kb`                          | Create a knowledge base (super-admin only)            |
+| `PATCH`  | `/kb/{kb_id}`                  | Update KB display name and description                |
+| `PATCH`  | `/kb/{kb_id}/embedding-connection` | Update KB embedding base URL / API key            |
 | `DELETE` | `/kb/{kb_id}`                  | Delete a knowledge base (super-admin only)            |
 | `POST`   | `/ingest/{kb_id}`              | Upload and ingest a document (async, background task) |
 | `GET`    | `/ingest/documents/kb/{kb_id}` | List documents in a knowledge base                    |

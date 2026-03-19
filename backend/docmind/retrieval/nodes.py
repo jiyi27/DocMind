@@ -15,6 +15,7 @@ from docmind.ingestion.loaders import load_document
 from docmind.retrieval.context import ContextItem
 from docmind.retrieval.prompts import rag_prompt
 from docmind.retrieval.state import RAGState
+from docmind.core.embedding import get_embedding_for_kb
 from docmind.vectorstore.qdrant_store import get_vector_store_for_kb
 
 
@@ -163,7 +164,8 @@ def retrieve_node(state: RAGState) -> dict:
     kb_name = state["kb_name"]
 
     try:
-        store = get_vector_store_for_kb(kb_name)
+        emb = get_embedding_for_kb(kb_name)
+        store = get_vector_store_for_kb(kb_name, embeddings=emb)
         results = store.similarity_search_with_score(query, k=settings.retrieval.top_k)
     except Exception as exc:
         logger.error(

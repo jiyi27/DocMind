@@ -62,15 +62,6 @@ _MISSING: list[str] = []
 
 
 @dataclass(frozen=True)
-class EmbeddingConfig:
-    """Embedding service configuration (OpenAI-compatible, provider-agnostic)."""
-
-    base_url: str
-    api_key: str
-    model: str
-
-
-@dataclass(frozen=True)
 class QdrantConfig:
     """Qdrant vector database configuration."""
 
@@ -172,7 +163,6 @@ class CORSConfig:
 class Settings:
     """Root settings aggregating all sub-configurations."""
 
-    embedding: EmbeddingConfig
     qdrant: QdrantConfig
     llm: LLMConfig
     ingestion: IngestionConfig
@@ -217,11 +207,6 @@ def _load_image_vision_config() -> "ImageVisionConfig":
 def _build_settings() -> Settings:
     """Construct Settings by reading all required environment variables."""
     return Settings(
-        embedding=EmbeddingConfig(
-            base_url=_require_str("EMBEDDING_BASE_URL"),
-            api_key=_require_str("EMBEDDING_API_KEY"),
-            model=_require_str("EMBEDDING_MODEL"),
-        ),
         qdrant=QdrantConfig(
             url=_require_str("QDRANT_URL"),
             collection="docmind",  # base prefix; actual collections are docmind_{kb_name}

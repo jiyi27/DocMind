@@ -9,11 +9,12 @@ from __future__ import annotations
 from langchain_core.tools import tool
 
 from docmind.core.config import settings
-from docmind.vectorstore.qdrant_store import get_vector_store
+from docmind.core.embedding import get_embedding_for_kb
+from docmind.vectorstore.qdrant_store import get_vector_store_for_kb
 
 
 @tool
-def search_knowledge_base(query: str) -> str:
+def search_knowledge_base(query: str, kb_name: str) -> str:
     """Search the knowledge base for information relevant to the query.
 
     Returns the top-k most relevant document chunks with their sources.
@@ -21,13 +22,15 @@ def search_knowledge_base(query: str) -> str:
     from docmind.core import logger
 
     try:
-        store = get_vector_store()
+        emb = get_embedding_for_kb(kb_name)
+        store = get_vector_store_for_kb(kb_name, embeddings=emb)
         docs = store.similarity_search(query, k=settings.retrieval.top_k)
     except Exception as exc:
         logger.error(
             "tool_search_failed",
             {
                 "query": query[:200],
+                "kb_name": kb_name,
                 "error_type": type(exc).__name__,
                 "error": str(exc),
             },

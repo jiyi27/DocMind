@@ -52,8 +52,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Group Python imports properly (Standard library -> Third-party -> Local `docmind.*` modules).
 - Understand the custom LangGraph state-machine behavior before altering `docmind/ingestion/` nodes.
 - When adding or changing config/default values, keep `.env`, `.env.example`, and the startup validation path consistent so missing values fail fast instead of silently falling back.
+- When changing KB embedding persistence or lookup behavior, keep `GET /kb/embedding-options` and the create/edit KB UX aligned so provider-specific requirements stay consistent across backend and frontend.
 - Display API errors using Element Plus notifications (`ElMessage`) on the frontend.
-- Check `.env.example` to ensure required embedding and LLM API keys are present in `.env`.
+- Check `.env.example` to ensure required runtime settings and API keys are present in `.env`.
 - If code is modified, provide a concise English git commit message at the end of the response.
 
 ## Verification Strategy

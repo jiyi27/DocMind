@@ -15,7 +15,7 @@ from qdrant_client.http.models import Distance, VectorParams
 
 from docmind.core.config import settings
 from docmind.core import logger
-from docmind.core.embedding import get_embedding_model
+from docmind.core.embedding import EmbeddingParams, get_embedding_model
 from docmind.core.exceptions import VectorStoreError
 
 _DISTANCE = Distance.COSINE
@@ -88,14 +88,13 @@ def _ensure_collection(client: QdrantClient, col: str, embeddings: Embeddings) -
             "collection": col,
             "vector_size": vector_size,
             "distance": str(_DISTANCE),
-            "embedding_model": settings.embedding.model,
         },
     )
 
 
 def get_vector_store_for_kb(
     kb_name: str,
-    embeddings: Embeddings | None = None,
+    embeddings: Embeddings,
 ) -> QdrantVectorStore:
     """Return a cached QdrantVectorStore for the given knowledge base slug.
 
@@ -107,17 +106,45 @@ def get_vector_store_for_kb(
     )
 
 
-async def create_kb_collection(kb_name: str) -> None:
+async def create_kb_collection(
+    kb_name: str, embedding_params: EmbeddingParams | None = None
+) -> int:
     """Create a Qdrant collection for a new knowledge base.
 
     Called when a knowledge base is created via POST /kb.
-    Raises VectorStoreError if the collection already exists or Qdrant is unreachable.
+    Returns the probed vector dimension so the caller can persist it to the DB.
+    Raises VectorStoreError if Qdrant is unreachable.
     """
     col = kb_collection_name(kb_name)
     try:
-        emb = get_embedding_model()
+        emb = get_embedding_model(embedding_params)
         client = QdrantClient(url=settings.qdrant.url)
-        _ensure_collection(client, col, emb)
+        existing = {c.name for c in client.get_collections().collections}
+        if col not in existing:
+            vector_size = _probe_vector_size(emb)
+            client.create_collection(
+                collection_name=col,
+                vectors_config=VectorParams(size=vector_size, distance=_DISTANCE),
+            )
+            logger.info(
+                "vectorstore_collection_created",
+                {
+                    "qdrant_url": settings.qdrant.url,
+                    "collection": col,
+                    "vector_size": vector_size,
+                    "distance": str(_DISTANCE),
+                },
+            )
+            return vector_size
+        else:
+            logger.debug(
+                "vectorstore_collection_exists",
+                {"qdrant_url": settings.qdrant.url, "collection": col},
+            )
+            # Probe dimension from existing collection
+            info = client.get_collection(col)
+            size = info.config.params.vectors.size  # type: ignore[union-attr]
+            return int(size)
     except VectorStoreError:
         raise
     except Exception as exc:
@@ -255,7 +282,7 @@ def delete_documents_by_doc_id(kb_name: str, doc_id: str) -> None:
 
 
 def get_vector_store(
-    embeddings: Embeddings | None = None,
+    embeddings: Embeddings,
     collection: str | None = None,
 ) -> QdrantVectorStore:
     """Build or return a cached QdrantVectorStore instance.
@@ -265,7 +292,7 @@ def get_vector_store(
     Parameters
     ----------
     embeddings:
-        Optional override for the embedding model. Defaults to the global Ollama config.
+        Embedding model instance for this vector collection.
     collection:
         Optional override for the Qdrant collection name. Defaults to env config.
 
@@ -277,20 +304,20 @@ def get_vector_store(
     col = collection or settings.qdrant.collection
     cache_key = col
 
-    # Fast path — already cached
+    # Fast path — already cached (KB embedding model is immutable after creation)
     cached = _store_cache.get(cache_key)
-    if cached is not None and embeddings is None:
+    if cached is not None:
         return cached
 
     # Without locking, concurrent threads could all miss the cache and redundantly
     # create multiple instances, causing unnecessary Qdrant connections.
     with _lock:
         # Double-check after acquiring lock
-        if cache_key in _store_cache and embeddings is None:
+        if cache_key in _store_cache:
             return _store_cache[cache_key]
 
         try:
-            emb = embeddings or get_embedding_model()
+            emb = embeddings
             client = QdrantClient(url=settings.qdrant.url)
             _ensure_collection(client, col, emb)
 
@@ -316,15 +343,13 @@ def get_vector_store(
                 f"(collection={col!r}): {exc}"
             ) from exc
 
-        if embeddings is None:
-            _store_cache[cache_key] = store
+        _store_cache[cache_key] = store
 
         logger.debug(
             "vectorstore_connected",
             {
                 "qdrant_url": settings.qdrant.url,
                 "collection": col,
-                "cached": embeddings is None,
             },
         )
         return store
