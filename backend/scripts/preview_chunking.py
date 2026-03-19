@@ -59,7 +59,7 @@ def _print_documents(documents: list[Document]) -> None:
         print()
 
 
-def _print_chunks(chunks: list[Document]) -> None:
+def _print_chunks(chunks: list[Document], show_metadata: bool = False) -> None:
     print(SECTION_LINE)
     print(f"Generated chunks: {len(chunks)}")
     print(SECTION_LINE)
@@ -69,9 +69,9 @@ def _print_chunks(chunks: list[Document]) -> None:
             f"[Chunk {index}/{len(chunks)}] length={len(chunk.page_content)} "
             f"chunk_type={chunk.metadata.get('chunk_type', 'text')}"
         )
-        print("metadata:")
-        print(_format_metadata(chunk))
-        print("content:")
+        if show_metadata:
+            print("metadata:")
+            print(_format_metadata(chunk))
         print(chunk.page_content.strip())
         print(SUBSECTION_LINE)
 
@@ -122,6 +122,11 @@ def main() -> None:
         action="store_true",
         help="Print the raw loaded documents before chunking.",
     )
+    parser.add_argument(
+        "--show-metadata",
+        action="store_true",
+        help="Print chunk metadata alongside content. Off by default.",
+    )
 
     args = parser.parse_args()
 
@@ -163,7 +168,7 @@ def main() -> None:
 
         result = split_text_node({**state, **loaded})
         chunks = result["chunks"]
-        _print_chunks(chunks)
+        _print_chunks(chunks, show_metadata=args.show_metadata)
     except Exception as exc:
         print(
             f"Error: preview failed - {type(exc).__name__}: {exc}",

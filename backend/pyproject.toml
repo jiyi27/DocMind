@@ -16,6 +16,7 @@ dependencies = [
     "ollama>=0.6.1",
     "pwdlib[argon2]>=0.3.0",
     "pyjwt>=2.12.0",
+    "pymupdf4llm>=0.0.17",
     "pypdf>=6.8.0",
     "pytest>=9.0.2",
     "python-dotenv>=1.2.2",

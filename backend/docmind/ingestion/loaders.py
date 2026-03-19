@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pymupdf4llm
 from langchain_core.documents import Document
-from langchain_community.document_loaders import PyPDFLoader
 
 from docmind.core import logger
 from docmind.core.exceptions import DocumentError
@@ -16,32 +16,38 @@ UnsupportedFileTypeError = DocumentError
 
 
 def load_pdf(file_path: str | Path) -> list[Document]:
-    """Load a PDF file and return a list of Documents (one per page).
+    """Load a PDF file and return a single Markdown Document via pymupdf4llm.
 
-    Each page becomes a separate Document with metadata["page"] = page index.
-    A 10-page PDF yields 10 Documents.
+    pymupdf4llm converts PDF layout (fonts, headings, tables) into structured
+    Markdown, preserving heading hierarchy so the Markdown splitter can produce
+    semantically coherent chunks — much better than plain-text extraction.
 
     Raises
     ------
     DocumentLoadError
         If the PDF is corrupted or cannot be parsed.
     """
+    path = Path(file_path)
     try:
-        loader = PyPDFLoader(str(file_path))
-        docs = loader.load()
+        md_text = pymupdf4llm.to_markdown(str(path))
         logger.debug(
             "loader_pdf_success",
             {
-                "file_path": str(file_path),
-                "page_count": len(docs),
+                "file_path": str(path),
+                "content_length": len(md_text),
             },
         )
-        return docs
+        return [
+            Document(
+                page_content=md_text,
+                metadata={"source": str(path), "file_name": path.name},
+            )
+        ]
     except Exception as exc:
         logger.error(
             "loader_pdf_failed",
             {
-                "file_path": str(file_path),
+                "file_path": str(path),
                 "error_type": type(exc).__name__,
                 "error": str(exc),
             },

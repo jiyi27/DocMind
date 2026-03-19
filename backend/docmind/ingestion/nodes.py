@@ -401,20 +401,14 @@ def split_text_node(state: IngestionState) -> dict:
         final_chunks = []
 
         for doc in state["documents"]:
-            file_name = doc.metadata.get("file_name", "")
-            is_md = file_name.lower().endswith(".md") or file_name.lower().endswith(
-                ".markdown"
+            # PDFs are now converted to Markdown by pymupdf4llm at load time,
+            # so all supported formats go through the Markdown splitter which
+            # understands headings, tables, code blocks, and blockquotes.
+            final_chunks.extend(
+                _custom_split_markdown(
+                    doc, target_size, max_size, chunk_overlap, strict_mode
+                )
             )
-            if is_md:
-                final_chunks.extend(
-                    _custom_split_markdown(
-                        doc, target_size, max_size, chunk_overlap, strict_mode
-                    )
-                )
-            else:
-                final_chunks.extend(
-                    _split_pdf(doc, target_size, max_size, chunk_overlap, strict_mode)
-                )
 
     except Exception as exc:
         logger.error(
