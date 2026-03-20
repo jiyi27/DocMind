@@ -43,6 +43,6 @@ META_URL: Final = "url"
 # ---------------------------------------------------------------------------
 
 CHUNK_TYPE_TEXT: Final = "text"
-CHUNK_TYPE_CODE_MIXED: Final = "code_mixed"
+CHUNK_TYPE_CODE_BLOCK: Final = "code_block"
 CHUNK_TYPE_IMAGE: Final = "image"
 CHUNK_TYPE_FULL_DOC: Final = "full_doc"

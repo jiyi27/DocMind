@@ -11,7 +11,7 @@ from docmind.core.config import settings
 from docmind.core import logger
 from docmind.core.llm import get_llm
 from docmind.core.metadata import (
-    CHUNK_TYPE_CODE_MIXED,
+    CHUNK_TYPE_CODE_BLOCK,
     CHUNK_TYPE_IMAGE,
     CHUNK_TYPE_TEXT,
     DEFAULT_RETRIEVAL_MODE,
@@ -560,7 +560,7 @@ def summarize_code_node(state: IngestionState) -> dict:
 
         if has_summarized_code:
             chunk.page_content = new_text
-            chunk.metadata[META_CHUNK_TYPE] = CHUNK_TYPE_CODE_MIXED
+            chunk.metadata[META_CHUNK_TYPE] = CHUNK_TYPE_CODE_BLOCK
             chunk.metadata[META_ORIGINAL_CONTENT] = text
         else:
             if META_CHUNK_TYPE not in chunk.metadata:

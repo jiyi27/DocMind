@@ -10,48 +10,12 @@ from langchain_core.messages import AnyMessage, HumanMessage
 from docmind.core import logger
 from docmind.core.config import settings
 from docmind.core.llm import get_llm
-from docmind.core.metadata import (
-    CHUNK_TYPE_CODE_MIXED,
-    CHUNK_TYPE_IMAGE,
-    DEFAULT_RETRIEVAL_MODE,
-    META_CHUNK_TYPE,
-    META_DOC_ID,
-    META_FILE_NAME,
-    META_FILE_PATH,
-    META_IMAGE_URL,
-    META_ORIGINAL_CONTENT,
-    META_RETRIEVAL_MODE,
-    META_SOURCE,
-    META_TITLE,
-    META_URL,
-    RETRIEVAL_MODE_FULL_DOC,
-)
-from docmind.ingestion.loaders import load_document
 from docmind.retrieval.context import ContextItem
 from docmind.retrieval.prompts import rag_prompt
+from docmind.retrieval.resolvers import FullDocResolver, _build_source_label, get_resolver
 from docmind.retrieval.state import RAGState
 from docmind.core.embedding import get_embedding_for_kb
 from docmind.vectorstore.qdrant_store import get_vector_store_for_kb
-
-
-def _load_full_text(file_path: str) -> str:
-    """Load a document from disk and return its full text content.
-
-    For PDFs this joins all pages; for Markdown this returns the single document.
-    """
-    docs = load_document(file_path)
-    return "\n\n".join(d.page_content for d in docs)
-
-
-def _build_source_label(index: int, title: str, url: str) -> str:
-    """Format a single citation line from index, title, and URL."""
-    if url and title:
-        return f"[{index}] [{title}]({url})"
-    if url:
-        return f"[{index}] [{url}]({url})"
-    if title:
-        return f"[{index}] {title}"
-    return f"[{index}] unknown source"
 
 
 def _resolve_chunk(
@@ -64,100 +28,25 @@ def _resolve_chunk(
     max_full_docs: int,
     kb_name: str,
 ) -> tuple[ContextItem | None, int]:
-    """Convert one Qdrant result into a ContextItem.
+    """Convert one Qdrant result into a ContextItem via resolver dispatch.
 
-    Handles three retrieval scenarios:
-    - full_doc  : load and truncate the original file from disk
-    - code_mixed: restore original source code from metadata
-    - text/other: use the indexed page_content directly
-
-    Returns ``(item, updated_full_doc_count)``.  Returns ``(None, count)``
+    Returns ``(item, updated_full_doc_count)``. Returns ``(None, count)``
     when the doc should be skipped (duplicate full_doc, missing file_path, etc.).
     """
-    meta = doc.metadata or {}
-    retrieval_mode = meta.get(META_RETRIEVAL_MODE, DEFAULT_RETRIEVAL_MODE)
-    title = (
-        meta.get(META_TITLE) or meta.get(META_FILE_NAME) or meta.get(META_SOURCE, "")
-    )
-    url = meta.get(META_URL, "")
-    source_label = _build_source_label(index, title, url)
+    resolver = get_resolver(doc.metadata or {})
 
-    if retrieval_mode == RETRIEVAL_MODE_FULL_DOC:
-        doc_id = meta.get(META_DOC_ID, "")
-
-        if doc_id in seen_full_doc_ids:
-            return None, full_doc_count
-        if full_doc_count >= max_full_docs:
-            return None, full_doc_count
-
-        file_path = meta.get(META_FILE_PATH, "")
-        if not file_path:
-            logger.warning(
-                "full_doc_missing_file_path",
-                {"doc_id": doc_id, "kb_name": kb_name},
-            )
-            return None, full_doc_count
-
-        try:
-            full_text = _load_full_text(file_path)
-        except Exception as exc:
-            logger.warning(
-                "full_doc_load_failed",
-                {"doc_id": doc_id, "file_path": file_path, "error": str(exc)},
-            )
-            return None, full_doc_count
-
-        if len(full_text) > max_full_doc_chars:
-            full_text = full_text[:max_full_doc_chars]
-
-        seen_full_doc_ids.add(doc_id)
-        return (
-            ContextItem(
-                index=index,
-                chunk_type="full_doc",
-                content=full_text,
-                title=title,
-                url=url,
-                source_label=source_label,
-            ),
-            full_doc_count + 1,
+    if isinstance(resolver, FullDocResolver):
+        return resolver.resolve(
+            index,
+            doc,
+            max_full_doc_chars=max_full_doc_chars,
+            seen_full_doc_ids=seen_full_doc_ids,
+            full_doc_count=full_doc_count,
+            max_full_docs=max_full_docs,
+            kb_name=kb_name,
         )
 
-    # Chunk retrieval modes — restore original content when available
-    chunk_type = meta.get(META_CHUNK_TYPE, "text")
-    if chunk_type == CHUNK_TYPE_CODE_MIXED and META_ORIGINAL_CONTENT in meta:
-        content = meta[META_ORIGINAL_CONTENT]
-        resolved_type: str = "code"
-    elif chunk_type == CHUNK_TYPE_IMAGE:
-        # Step 1: image chunks fall through as text (caption in page_content).
-        # image_url is recorded for Step 2 multimodal assembly.
-        return (
-            ContextItem(
-                index=index,
-                chunk_type="image",
-                content=doc.page_content,
-                image_url=meta.get(META_IMAGE_URL),
-                title=title,
-                url=url,
-                source_label=source_label,
-            ),
-            full_doc_count,
-        )
-    else:
-        content = doc.page_content
-        resolved_type = "text"
-
-    return (
-        ContextItem(
-            index=index,
-            chunk_type=resolved_type,  # type: ignore[arg-type]
-            content=content,
-            title=title,
-            url=url,
-            source_label=source_label,
-        ),
-        full_doc_count,
-    )
+    return resolver.resolve(index, doc), full_doc_count
 
 
 def _build_context_string(items: list[ContextItem]) -> str:
@@ -240,9 +129,8 @@ def generate_node(state: RAGState) -> dict:
     appends the current HumanMessage and invokes the LLM, then returns only the
     generated answer. Persistence is handled upstream by the chat router.
 
-    Step 1: uses the flat ``context`` string; image chunks are treated as text
-    (their captions are included in the context block).  Step 2 will assemble
-    multimodal message content using ``context_items`` directly.
+    Generation currently uses the flat ``context`` string only. Image chunks are
+    already represented by their summarized/OCR text in that context block.
     """
     try:
         llm = get_llm()
