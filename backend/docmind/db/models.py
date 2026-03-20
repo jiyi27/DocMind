@@ -91,7 +91,7 @@ CREATE TABLE IF NOT EXISTS chat_messages (
     session_id  TEXT NOT NULL REFERENCES chat_sessions(id) ON DELETE CASCADE,
     role        TEXT NOT NULL,
     content     TEXT NOT NULL,
-    sources_json TEXT DEFAULT '',
+    sources_json TEXT DEFAULT '[]',
     model_name  TEXT DEFAULT '',
     token_count INTEGER DEFAULT 0,
     created_at  TEXT NOT NULL

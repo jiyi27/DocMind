@@ -86,13 +86,15 @@ async def chat(
         prior_rows = all_rows[-max_msg:] if max_msg > 0 else all_rows
 
     # 2. Convert to LangChain messages and invoke RAG graph (outside DB context)
+    # Use asyncio.to_thread to avoid blocking the event loop with sync Qdrant IO.
     lc_history = _db_messages_to_lc(prior_rows)
-    result = rag_graph.invoke(
+    result = await asyncio.to_thread(
+        rag_graph.invoke,
         {
             "query": request.chat_input,
             "kb_name": current_user.kb_name,
             "messages": lc_history,
-        }
+        },
     )
 
     answer = result.get("answer", "")
@@ -190,8 +192,10 @@ async def chat_stream(
 
             lc_history = _db_messages_to_lc(prior_rows)
 
-            # ── 2. Retrieval (sync, fast) ─────────────────────────────────────
-            context, sources = retrieve(request.chat_input, current_user.kb_name)
+            # ── 2. Retrieval (sync Qdrant IO — offload to thread pool) ──────────
+            context, sources = await asyncio.to_thread(
+                retrieve, request.chat_input, current_user.kb_name
+            )
 
             # ── 3. Persist user message immediately ──────────────────────────
             async with get_db() as db:

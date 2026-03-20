@@ -565,7 +565,7 @@ class ChatMessageRepository:
         session_id: str,
         role: str,
         content: str,
-        sources_json: str = "",
+        sources_json: str = "[]",
         model_name: str = "",
         token_count: int = 0,
         message_id: str | None = None,

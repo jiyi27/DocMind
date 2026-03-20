@@ -7,7 +7,7 @@ Retrieval-mode and metadata-key constants have moved to
 from __future__ import annotations
 
 from docmind.core.metadata import (  # noqa: F401  (re-export)
-    CHUNK_TYPE_CODE_MIXED,
+    CHUNK_TYPE_CODE_BLOCK,
     CHUNK_TYPE_IMAGE,
     CHUNK_TYPE_TEXT,
     DEFAULT_RETRIEVAL_MODE,
