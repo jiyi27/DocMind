@@ -288,20 +288,9 @@ def get_vector_store(
     """Build or return a cached QdrantVectorStore instance.
 
     On first access the collection is checked and auto-created if missing.
-
-    Parameters
-    ----------
-    embeddings:
-        Embedding model instance for this vector collection.
-    collection:
-        Qdrant collection name. Must be provided — use ``kb_collection_name()``
-        to derive it from a KB slug. There is no global fallback.
-
-    Raises
-    ------
-    VectorStoreError
-        If the connection to Qdrant fails (e.g. server down).
     """
+    if not collection:
+        raise ValueError("collection name must be a non-empty string")
     col = collection
     cache_key = col
 
