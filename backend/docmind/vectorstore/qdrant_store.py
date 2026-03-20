@@ -283,7 +283,7 @@ def delete_documents_by_doc_id(kb_name: str, doc_id: str) -> None:
 
 def get_vector_store(
     embeddings: Embeddings,
-    collection: str | None = None,
+    collection: str,
 ) -> QdrantVectorStore:
     """Build or return a cached QdrantVectorStore instance.
 
@@ -294,14 +294,15 @@ def get_vector_store(
     embeddings:
         Embedding model instance for this vector collection.
     collection:
-        Optional override for the Qdrant collection name. Defaults to env config.
+        Qdrant collection name. Must be provided — use ``kb_collection_name()``
+        to derive it from a KB slug. There is no global fallback.
 
     Raises
     ------
     VectorStoreError
         If the connection to Qdrant fails (e.g. server down).
     """
-    col = collection or settings.qdrant.collection
+    col = collection
     cache_key = col
 
     # Fast path — already cached (KB embedding model is immutable after creation)
