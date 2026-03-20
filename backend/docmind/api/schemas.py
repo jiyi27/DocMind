@@ -82,6 +82,23 @@ class ChatMessageCreate(BaseModel):
     token_count: int = 0
 
 
+class SearchRequest(BaseModel):
+    query: str = Field(..., description="Search query string")
+    kb_name: str = Field(..., alias="kbName", description="Knowledge base slug to search in")
+    top_k: int = Field(default=5, alias="topK", ge=1, le=50, description="Number of results to return")
+
+
+class SearchResultItem(BaseModel):
+    title: str
+    url: str
+    source_label: str = Field(alias="sourceLabel")
+    score: float
+
+
+class SearchResponse(BaseModel):
+    results: list[SearchResultItem]
+
+
 class DocumentListItem(BaseModel):
     id: str
     user_id: str

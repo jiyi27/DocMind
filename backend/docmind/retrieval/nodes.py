@@ -160,6 +160,61 @@ def retrieve(query: str, kb_name: str) -> tuple[str, list[str]]:
     return result["context"], result["sources"]
 
 
+def retrieve_with_items(
+    query: str, kb_name: str, top_k: int | None = None
+) -> tuple[list[ContextItem], list[float]]:
+    """Run retrieval and return (context_items, scores).
+
+    Used by the /search endpoint to expose raw retrieval results without
+    LLM generation. Accepts an optional top_k override for the caller to
+    control result count independently of the global setting.
+    """
+    emb = get_embedding_for_kb(kb_name)
+    store = get_vector_store_for_kb(kb_name, embeddings=emb)
+    k = top_k if top_k is not None else settings.retrieval.top_k
+    results = store.similarity_search_with_score(query, k=k)
+
+    max_full_docs = settings.retrieval.max_full_docs
+    max_full_doc_chars = settings.retrieval.max_full_doc_chars
+
+    context_items: list[ContextItem] = []
+    scores: list[float] = []
+    seen_full_doc_ids: set[str] = set()
+    full_doc_count = 0
+
+    for i, (doc, score) in enumerate(results, 1):
+        resolver = get_resolver(doc.metadata or {})
+
+        if isinstance(resolver, FullDocResolver):
+            result = resolver.resolve(
+                i,
+                doc,
+                max_full_doc_chars=max_full_doc_chars,
+                seen_full_doc_ids=seen_full_doc_ids,
+                full_doc_count=full_doc_count,
+                max_full_docs=max_full_docs,
+                kb_name=kb_name,
+            )
+        else:
+            result = resolver.resolve(i, doc)
+
+        if result.action == ResolveAction.STOP:
+            break
+
+        if result.action == ResolveAction.INCLUDE:
+            context_items.append(result.item)
+            scores.append(score)
+            if isinstance(resolver, FullDocResolver):
+                full_doc_count += 1
+
+    for pos, item in enumerate(context_items, 1):
+        if item.index != pos:
+            item.index = pos
+            item.source_label = _build_source_label(pos, item.title, item.url)
+
+    return context_items, scores
+
+
 async def stream_generate(
     query: str,
     context: str,
