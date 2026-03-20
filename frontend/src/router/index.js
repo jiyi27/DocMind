@@ -44,6 +44,11 @@ const routes = [
         path: 'document/:id',
         name: 'DocumentDetail',
         component: () => import('../views/DocumentDetailView.vue'),
+      },
+      {
+        path: 'search',
+        name: 'Search',
+        component: () => import('../views/SearchView.vue'),
       }
     ]
   }

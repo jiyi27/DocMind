@@ -47,7 +47,7 @@
 import { computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
-import { Reading, ArrowDown, SwitchButton } from '@element-plus/icons-vue'
+import { Reading, ArrowDown, SwitchButton, Search } from '@element-plus/icons-vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -59,6 +59,7 @@ const isSuperAdmin = computed(() => authStore.user?.role === 'super_admin')
 const navItems = [
   { name: 'Chat', label: 'Chat', to: '/chat' },
   { name: 'Dashboard', label: 'Knowledge Base', to: '/' },
+  { name: 'Search', label: 'Search', to: '/search' },
   { name: 'UserProfile', label: 'Profile', to: '/profile' }
 ]
 
