@@ -97,9 +97,7 @@ def _build_embedding_params(body: "EmbeddingOverride") -> EmbeddingParams:
 
 def _serialize_kb(kb: dict) -> dict:
     """Hide sensitive values and expose frontend-friendly embedding metadata."""
-    return {
-        k: v for k, v in kb.items() if k != "embedding_api_key"
-    } | {
+    return {k: v for k, v in kb.items() if k != "embedding_api_key"} | {
         "embedding_api_key_configured": bool(kb.get("embedding_api_key")),
         "embedding_base_url_source": (
             "custom" if kb.get("embedding_base_url") else "default"
@@ -208,7 +206,9 @@ async def get_knowledge_base(kb_id: str):
         total_points = await doc_repo.sum_chunk_count_by_kb(kb_id)
 
     safe_kb = _serialize_kb(kb)
-    return ok(data={**safe_kb, "document_count": len(docs), "total_points": total_points})
+    return ok(
+        data={**safe_kb, "document_count": len(docs), "total_points": total_points}
+    )
 
 
 # ---------------------------------------------------------------------------

@@ -10,7 +10,23 @@ from langchain_core.documents import Document
 from docmind.core.config import settings
 from docmind.core import logger
 from docmind.core.llm import get_llm
-from docmind.ingestion.constants import DEFAULT_RETRIEVAL_MODE, DEFAULT_STRICT_MODE
+from docmind.core.metadata import (
+    CHUNK_TYPE_CODE_MIXED,
+    CHUNK_TYPE_IMAGE,
+    CHUNK_TYPE_TEXT,
+    DEFAULT_RETRIEVAL_MODE,
+    DEFAULT_STRICT_MODE,
+    META_ALT_TEXT,
+    META_CHUNK_TYPE,
+    META_DOC_ID,
+    META_FILE_PATH,
+    META_IMAGE_URL,
+    META_KB_NAME,
+    META_ORIGINAL_CONTENT,
+    META_RETRIEVAL_MODE,
+    META_USER_ID,
+    RETRIEVAL_MODE_FULL_DOC,
+)
 from docmind.ingestion.loaders import load_document
 from docmind.ingestion.state import IngestionState
 from docmind.ingestion.prompts import code_summarization_prompt
@@ -101,13 +117,13 @@ def load_document_node(state: IngestionState) -> dict:
     file_path = state.get("file_path", "")
     for doc in docs:
         doc.metadata.update(metadata)
-        doc.metadata["doc_id"] = doc_id
-        doc.metadata["user_id"] = user_id
-        doc.metadata["kb_name"] = kb_name
-        doc.metadata["retrieval_mode"] = retrieval_mode
+        doc.metadata[META_DOC_ID] = doc_id
+        doc.metadata[META_USER_ID] = user_id
+        doc.metadata[META_KB_NAME] = kb_name
+        doc.metadata[META_RETRIEVAL_MODE] = retrieval_mode
         # Stored so retrieve_node can re-read the full file for full_doc mode.
-        if retrieval_mode == "full_doc":
-            doc.metadata["file_path"] = file_path
+        if retrieval_mode == RETRIEVAL_MODE_FULL_DOC:
+            doc.metadata[META_FILE_PATH] = file_path
 
     return {"documents": docs}
 
@@ -335,9 +351,9 @@ def _custom_split_markdown(
                 metadata={
                     **base_meta,
                     **current_headers,
-                    "chunk_type": "image",
-                    "image_url": url,
-                    "alt_text": alt,
+                    META_CHUNK_TYPE: CHUNK_TYPE_IMAGE,
+                    META_IMAGE_URL: url,
+                    META_ALT_TEXT: alt,
                 },
             )
         )
@@ -544,11 +560,11 @@ def summarize_code_node(state: IngestionState) -> dict:
 
         if has_summarized_code:
             chunk.page_content = new_text
-            chunk.metadata["chunk_type"] = "code_mixed"
-            chunk.metadata["original_content"] = text
+            chunk.metadata[META_CHUNK_TYPE] = CHUNK_TYPE_CODE_MIXED
+            chunk.metadata[META_ORIGINAL_CONTENT] = text
         else:
-            if "chunk_type" not in chunk.metadata:
-                chunk.metadata["chunk_type"] = "text"
+            if META_CHUNK_TYPE not in chunk.metadata:
+                chunk.metadata[META_CHUNK_TYPE] = CHUNK_TYPE_TEXT
 
         processed_chunks.append(chunk)
 

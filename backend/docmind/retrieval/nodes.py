@@ -10,7 +10,22 @@ from langchain_core.messages import AnyMessage, HumanMessage
 from docmind.core import logger
 from docmind.core.config import settings
 from docmind.core.llm import get_llm
-from docmind.ingestion.constants import DEFAULT_RETRIEVAL_MODE
+from docmind.core.metadata import (
+    CHUNK_TYPE_CODE_MIXED,
+    CHUNK_TYPE_IMAGE,
+    DEFAULT_RETRIEVAL_MODE,
+    META_CHUNK_TYPE,
+    META_DOC_ID,
+    META_FILE_NAME,
+    META_FILE_PATH,
+    META_IMAGE_URL,
+    META_ORIGINAL_CONTENT,
+    META_RETRIEVAL_MODE,
+    META_SOURCE,
+    META_TITLE,
+    META_URL,
+    RETRIEVAL_MODE_FULL_DOC,
+)
 from docmind.ingestion.loaders import load_document
 from docmind.retrieval.context import ContextItem
 from docmind.retrieval.prompts import rag_prompt
@@ -60,20 +75,22 @@ def _resolve_chunk(
     when the doc should be skipped (duplicate full_doc, missing file_path, etc.).
     """
     meta = doc.metadata or {}
-    retrieval_mode = meta.get("retrieval_mode", DEFAULT_RETRIEVAL_MODE)
-    title = meta.get("title") or meta.get("file_name") or meta.get("source", "")
-    url = meta.get("url", "")
+    retrieval_mode = meta.get(META_RETRIEVAL_MODE, DEFAULT_RETRIEVAL_MODE)
+    title = (
+        meta.get(META_TITLE) or meta.get(META_FILE_NAME) or meta.get(META_SOURCE, "")
+    )
+    url = meta.get(META_URL, "")
     source_label = _build_source_label(index, title, url)
 
-    if retrieval_mode == "full_doc":
-        doc_id = meta.get("doc_id", "")
+    if retrieval_mode == RETRIEVAL_MODE_FULL_DOC:
+        doc_id = meta.get(META_DOC_ID, "")
 
         if doc_id in seen_full_doc_ids:
             return None, full_doc_count
         if full_doc_count >= max_full_docs:
             return None, full_doc_count
 
-        file_path = meta.get("file_path", "")
+        file_path = meta.get(META_FILE_PATH, "")
         if not file_path:
             logger.warning(
                 "full_doc_missing_file_path",
@@ -107,11 +124,11 @@ def _resolve_chunk(
         )
 
     # Chunk retrieval modes — restore original content when available
-    chunk_type = meta.get("chunk_type", "text")
-    if chunk_type == "code_mixed" and "original_content" in meta:
-        content = meta["original_content"]
+    chunk_type = meta.get(META_CHUNK_TYPE, "text")
+    if chunk_type == CHUNK_TYPE_CODE_MIXED and META_ORIGINAL_CONTENT in meta:
+        content = meta[META_ORIGINAL_CONTENT]
         resolved_type: str = "code"
-    elif chunk_type == "image":
+    elif chunk_type == CHUNK_TYPE_IMAGE:
         # Step 1: image chunks fall through as text (caption in page_content).
         # image_url is recorded for Step 2 multimodal assembly.
         return (
@@ -119,7 +136,7 @@ def _resolve_chunk(
                 index=index,
                 chunk_type="image",
                 content=doc.page_content,
-                image_url=meta.get("image_url"),
+                image_url=meta.get(META_IMAGE_URL),
                 title=title,
                 url=url,
                 source_label=source_label,
