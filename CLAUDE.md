@@ -41,6 +41,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Frontend Naming**: Component files must use `PascalCase` (e.g., `ChatMain.vue`).
 - **Frontend Styling**: Prefer Tailwind CSS utility classes over custom CSS/SCSS blocks.
 
+## Frontend UI Pitfalls
+- Prevent width flicker when content switches between non-scroll and scroll states; centered blocks can appear to "shrink" when the vertical scrollbar appears.
+- In app-shell containers, prefer `overflow-y: scroll` plus `scrollbar-gutter: stable` over `overflow-y: auto`.
+- For large centered sections, set `width: 100%` and `box-sizing: border-box` on the outer wrapper.
+
 ## Safety Rails
 
 ### NEVER

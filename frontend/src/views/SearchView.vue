@@ -1,117 +1,144 @@
 <template>
   <div class="search-page">
-    <!-- Header -->
-    <div class="page-header">
-      <h1 class="page-title">
-        <el-icon class="title-icon"><Search /></el-icon>
-        Document Search
-      </h1>
-      <p class="page-desc">Search across your knowledge base using semantic similarity</p>
-    </div>
+    <section class="search-hero">
+      <div class="hero-panel">
+        <div class="search-bar-wrap">
+          <el-input
+            v-model="query"
+            class="search-input"
+            size="large"
+            placeholder="Ask a question or search by topic..."
+            clearable
+            @keyup.enter="doSearch"
+          >
+            <template #prefix>
+              <el-icon><Search /></el-icon>
+            </template>
+          </el-input>
+          <el-button
+            type="primary"
+            size="large"
+            class="search-button"
+            :loading="isLoading"
+            :disabled="!query.trim() || !selectedKbName"
+            @click="doSearch"
+          >
+            Search
+          </el-button>
+        </div>
 
-    <!-- Search Bar -->
-    <div class="search-bar-wrap">
-      <el-input
-        v-model="query"
-        class="search-input"
-        size="large"
-        placeholder="Enter your query..."
-        clearable
-        @keyup.enter="doSearch"
-      >
-        <template #prefix>
-          <el-icon><Search /></el-icon>
-        </template>
-      </el-input>
-      <el-button
-        type="primary"
-        size="large"
-        :loading="loading"
-        :disabled="!query.trim() || !selectedKbName"
-        @click="doSearch"
-      >
-        Search
-      </el-button>
-    </div>
+        <div class="toolbar-row">
+          <div class="filter-item filter-item-wide">
+            <span class="filter-label">Knowledge Base</span>
+            <el-select
+              v-model="selectedKbName"
+              class="toolbar-select"
+              placeholder="Select a knowledge base"
+              :loading="kbStore.loading"
+            >
+              <el-option
+                v-for="kb in kbStore.kbList"
+                :key="kb.id"
+                :label="kb.display_name || kb.name"
+                :value="kb.name"
+              />
+            </el-select>
+          </div>
 
-    <!-- Filters -->
-    <div class="filter-row">
-      <div class="filter-item">
-        <span class="filter-label">Knowledge Base</span>
-        <el-select
-          v-model="selectedKbName"
-          placeholder="Select a knowledge base"
-          style="width: 220px"
-          :loading="kbStore.loading"
-        >
-          <el-option
-            v-for="kb in kbStore.kbList"
-            :key="kb.id"
-            :label="kb.display_name || kb.name"
-            :value="kb.name"
-          />
-        </el-select>
+          <div class="filter-item">
+            <span class="filter-label">Max Results</span>
+            <el-select v-model="topK" class="compact-select" @change="handleTopKChange">
+              <el-option v-for="n in topKOptions" :key="n" :label="n" :value="n" />
+            </el-select>
+          </div>
+
+          <div class="toolbar-note">
+            <span v-if="selectedKbLabel">Current KB: {{ selectedKbLabel }}</span>
+            <span v-else>Select a knowledge base to start searching.</span>
+          </div>
+        </div>
+
+        <div v-if="state === 'idle'" class="suggestion-row">
+          <button
+            v-for="suggestion in suggestions"
+            :key="suggestion"
+            type="button"
+            class="suggestion-chip"
+            @click="applySuggestion(suggestion)"
+          >
+            {{ suggestion }}
+          </button>
+        </div>
       </div>
-      <div class="filter-item">
-        <span class="filter-label">Results per page</span>
-        <el-select v-model="topK" style="width: 100px" @change="handleTopKChange">
-          <el-option v-for="n in topKOptions" :key="n" :label="n" :value="n" />
-        </el-select>
-      </div>
-    </div>
+    </section>
 
-    <!-- Results -->
-    <div class="results-wrap">
-      <!-- Idle state -->
+    <section class="results-wrap">
       <div v-if="state === 'idle'" class="idle-state">
-        <el-icon class="idle-icon"><DocumentCopy /></el-icon>
-        <p>Enter a query above to search your knowledge base</p>
+        <div class="idle-card">
+          <el-icon class="idle-icon"><DocumentCopy /></el-icon>
+          <h2>Start with a question, not a page number</h2>
+          <p>
+            Search works best when you describe a topic, a policy, or a concrete problem you want
+            to find in your documents.
+          </p>
+        </div>
       </div>
 
-      <!-- Loading skeleton -->
       <template v-else-if="state === 'loading'">
-        <el-skeleton v-for="i in 3" :key="i" class="result-skeleton" animated>
+        <el-skeleton v-for="i in 4" :key="i" class="result-skeleton" animated>
           <template #template>
             <div class="skeleton-card">
-              <el-skeleton-item variant="circle" style="width: 32px; height: 32px; flex-shrink: 0" />
+              <el-skeleton-item variant="circle" style="width: 40px; height: 40px; flex-shrink: 0" />
               <div style="flex: 1">
-                <el-skeleton-item variant="h3" style="width: 55%" />
-                <el-skeleton-item variant="text" style="width: 35%; margin-top: 8px" />
+                <el-skeleton-item variant="h3" style="width: 48%" />
+                <el-skeleton-item variant="text" style="width: 76%; margin-top: 12px" />
+                <el-skeleton-item variant="text" style="width: 32%; margin-top: 10px" />
               </div>
-              <el-skeleton-item variant="button" style="width: 68px; height: 24px" />
+              <el-skeleton-item variant="button" style="width: 84px; height: 34px" />
             </div>
           </template>
         </el-skeleton>
       </template>
 
-      <!-- Empty results -->
-      <el-empty
-        v-else-if="state === 'empty'"
-        description="No matching documents found"
-        :image-size="80"
-      />
+      <div v-else-if="state === 'empty'" class="empty-state">
+        <el-empty description="No matching documents found" :image-size="92" />
+        <p class="empty-hint">
+          Try a broader query, switch to another knowledge base, or increase max results.
+        </p>
+      </div>
 
-      <!-- Results list -->
       <template v-else-if="state === 'results'">
         <div class="results-meta">
-          <span class="results-count">{{ allResults.length }} results found</span>
-          <span class="results-query">for <em>"{{ lastQuery }}"</em></span>
+          <div class="results-meta-main">
+            <span class="results-count">{{ allResults.length }} results</span>
+            <span class="results-query">for "{{ lastQuery }}"</span>
+          </div>
+          <div class="results-meta-side">
+            <el-tag size="small" type="info" effect="plain">{{ selectedKbLabel }}</el-tag>
+            <span class="results-hint">Scroll to review all matches</span>
+          </div>
         </div>
 
         <div class="result-list">
           <el-card
-            v-for="item in pagedResults"
+            v-for="(item, index) in allResults"
             :key="item.sourceLabel"
             class="result-card"
             shadow="never"
           >
             <div class="result-card-body">
-              <!-- Index badge -->
-              <div class="result-index">{{ item.index }}</div>
+              <div class="result-index">{{ index + 1 }}</div>
 
-              <!-- Main content -->
               <div class="result-content">
-                <div class="result-title">{{ item.title || item.sourceLabel }}</div>
+                <div class="result-head">
+                  <div class="result-title">{{ item.title || item.sourceLabel }}</div>
+                  <el-tag size="small" effect="plain" class="result-type-tag">
+                    {{ item.url ? 'Web source' : 'Local document' }}
+                  </el-tag>
+                </div>
+
+                <div class="result-source-label">{{ item.sourceLabel }}</div>
+
                 <div v-if="item.url" class="result-url">
                   <el-icon :size="12"><Link /></el-icon>
                   <a :href="item.url" target="_blank" rel="noopener noreferrer" class="url-link">
@@ -119,13 +146,12 @@
                   </a>
                 </div>
                 <div v-else class="result-local">
-                  <el-tag size="small" type="info" effect="plain">Local document</el-tag>
+                  Stored inside your current knowledge base.
                 </div>
               </div>
 
-              <!-- Score badge -->
               <div class="result-score-wrap">
-                <div class="score-label">Match</div>
+                <div class="score-label">Match Score</div>
                 <div class="score-value" :style="{ color: scoreColor(item.score) }">
                   {{ toPercent(item.score) }}
                 </div>
@@ -139,67 +165,63 @@
             </div>
           </el-card>
         </div>
-
-        <!-- Pagination -->
-        <div v-if="totalPages > 1" class="pagination-wrap">
-          <el-pagination
-            v-model:current-page="currentPage"
-            :page-size="topK"
-            :total="allResults.length"
-            layout="prev, pager, next"
-            background
-            @current-change="currentPage = $event"
-          />
-        </div>
       </template>
-    </div>
+    </section>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
-import { Search, Link, DocumentCopy } from '@element-plus/icons-vue'
+import { computed, onMounted, ref, watch } from 'vue'
+import { DocumentCopy, Link, Search } from '@element-plus/icons-vue'
 import { useKbStore } from '@/stores/kb'
+import { useAuthStore } from '@/stores/auth'
 import { searchDocuments } from '@/api/search'
 
 const kbStore = useKbStore()
+const authStore = useAuthStore()
 
-// ── Search state ──────────────────────────────────────────
 const query = ref('')
 const lastQuery = ref('')
 const selectedKbName = ref('')
-const topK = ref(5)
-const topKOptions = [3, 5, 10, 20]
-
-// 'idle' | 'loading' | 'results' | 'empty'
+const topK = ref(10)
+const topKOptions = [5, 10, 20, 30, 50]
 const state = ref('idle')
 const allResults = ref([])
 
-// ── Pagination ────────────────────────────────────────────
-const currentPage = ref(1)
-const totalPages = computed(() => Math.ceil(allResults.value.length / topK.value))
-const pagedResults = computed(() => {
-  const start = (currentPage.value - 1) * topK.value
-  return allResults.value.slice(start, start + topK.value).map((item, i) => ({
-    ...item,
-    index: start + i + 1,
-  }))
+const suggestions = [
+  'What are the latest onboarding steps?',
+  'Find documents about SQLite optimization',
+  'Where is the API error handling logic?',
+]
+
+const isLoading = computed(() => state.value === 'loading')
+const selectedKbLabel = computed(() => {
+  const selectedKb = kbStore.kbList.find((kb) => kb.name === selectedKbName.value)
+  return selectedKb ? selectedKb.display_name || selectedKb.name : ''
 })
 
-// ── Score helpers ─────────────────────────────────────────
 function toPercent(score) {
   return `${Math.round(score * 100)}%`
 }
 
 function scoreColor(score) {
-  if (score >= 0.75) return '#409eff'
-  if (score >= 0.5) return '#67c23a'
-  return '#909399'
+  if (score >= 0.75) return '#2563eb'
+  if (score >= 0.5) return '#059669'
+  return '#6b7280'
 }
 
-// ── Actions ───────────────────────────────────────────────
+function pickDefaultKb() {
+  if (selectedKbName.value || kbStore.kbList.length === 0) return
+
+  const ownedKb = kbStore.kbList.find((kb) => String(kb.id) === String(authStore.kbId))
+  selectedKbName.value = ownedKb?.name || kbStore.kbList[0]?.name || ''
+}
+
+function applySuggestion(suggestion) {
+  query.value = suggestion
+}
+
 function handleTopKChange() {
-  // When user changes top_k, re-run search if results are already showing
   if (state.value === 'results' || state.value === 'empty') {
     doSearch()
   }
@@ -210,7 +232,6 @@ async function doSearch() {
   if (!q || !selectedKbName.value) return
 
   state.value = 'loading'
-  currentPage.value = 1
   lastQuery.value = q
 
   try {
@@ -222,168 +243,256 @@ async function doSearch() {
     allResults.value = data.results ?? []
     state.value = allResults.value.length > 0 ? 'results' : 'empty'
   } catch {
-    // Error already shown by http interceptor
+    allResults.value = []
     state.value = 'idle'
   }
 }
 
-onMounted(() => {
+watch(
+  () => kbStore.kbList,
+  () => {
+    pickDefaultKb()
+  },
+  { deep: true }
+)
+
+onMounted(async () => {
   if (kbStore.kbList.length === 0) {
-    kbStore.fetchKbs()
+    await kbStore.fetchKbs()
   }
+  pickDefaultKb()
 })
 </script>
 
 <style scoped>
 .search-page {
-  max-width: 860px;
+  max-width: 1240px;
+  width: 100%;
   margin: 0 auto;
   padding: 8px 0 48px;
+  box-sizing: border-box;
 }
 
-/* Header */
-.page-header {
-  margin-bottom: 28px;
+.search-hero {
+  position: relative;
+  width: 100%;
+  box-sizing: border-box;
+  margin-bottom: 20px;
+  padding: 20px;
+  border-radius: 24px;
+  background:
+    radial-gradient(circle at top left, rgba(59, 130, 246, 0.16), transparent 34%),
+    radial-gradient(circle at top right, rgba(16, 185, 129, 0.12), transparent 28%),
+    linear-gradient(135deg, #ffffff 0%, #f7fbff 52%, #f3f8f7 100%);
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  box-shadow: 0 18px 50px rgba(15, 23, 42, 0.06);
 }
 
-.page-title {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 22px;
-  font-weight: 700;
-  color: #303133;
-  margin: 0 0 6px;
+.hero-panel {
+  padding: 18px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.88);
+  border: 1px solid rgba(226, 232, 240, 0.92);
+  backdrop-filter: blur(12px);
 }
 
-.title-icon {
-  font-size: 22px;
-  color: #409eff;
-}
-
-.page-desc {
-  margin: 0;
-  font-size: 14px;
-  color: #909399;
-}
-
-/* Search bar */
 .search-bar-wrap {
   display: flex;
-  gap: 12px;
-  margin-bottom: 16px;
+  gap: 14px;
+  margin-bottom: 18px;
 }
 
 .search-input {
   flex: 1;
 }
 
-/* Filters */
-.filter-row {
-  display: flex;
-  align-items: center;
-  gap: 24px;
-  margin-bottom: 32px;
-  flex-wrap: wrap;
+.search-button {
+  min-width: 132px;
+}
+
+.toolbar-row {
+  display: grid;
+  grid-template-columns: minmax(280px, 1.4fr) minmax(140px, 180px) minmax(220px, 1fr);
+  gap: 16px;
+  align-items: end;
 }
 
 .filter-item {
   display: flex;
-  align-items: center;
+  flex-direction: column;
   gap: 8px;
 }
 
-.filter-label {
-  font-size: 13px;
-  color: #606266;
-  white-space: nowrap;
+.filter-item-wide {
+  min-width: 0;
 }
 
-/* Idle state */
-.idle-state {
+.filter-label {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #64748b;
+}
+
+.toolbar-select,
+.compact-select {
+  width: 100%;
+}
+
+.toolbar-note {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  padding: 80px 0;
-  color: #c0c4cc;
-  gap: 16px;
+  min-height: 40px;
+  padding: 0 2px 2px;
+  font-size: 13px;
+  color: #475569;
+}
+
+.suggestion-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 18px;
+}
+
+.suggestion-chip {
+  border: none;
+  padding: 10px 14px;
+  border-radius: 999px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 13px;
+  cursor: pointer;
+  transition: transform 0.18s ease, background-color 0.18s ease, color 0.18s ease;
+}
+
+.suggestion-chip:hover {
+  background: #dbeafe;
+  color: #1e3a8a;
+  transform: translateY(-1px);
+}
+
+.results-wrap {
+  min-height: 320px;
+}
+
+.idle-state,
+.empty-state {
+  display: flex;
+  align-items: center;
+  padding: 0;
+}
+
+.idle-card {
+  width: 100%;
+  padding: 40px 32px;
+  text-align: center;
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 12px 34px rgba(15, 23, 42, 0.04);
+}
+
+.idle-card h2 {
+  margin: 0 0 10px;
+  font-size: 24px;
+  color: #0f172a;
+}
+
+.idle-card p,
+.empty-hint {
+  margin: 0;
   font-size: 14px;
+  line-height: 1.7;
+  color: #64748b;
 }
 
 .idle-icon {
-  font-size: 56px;
+  margin-bottom: 18px;
+  font-size: 52px;
+  color: #60a5fa;
 }
 
-/* Skeleton */
 .result-skeleton {
-  margin-bottom: 12px;
+  margin-bottom: 14px;
 }
 
 .skeleton-card {
   display: flex;
   align-items: center;
-  gap: 16px;
-  padding: 20px;
-  border: 1px solid #e4e7ed;
-  border-radius: 8px;
-  background: #fff;
+  gap: 18px;
+  padding: 24px;
+  border: 1px solid #e2e8f0;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.95);
 }
 
-/* Results meta */
 .results-meta {
   display: flex;
-  align-items: baseline;
-  gap: 6px;
-  margin-bottom: 16px;
-  font-size: 13px;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 18px;
+  padding: 0 4px;
+}
+
+.results-meta-main,
+.results-meta-side {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
 .results-count {
-  font-weight: 600;
-  color: #303133;
+  font-size: 18px;
+  font-weight: 700;
+  color: #0f172a;
 }
 
 .results-query {
-  color: #909399;
+  font-size: 14px;
+  color: #64748b;
 }
 
-.results-query em {
-  font-style: normal;
-  color: #606266;
+.results-hint {
+  font-size: 13px;
+  color: #64748b;
 }
 
-/* Result cards */
 .result-list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 14px;
 }
 
 .result-card {
-  border-radius: 8px;
-  border: 1px solid #e4e7ed;
-  transition: box-shadow 0.2s, border-color 0.2s;
+  border-radius: 20px;
+  border: 1px solid #e2e8f0;
+  background: rgba(255, 255, 255, 0.96);
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
 }
 
 .result-card:hover {
-  border-color: #c6d9ff;
-  box-shadow: 0 2px 12px rgba(64, 158, 255, 0.10);
+  border-color: rgba(59, 130, 246, 0.35);
+  transform: translateY(-1px);
+  box-shadow: 0 14px 32px rgba(37, 99, 235, 0.08);
 }
 
 .result-card-body {
   display: flex;
-  align-items: center;
-  gap: 16px;
+  align-items: flex-start;
+  gap: 18px;
 }
 
-/* Index badge */
 .result-index {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background-color: rgba(64, 158, 255, 0.1);
-  color: #409eff;
-  font-size: 13px;
+  width: 40px;
+  height: 40px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #dbeafe 0%, #eff6ff 100%);
+  color: #1d4ed8;
+  font-size: 14px;
   font-weight: 700;
   display: flex;
   align-items: center;
@@ -391,33 +500,50 @@ onMounted(() => {
   flex-shrink: 0;
 }
 
-/* Content */
 .result-content {
   flex: 1;
   min-width: 0;
 }
 
+.result-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
 .result-title {
-  font-size: 15px;
-  font-weight: 600;
-  color: #303133;
-  margin-bottom: 4px;
+  min-width: 0;
+  font-size: 17px;
+  font-weight: 700;
+  color: #0f172a;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
+.result-type-tag {
+  flex-shrink: 0;
+}
+
+.result-source-label {
+  margin-bottom: 10px;
+  font-size: 12px;
+  color: #64748b;
+}
+
 .result-url {
   display: flex;
   align-items: center;
-  gap: 4px;
-  font-size: 12px;
-  color: #909399;
+  gap: 6px;
+  font-size: 13px;
+  color: #64748b;
   overflow: hidden;
 }
 
 .url-link {
-  color: #409eff;
+  color: #2563eb;
   text-decoration: none;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -429,46 +555,101 @@ onMounted(() => {
 }
 
 .result-local {
-  margin-top: 2px;
+  font-size: 13px;
+  color: #64748b;
 }
 
-/* Score */
 .result-score-wrap {
+  width: 116px;
+  padding: 14px 14px 12px;
+  border-radius: 16px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
   flex-shrink: 0;
-  width: 72px;
-  text-align: center;
 }
 
 .score-label {
+  margin-bottom: 4px;
   font-size: 11px;
-  color: #909399;
-  margin-bottom: 2px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #64748b;
 }
 
 .score-value {
-  font-size: 18px;
-  font-weight: 700;
-  line-height: 1.2;
-  margin-bottom: 6px;
+  margin-bottom: 8px;
+  font-size: 24px;
+  font-weight: 800;
+  line-height: 1;
 }
 
 .score-bar-track {
-  height: 4px;
-  background-color: #f0f2f5;
-  border-radius: 2px;
+  height: 6px;
+  background: #e2e8f0;
+  border-radius: 999px;
   overflow: hidden;
 }
 
 .score-bar-fill {
   height: 100%;
-  border-radius: 2px;
-  transition: width 0.4s ease;
+  border-radius: 999px;
+  transition: width 0.35s ease;
 }
 
-/* Pagination */
-.pagination-wrap {
-  display: flex;
-  justify-content: center;
-  margin-top: 28px;
+@media (max-width: 960px) {
+  .search-hero {
+    padding: 16px;
+    border-radius: 24px;
+  }
+
+  .toolbar-row {
+    grid-template-columns: 1fr;
+  }
+
+  .toolbar-note {
+    min-height: auto;
+    padding-bottom: 0;
+  }
+
+  .result-card-body {
+    flex-direction: column;
+  }
+
+  .result-score-wrap {
+    width: 100%;
+  }
+}
+
+@media (max-width: 720px) {
+  .search-page {
+    padding-bottom: 32px;
+  }
+
+  .search-hero {
+    padding: 14px;
+  }
+
+  .hero-panel,
+  .idle-card {
+    padding: 18px;
+  }
+
+  .page-title {
+    font-size: 26px;
+  }
+
+  .search-bar-wrap {
+    flex-direction: column;
+  }
+
+  .search-button {
+    width: 100%;
+  }
+
+  .result-head {
+    flex-direction: column;
+    align-items: flex-start;
+  }
 }
 </style>
