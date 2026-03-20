@@ -1,21 +1,23 @@
 <template>
-  <div class="chat-layout">
-    <ChatSidebar
-      :items="chatList"
-      :active-id="activeChatId"
-      :loading="loadingList"
-      :loading-more="loadingMore"
-      :has-more="chatList.length < chatTotal"
-      @select="selectChat"
-      @create="createNewChat"
-      @load-more="loadMoreChats"
-    />
-    <ChatMain
-      :conversation="activeConversation"
-      :loading="loadingDetail"
-      :sending="sending"
-      @send="sendMessage"
-    />
+  <div class="chat-page">
+    <section class="chat-shell">
+      <ChatSidebar
+        :items="chatList"
+        :active-id="activeChatId"
+        :loading="loadingList"
+        :loading-more="loadingMore"
+        :has-more="chatList.length < chatTotal"
+        @select="selectChat"
+        @create="createNewChat"
+        @load-more="loadMoreChats"
+      />
+      <ChatMain
+        :conversation="activeConversation"
+        :loading="loadingDetail"
+        :sending="sending"
+        @send="sendMessage"
+      />
+    </section>
   </div>
 </template>
 
@@ -24,8 +26,13 @@ import { ref, onBeforeUnmount, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import ChatSidebar from '@/components/chat/ChatSidebar.vue'
 import ChatMain from '@/components/chat/ChatMain.vue'
-import { fetchChatList, fetchChatDetail } from '@/services/chat'
-import { getChatSessions, createChatSession, sendChatMessageStream, getChatSessionDetail } from '@/api/chats'
+import { fetchChatDetail } from '@/services/chat'
+import {
+  createChatSession,
+  getChatSessionDetail,
+  getChatSessions,
+  sendChatMessageStream,
+} from '@/api/chats'
 
 const chatList = ref([])
 const activeChatId = ref('')
@@ -34,14 +41,11 @@ const loadingList = ref(false)
 const loadingDetail = ref(false)
 const sending = ref(false)
 
-// Pagination state for sidebar
 const PAGE_SIZE = 50
 const chatTotal = ref(0)
 const chatOffset = ref(0)
 const loadingMore = ref(false)
 
-// Cache: sessionId → { id, title, messages[] }
-// Messages in cache use { role: 'user'|'assistant', content, sources? }
 const detailCache = new Map()
 let detailRequestToken = 0
 let activeStreamController = null
@@ -135,7 +139,6 @@ async function createNewChat() {
     const session = await createChatSession({ title: 'New Conversation' })
     const sessionId = session.id
 
-    // Add to top of sidebar list using the server-assigned id
     const newItem = {
       id: sessionId,
       title: session.title,
@@ -145,7 +148,6 @@ async function createNewChat() {
     }
     chatList.value = [newItem, ...chatList.value]
 
-    // Seed an empty local conversation in the cache
     const seededDetail = { id: sessionId, title: session.title, messages: [] }
     detailCache.set(sessionId, seededDetail)
     activeConversation.value = seededDetail
@@ -155,11 +157,6 @@ async function createNewChat() {
   }
 }
 
-/**
- * Poll GET /chats/{sessionId} until the server has written an LLM-generated
- * title (i.e. title is no longer "New Conversation"), then update the sidebar.
- * Stops after maxAttempts regardless of the result — never loops infinitely.
- */
 function pollForTitle(sessionId, sidebarItem, conversation, attempt = 1, maxAttempts = 3, intervalMs = 3000) {
   setTimeout(async () => {
     try {
@@ -168,29 +165,20 @@ function pollForTitle(sessionId, sidebarItem, conversation, attempt = 1, maxAtte
       const title = session.title || ''
 
       if (title && title !== 'New Conversation') {
-        // Real title is ready — update sidebar and cached conversation
         if (sidebarItem) sidebarItem.title = title
         conversation.title = title
         return
       }
     } catch {
-      // Non-critical — let the retry logic continue
+      // Non-critical
     }
 
-    // Title not ready yet, retry if attempts remain
     if (attempt < maxAttempts) {
       pollForTitle(sessionId, sidebarItem, conversation, attempt + 1, maxAttempts, intervalMs)
     }
-    // After maxAttempts the sidebar keeps showing "New Conversation" — acceptable fallback
   }, intervalMs)
 }
 
-/**
- * Send a user message in the active conversation (streaming SSE).
- * Called by ChatMain via the @send event.
- *
- * @param {string} input - The user's question
- */
 async function sendMessage(input) {
   if (!activeChatId.value || sending.value) return
 
@@ -198,11 +186,9 @@ async function sendMessage(input) {
   const conversation = detailCache.get(sessionId)
   if (!conversation) return
 
-  // Optimistically append the user message to the UI
   const isFirstTurn = conversation.messages.length === 0
   conversation.messages.push({ role: 'user', content: input, id: Date.now() })
 
-  // Pre-insert a streaming assistant message with empty content
   const assistantMsg = { role: 'assistant', content: '', sources: [], id: Date.now() + 1, streaming: true }
   conversation.messages.push(assistantMsg)
   activeConversation.value = { ...conversation }
@@ -216,12 +202,10 @@ async function sendMessage(input) {
     await sendChatMessageStream(sessionId, input, {
       signal: controller.signal,
       onSources(sources) {
-        // Hold sources until stream is done — avoids showing them before the answer
         pendingSources = sources
       },
       onChunk(text) {
         assistantMsg.content += text
-        // Trigger Vue reactivity by replacing the reference
         syncActiveConversation(sessionId, conversation)
       },
       onDone() {
@@ -229,14 +213,12 @@ async function sendMessage(input) {
         assistantMsg.sources = pendingSources
         syncActiveConversation(sessionId, conversation)
 
-        // Update sidebar preview counters
         const sidebarItem = chatList.value.find((c) => c.id === sessionId)
         if (sidebarItem) {
           sidebarItem.message_count = (sidebarItem.message_count || 0) + 2
           sidebarItem.last_message_preview = assistantMsg.content.slice(0, 80)
         }
 
-        // First turn: poll for server-generated title
         if (isFirstTurn) {
           pollForTitle(sessionId, sidebarItem, conversation)
         }
@@ -255,7 +237,6 @@ async function sendMessage(input) {
       return
     }
 
-    // Network-level failure — mark the assistant bubble as error
     assistantMsg.streaming = false
     assistantMsg.status = 'error'
     syncActiveConversation(sessionId, conversation)
@@ -271,18 +252,33 @@ async function sendMessage(input) {
 </script>
 
 <style scoped>
-.chat-layout {
-  display: flex;
+.chat-page {
   flex: 1;
+  max-width: 1400px;
+  width: 100%;
+  margin: 0 auto;
   min-height: 0;
-  border-radius: 16px;
   overflow: hidden;
-  background-color: #ffffff;
-  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08);
+}
+
+.chat-shell {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+  border-radius: 28px;
+  overflow: hidden;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96) 0%, rgba(247, 250, 252, 0.94) 100%);
+  border: 1px solid var(--dm-border);
+  box-shadow: var(--dm-shadow-lg);
 }
 
 @media (max-width: 960px) {
-  .chat-layout {
+  .chat-page {
+    overflow: visible;
+  }
+
+  .chat-shell {
     flex-direction: column;
   }
 }

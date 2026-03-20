@@ -1,41 +1,45 @@
 <template>
-  <el-card class="kb-card" :class="{ 'kb-card--locked': !canAccess }" shadow="hover" @click="handleClick">
+  <el-card class="kb-card" :class="{ 'kb-card--locked': !canAccess }" shadow="never" @click="handleClick">
     <div class="kb-card-header">
       <div class="kb-icon-wrap">
         <el-icon class="kb-icon"><Collection /></el-icon>
       </div>
-      <el-tooltip v-if="!canAccess" content="You don't have access to this knowledge base" placement="top">
-        <el-icon class="lock-icon"><Lock /></el-icon>
-      </el-tooltip>
-      <el-dropdown
-        v-if="canManage"
-        trigger="click"
-        @command="handleCommand"
-        @click.stop
-      >
-        <el-button
-          class="more-btn"
-          :icon="MoreFilled"
-          circle
-          text
-          size="small"
+
+      <div class="kb-card-tools">
+        <el-tooltip v-if="!canAccess" content="You don't have access to this knowledge base" placement="top">
+          <el-icon class="lock-icon"><Lock /></el-icon>
+        </el-tooltip>
+        <el-dropdown
+          v-if="canManage"
+          trigger="click"
+          @command="handleCommand"
           @click.stop
-        />
-        <template #dropdown>
-          <el-dropdown-menu>
-            <el-dropdown-item command="delete" class="danger-item">
-              <el-icon><Delete /></el-icon>
-              Delete
-            </el-dropdown-item>
-          </el-dropdown-menu>
-        </template>
-      </el-dropdown>
+        >
+          <el-button
+            class="more-btn"
+            :icon="MoreFilled"
+            circle
+            text
+            size="small"
+            @click.stop
+          />
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item command="delete" class="danger-item">
+                <el-icon><Delete /></el-icon>
+                Delete
+              </el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
+      </div>
     </div>
 
     <div class="kb-card-body">
       <h3 class="kb-display-name">{{ kb.display_name }}</h3>
       <p class="kb-name">{{ kb.name }}</p>
-      <p class="kb-description">{{ kb.description || 'No description' }}</p>
+      <p class="kb-description">{{ kb.description || 'No description yet.' }}</p>
+
       <div v-if="kb.embedding_provider || kb.embedding_model" class="kb-meta">
         <el-tag size="small" type="info" effect="plain">
           {{ kb.embedding_provider || 'embedding' }}
@@ -47,9 +51,12 @@
     </div>
 
     <div class="kb-card-footer">
-      <span class="kb-date">
+      <span class="footer-item">
         <el-icon><Calendar /></el-icon>
         {{ formatDate(kb.created_at) }}
+      </span>
+      <span class="footer-item footer-item--link">
+        {{ canAccess ? 'Open workspace' : 'Restricted' }}
       </span>
     </div>
   </el-card>
@@ -59,7 +66,7 @@
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
-import { Collection, MoreFilled, Delete, Calendar, Lock } from '@element-plus/icons-vue'
+import { Calendar, Collection, Delete, Lock, MoreFilled } from '@element-plus/icons-vue'
 import { ElMessageBox } from 'element-plus'
 
 const props = defineProps({
@@ -74,7 +81,6 @@ const emit = defineEmits(['delete'])
 const router = useRouter()
 const authStore = useAuthStore()
 
-const isSuperAdmin = computed(() => authStore.isSuperAdmin)
 const canAccess = computed(() => authStore.canAccessKb(props.kb.id))
 const canManage = computed(() => authStore.canManageKb(props.kb.id))
 
@@ -119,120 +125,138 @@ function formatDate(dateStr) {
   const date = new Date(dateStr)
   return date.toLocaleDateString('en-US', {
     year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
+    month: 'short',
+    day: 'numeric',
   })
 }
 </script>
 
 <style scoped>
 .kb-card {
-  cursor: pointer;
-  transition: transform 0.2s, box-shadow 0.2s;
-  border-radius: 12px;
   height: 100%;
+  cursor: pointer;
+  border-radius: 24px;
+  border: 1px solid var(--dm-border);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96) 0%, rgba(248, 250, 252, 0.92) 100%);
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
 }
 
 .kb-card:hover {
-  transform: translateY(-4px);
+  transform: translateY(-2px);
+  border-color: rgba(37, 99, 235, 0.22);
+  box-shadow: 0 16px 34px rgba(15, 23, 42, 0.08);
 }
 
 .kb-card--locked {
   cursor: not-allowed;
-  opacity: 0.6;
+  opacity: 0.72;
 }
 
 .kb-card--locked:hover {
   transform: none;
-}
-
-.lock-icon {
-  font-size: 16px;
-  color: #909399;
+  box-shadow: none;
 }
 
 .kb-card-header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  margin-bottom: 16px;
+  margin-bottom: 18px;
+}
+
+.kb-card-tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .kb-icon-wrap {
-  width: 48px;
-  height: 48px;
-  background: linear-gradient(135deg, #409eff22, #409eff44);
-  border-radius: 12px;
+  width: 54px;
+  height: 54px;
+  border-radius: 18px;
   display: flex;
   align-items: center;
   justify-content: center;
+  background: linear-gradient(135deg, #dbeafe 0%, #eff6ff 100%);
+  box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.08);
 }
 
 .kb-icon {
   font-size: 24px;
-  color: #409eff;
+  color: var(--dm-primary);
+}
+
+.lock-icon {
+  font-size: 16px;
+  color: var(--dm-text-soft);
 }
 
 .more-btn {
-  opacity: 0;
-  transition: opacity 0.2s;
-}
-
-.kb-card:hover .more-btn {
-  opacity: 1;
+  color: var(--dm-text-soft);
 }
 
 .kb-card-body {
-  margin-bottom: 16px;
+  margin-bottom: 18px;
 }
 
 .kb-display-name {
-  font-size: 16px;
-  font-weight: 600;
-  color: #303133;
-  margin: 0 0 4px 0;
+  margin: 0 0 6px;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--dm-text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .kb-name {
+  margin: 0 0 12px;
   font-size: 12px;
-  color: #909399;
-  margin: 0 0 10px 0;
-  font-family: monospace;
+  color: var(--dm-text-soft);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace;
 }
 
 .kb-description {
-  font-size: 13px;
-  color: #606266;
   margin: 0;
+  font-size: 13px;
+  line-height: 1.65;
+  color: var(--dm-text-muted);
+  min-height: 44px;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
-  line-height: 1.5;
-  min-height: 39px;
-}
-
-.kb-card-footer {
-  border-top: 1px solid #f0f0f0;
-  padding-top: 12px;
 }
 
 .kb-meta {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  margin-top: 12px;
+  margin-top: 14px;
 }
 
-.kb-date {
+.kb-card-footer {
+  padding-top: 14px;
+  border-top: 1px solid var(--dm-border-strong);
   display: flex;
   align-items: center;
-  gap: 4px;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.footer-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   font-size: 12px;
-  color: #909399;
+  color: var(--dm-text-soft);
+}
+
+.footer-item--link {
+  color: var(--dm-primary);
+  font-weight: 700;
 }
 
 :deep(.danger-item) {

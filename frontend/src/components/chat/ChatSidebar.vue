@@ -1,11 +1,21 @@
 <template>
   <aside class="chat-sidebar">
     <div class="sidebar-header">
+      <div class="sidebar-copy">
+        <span class="sidebar-eyebrow">Conversations</span>
+        <h2 class="sidebar-title">Recent chats</h2>
+      </div>
       <el-button type="primary" :icon="Plus" class="new-chat-btn" @click="$emit('create')">
         New Chat
       </el-button>
     </div>
-    <div class="chat-list" :class="{ loading: loading }" ref="listRef" @scroll.passive="onScroll">
+
+    <div
+      class="chat-list scrollbar-hidden"
+      :class="{ loading: loading }"
+      ref="listRef"
+      @scroll.passive="onScroll"
+    >
       <button
         v-for="item in items"
         :key="item.id"
@@ -20,7 +30,7 @@
         </span>
       </button>
       <div v-if="!loading && items.length === 0" class="chat-empty">
-        No conversations yet.
+        No conversations yet. Start one from the button above.
       </div>
       <div v-if="loadingMore" class="chat-loading-more">Loading...</div>
       <div v-else-if="!hasMore && items.length > 0" class="chat-no-more">No more conversations</div>
@@ -35,23 +45,23 @@ import { Plus } from '@element-plus/icons-vue'
 const props = defineProps({
   items: {
     type: Array,
-    default: () => []
+    default: () => [],
   },
   activeId: {
     type: String,
-    default: ''
+    default: '',
   },
   loading: {
     type: Boolean,
-    default: false
+    default: false,
   },
   loadingMore: {
     type: Boolean,
-    default: false
+    default: false,
   },
   hasMore: {
     type: Boolean,
-    default: false
+    default: false,
   },
 })
 
@@ -62,51 +72,70 @@ const listRef = ref(null)
 function onScroll() {
   const el = listRef.value
   if (!el || props.loadingMore || !props.hasMore) return
-  // Trigger load-more when within 60px of the bottom
   if (el.scrollHeight - el.scrollTop - el.clientHeight < 60) {
     emit('load-more')
   }
 }
 
 function formatTime(raw) {
-  if (!raw) {
-    return ''
-  }
+  if (!raw) return ''
   const date = new Date(raw)
-  if (Number.isNaN(date.getTime())) {
-    return raw
-  }
+  if (Number.isNaN(date.getTime())) return raw
   return date.toLocaleString()
 }
 </script>
 
 <style scoped>
 .chat-sidebar {
-  width: 280px;
-  background-color: #f8fafc;
-  border-right: 1px solid #e2e8f0;
+  width: 320px;
   display: flex;
   flex-direction: column;
   min-width: 0;
+  min-height: 0;
+  background:
+    linear-gradient(180deg, rgba(248, 250, 252, 0.94) 0%, rgba(241, 245, 249, 0.92) 100%);
+  border-right: 1px solid var(--dm-border-strong);
 }
 
 .sidebar-header {
-  padding: 20px;
-  border-bottom: 1px solid #e2e8f0;
+  padding: 24px 20px 18px;
+  border-bottom: 1px solid var(--dm-border-strong);
+}
+
+.sidebar-copy {
+  margin-bottom: 14px;
+}
+
+.sidebar-eyebrow {
+  display: inline-block;
+  margin-bottom: 8px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--dm-text-soft);
+}
+
+.sidebar-title {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--dm-text);
 }
 
 .new-chat-btn {
   width: 100%;
-  font-weight: 600;
 }
 
 .chat-list {
-  padding: 12px;
+  padding: 14px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
   overflow-y: auto;
   flex: 1;
+  min-height: 0;
+  overscroll-behavior: contain;
 }
 
 .chat-list.loading {
@@ -116,31 +145,33 @@ function formatTime(raw) {
 
 .chat-item {
   border: 1px solid transparent;
-  background-color: #ffffff;
-  border-radius: 12px;
-  padding: 12px 14px;
+  background: rgba(255, 255, 255, 0.86);
+  border-radius: 18px;
+  padding: 14px;
   text-align: left;
   cursor: pointer;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  transition: border-color 0.2s, box-shadow 0.2s, background-color 0.2s;
+  gap: 8px;
+  transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
 }
 
 .chat-item:hover {
-  border-color: #cbd5f5;
-  box-shadow: 0 6px 14px rgba(15, 23, 42, 0.08);
+  transform: translateY(-1px);
+  border-color: rgba(37, 99, 235, 0.16);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
 }
 
 .chat-item.active {
-  border-color: #409eff;
-  background-color: rgba(64, 158, 255, 0.08);
+  border-color: rgba(37, 99, 235, 0.24);
+  background: linear-gradient(180deg, rgba(239, 246, 255, 0.98) 0%, rgba(248, 250, 252, 0.94) 100%);
+  box-shadow: 0 12px 26px rgba(37, 99, 235, 0.1);
 }
 
 .chat-title {
   font-size: 14px;
-  font-weight: 600;
-  color: #1f2937;
+  font-weight: 700;
+  color: var(--dm-text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -148,8 +179,8 @@ function formatTime(raw) {
 
 .chat-preview {
   font-size: 12px;
-  color: #4b5563;
-  line-height: 1.4;
+  color: var(--dm-text-muted);
+  line-height: 1.5;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -157,36 +188,29 @@ function formatTime(raw) {
 
 .chat-meta {
   font-size: 12px;
-  color: #6b7280;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+  color: var(--dm-text-soft);
 }
 
 .chat-time {
-  color: #94a3b8;
-  white-space: nowrap;
+  color: var(--dm-text-soft);
 }
 
-.chat-empty {
-  font-size: 13px;
-  color: #6b7280;
-  text-align: center;
-  padding: 24px 12px;
-}
-
+.chat-empty,
 .chat-loading-more,
 .chat-no-more {
+  padding: 18px 12px;
   font-size: 12px;
-  color: #94a3b8;
   text-align: center;
-  padding: 10px 12px;
+  color: var(--dm-text-soft);
 }
 
 @media (max-width: 960px) {
   .chat-sidebar {
     width: 100%;
+    max-height: 38vh;
+    min-height: 240px;
+    border-right: none;
+    border-bottom: 1px solid var(--dm-border-strong);
   }
 }
 </style>

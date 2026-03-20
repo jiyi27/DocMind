@@ -240,7 +240,7 @@ onUnmounted(() => {
 .document-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
   overflow-y: auto;
   flex: 1;
   min-height: 0;
@@ -253,28 +253,30 @@ onUnmounted(() => {
 .doc-items {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
 }
 
 .doc-item {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 14px;
-  border: 1px solid #e4e7ed;
-  border-radius: 8px;
-  background: #fafafa;
-  transition: box-shadow 0.2s;
+  padding: 15px 16px;
+  border: 1px solid var(--dm-border);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.88);
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
   cursor: pointer;
 }
 
 .doc-item:hover {
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  transform: translateY(-1px);
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.08);
+  border-color: rgba(37, 99, 235, 0.18);
   background: #fff;
 }
 
 .doc-item:focus-visible {
-  outline: 2px solid #409eff;
+  outline: 2px solid var(--dm-primary);
   outline-offset: 2px;
 }
 
@@ -288,7 +290,7 @@ onUnmounted(() => {
 
 .doc-icon {
   font-size: 24px;
-  color: #409eff;
+  color: var(--dm-primary);
   flex-shrink: 0;
   margin-top: 2px;
 }
@@ -303,8 +305,8 @@ onUnmounted(() => {
   align-items: center;
   gap: 8px;
   font-size: 14px;
-  font-weight: 600;
-  color: #303133;
+  font-weight: 700;
+  color: var(--dm-text);
   margin: 0 0 6px;
   min-width: 0;
 }
@@ -351,6 +353,7 @@ onUnmounted(() => {
   gap: 10px;
   margin: 0;
   flex-wrap: wrap;
+  color: var(--dm-text-soft);
 }
 
 .doc-chunks {
@@ -358,12 +361,12 @@ onUnmounted(() => {
   align-items: center;
   gap: 3px;
   font-size: 12px;
-  color: #909399;
+  color: var(--dm-text-soft);
 }
 
 .doc-date {
   font-size: 12px;
-  color: #c0c4cc;
+  color: #94a3b8;
 }
 
 .doc-uploader,
@@ -373,7 +376,7 @@ onUnmounted(() => {
   align-items: center;
   gap: 3px;
   font-size: 12px;
-  color: #909399;
+  color: var(--dm-text-soft);
 }
 
 .doc-error-msg {

@@ -1,31 +1,25 @@
 <template>
-  <el-header class="app-header">
-    <div class="header-left">
-      <router-link to="/" class="brand">
-        <el-icon class="logo-icon"><Reading /></el-icon>
-        <span class="logo-text">SurfinDocMind</span>
+  <el-header class="app-header-shell">
+    <nav class="main-nav">
+      <router-link
+        v-for="item in navItems"
+        :key="item.name"
+        :to="item.to"
+        class="nav-link"
+        :class="{ active: route.name === item.name }"
+      >
+        <el-icon><component :is="item.icon" /></el-icon>
+        <span>{{ item.label }}</span>
       </router-link>
-      <nav class="main-nav">
-        <router-link
-          v-for="item in navItems"
-          :key="item.name"
-          :to="item.to"
-          class="nav-link"
-          :class="{ active: route.name === item.name }"
-        >
-          {{ item.label }}
-        </router-link>
-      </nav>
-    </div>
-    <div class="header-right">
+
       <el-dropdown trigger="click" @command="handleCommand">
-        <span class="user-info">
-          <el-avatar :size="32" class="user-avatar">
+        <button class="nav-link user-link" type="button">
+          <el-avatar :size="24" class="user-avatar">
             {{ userInitial }}
           </el-avatar>
           <span class="username">{{ username }}</span>
-          <el-icon class="el-icon--right"><ArrowDown /></el-icon>
-        </span>
+          <el-icon class="dropdown-icon"><ArrowDown /></el-icon>
+        </button>
         <template #dropdown>
           <el-dropdown-menu>
             <el-dropdown-item disabled>
@@ -39,7 +33,7 @@
           </el-dropdown-menu>
         </template>
       </el-dropdown>
-    </div>
+    </nav>
   </el-header>
 </template>
 
@@ -47,7 +41,14 @@
 import { computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
-import { Reading, ArrowDown, SwitchButton, Search } from '@element-plus/icons-vue'
+import {
+  ArrowDown,
+  ChatRound,
+  House,
+  Search,
+  SwitchButton,
+  User,
+} from '@element-plus/icons-vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -57,10 +58,10 @@ const username = computed(() => authStore.user?.username || 'User')
 const userInitial = computed(() => username.value.charAt(0).toUpperCase())
 const isSuperAdmin = computed(() => authStore.user?.role === 'super_admin')
 const navItems = [
-  { name: 'Chat', label: 'Chat', to: '/chat' },
-  { name: 'Dashboard', label: 'Knowledge Base', to: '/' },
-  { name: 'Search', label: 'Search', to: '/search' },
-  { name: 'UserProfile', label: 'Profile', to: '/profile' }
+  { name: 'Chat', label: 'Chat', to: '/chat', icon: ChatRound },
+  { name: 'Dashboard', label: 'Knowledge Base', to: '/', icon: House },
+  { name: 'Search', label: 'Search', to: '/search', icon: Search },
+  { name: 'UserProfile', label: 'Profile', to: '/profile', icon: User },
 ]
 
 function handleCommand(command) {
@@ -72,99 +73,96 @@ function handleCommand(command) {
 </script>
 
 <style scoped>
-.app-header {
+.app-header-shell {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  background-color: #ffffff;
-  border-bottom: 1px solid #e4e7ed;
-  padding: 0 24px;
+  justify-content: center;
   height: 60px;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
-}
-
-.header-left {
-  display: flex;
-  align-items: center;
-  gap: 24px;
-  min-width: 0;
-}
-
-.brand {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  cursor: pointer;
-  text-decoration: none;
-}
-
-.logo-icon {
-  font-size: 24px;
-  color: #409eff;
-}
-
-.logo-text {
-  font-size: 20px;
-  font-weight: 700;
-  color: #303133;
-  letter-spacing: 0.5px;
+  padding: 10px 24px 6px;
+  background: transparent;
 }
 
 .main-nav {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 6px;
+  padding: 4px;
+  border-radius: 14px;
+  background: rgba(248, 250, 252, 0.92);
+  border: 1px solid var(--dm-border);
+  min-width: 0;
+  max-width: 100%;
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.06);
+  backdrop-filter: blur(14px);
 }
 
 .nav-link {
-  color: #606266;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  color: var(--dm-text-muted);
   text-decoration: none;
-  font-size: 14px;
-  font-weight: 600;
-  padding: 6px 8px;
-  border-radius: 6px;
-  transition: background-color 0.2s, color 0.2s;
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+  transition: background-color 0.18s ease, color 0.18s ease, box-shadow 0.18s ease;
 }
 
 .nav-link:hover {
-  background-color: #f5f7fa;
-  color: #303133;
+  background: rgba(255, 255, 255, 0.82);
+  color: var(--dm-text);
 }
 
 .nav-link.active {
-  color: #409eff;
-  background-color: rgba(64, 158, 255, 0.12);
+  background: #ffffff;
+  color: var(--dm-primary);
+  box-shadow: 0 6px 14px rgba(37, 99, 235, 0.1);
 }
 
-.header-right {
-  display: flex;
-  align-items: center;
-}
-
-.user-info {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+.user-link {
+  border: 0;
+  background: transparent;
   cursor: pointer;
-  padding: 4px 8px;
-  border-radius: 6px;
-  transition: background-color 0.2s;
-}
-
-.user-info:hover {
-  background-color: #f5f7fa;
+  font: inherit;
 }
 
 .user-avatar {
-  background-color: #409eff;
+  background: linear-gradient(135deg, #2563eb 0%, #3b82f6 100%);
   color: #ffffff;
-  font-weight: 600;
-  font-size: 14px;
+  font-weight: 700;
 }
 
 .username {
-  font-size: 14px;
-  color: #303133;
-  font-weight: 500;
+  color: var(--dm-text);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.dropdown-icon {
+  color: var(--dm-text-soft);
+}
+
+@media (max-width: 1080px) {
+  .app-header-shell {
+    height: auto;
+    padding-bottom: 8px;
+  }
+
+  .main-nav {
+    overflow-x: auto;
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 720px) {
+  .app-header-shell {
+    padding: 12px 12px 6px;
+  }
+
+  .nav-link span {
+    display: none;
+  }
 }
 </style>
