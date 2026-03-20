@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from typing import AsyncGenerator
 
-from langchain_core.documents import Document
 from langchain_core.messages import AnyMessage, HumanMessage
 
 from docmind.core import logger
@@ -12,41 +11,15 @@ from docmind.core.config import settings
 from docmind.core.llm import get_llm
 from docmind.retrieval.context import ContextItem
 from docmind.retrieval.prompts import rag_prompt
-from docmind.retrieval.resolvers import FullDocResolver, _build_source_label, get_resolver
+from docmind.retrieval.resolvers import (
+    FullDocResolver,
+    ResolveAction,
+    _build_source_label,
+    get_resolver,
+)
 from docmind.retrieval.state import RAGState
 from docmind.core.embedding import get_embedding_for_kb
 from docmind.vectorstore.qdrant_store import get_vector_store_for_kb
-
-
-def _resolve_chunk(
-    index: int,
-    doc: Document,
-    *,
-    max_full_doc_chars: int,
-    seen_full_doc_ids: set[str],
-    full_doc_count: int,
-    max_full_docs: int,
-    kb_name: str,
-) -> tuple[ContextItem | None, int]:
-    """Convert one Qdrant result into a ContextItem via resolver dispatch.
-
-    Returns ``(item, updated_full_doc_count)``. Returns ``(None, count)``
-    when the doc should be skipped (duplicate full_doc, missing file_path, etc.).
-    """
-    resolver = get_resolver(doc.metadata or {})
-
-    if isinstance(resolver, FullDocResolver):
-        return resolver.resolve(
-            index,
-            doc,
-            max_full_doc_chars=max_full_doc_chars,
-            seen_full_doc_ids=seen_full_doc_ids,
-            full_doc_count=full_doc_count,
-            max_full_docs=max_full_docs,
-            kb_name=kb_name,
-        )
-
-    return resolver.resolve(index, doc), full_doc_count
 
 
 def _build_context_string(items: list[ContextItem]) -> str:
@@ -57,14 +30,13 @@ def _build_context_string(items: list[ContextItem]) -> str:
 def retrieve_node(state: RAGState) -> dict:
     """Retrieve relevant documents from Qdrant based on the user query.
 
-    Workflow:
-    - Qdrant similarity search with scores (topK configured via settings)
-    - Greedy selection:
-        - chunk docs: always included
-        - full_doc docs: deduped by doc_id, capped at max_full_docs; full text
-          loaded from disk and truncated to max_full_doc_chars
-    - Returns structured ``context_items`` list and a flat ``context`` string
-      (compatibility shim) plus ``sources`` for citation.
+    Traversal semantics:
+    - Qdrant returns candidates ranked by similarity (highest first).
+    - Regular chunks (text / code / image) are always included.
+    - Full-doc chunks are deduped by doc_id and capped at max_full_docs.
+      When the cap is hit, traversal stops immediately — results ranked below
+      the capped entry are less relevant, so continuing would substitute a
+      lower-quality result in its place.
     """
     query = state["query"]
     kb_name = state["kb_name"]
@@ -90,24 +62,41 @@ def retrieve_node(state: RAGState) -> dict:
 
     context_items: list[ContextItem] = []
     retrieved_docs = []
+    # Tracks which full documents have been loaded to prevent duplicates.
     seen_full_doc_ids: set[str] = set()
+    # Counts successfully loaded full documents against the per-request cap.
     full_doc_count = 0
 
     for i, (doc, _score) in enumerate(results, 1):
-        item, full_doc_count = _resolve_chunk(
-            index=i,
-            doc=doc,
-            max_full_doc_chars=max_full_doc_chars,
-            seen_full_doc_ids=seen_full_doc_ids,
-            full_doc_count=full_doc_count,
-            max_full_docs=max_full_docs,
-            kb_name=kb_name,
-        )
-        if item is not None:
-            context_items.append(item)
-            retrieved_docs.append(doc)
+        resolver = get_resolver(doc.metadata or {})
 
-    # Re-index so citation numbers are contiguous after skipped docs
+        if isinstance(resolver, FullDocResolver):
+            result = resolver.resolve(
+                i,
+                doc,
+                max_full_doc_chars=max_full_doc_chars,
+                seen_full_doc_ids=seen_full_doc_ids,
+                full_doc_count=full_doc_count,
+                max_full_docs=max_full_docs,
+                kb_name=kb_name,
+            )
+        else:
+            result = resolver.resolve(i, doc)
+
+        if result.action == ResolveAction.STOP:
+            # Full-doc cap reached: halt traversal to preserve relevance ordering.
+            # Do not fall through to lower-ranked results to fill the slot.
+            break
+
+        if result.action == ResolveAction.INCLUDE:
+            context_items.append(result.item)
+            retrieved_docs.append(doc)
+            if isinstance(resolver, FullDocResolver):
+                full_doc_count += 1
+
+        # SKIP: resolver declined this result (duplicate / load error); continue.
+
+    # Re-index so citation numbers are contiguous after any skipped docs.
     for pos, item in enumerate(context_items, 1):
         if item.index != pos:
             item.index = pos
@@ -116,7 +105,7 @@ def retrieve_node(state: RAGState) -> dict:
     return {
         "retrieved_docs": retrieved_docs,
         "context_items": context_items,
-        # Compatibility shim: flat string for stream_generate and rag_graph
+        # Compatibility shim: flat string for stream_generate and rag_graph.
         "context": _build_context_string(context_items),
         "sources": [it.source_label for it in context_items],
     }

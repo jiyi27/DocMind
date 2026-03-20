@@ -34,6 +34,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Coding Conventions
 - **Backend Types**: Use strict Python 3.12+ typing (e.g., `list[str]`, `dict[str, Any]` instead of `typing.List`).
 - **Backend Naming**: `snake_case` for variables/functions/modules, `PascalCase` for classes.
+- **Code Comments**: Prefer purpose-driven comments that explain intent or constraints, not comments that just restate variable names or obvious code behavior.
 - **Backend Errors**: Raise standard exceptions in core logic; catch and translate to `HTTPException` inside `docmind/api/`.
 - **Backend Defaults**: Define business defaults in exactly one place. Prefer API/schema defaults for request-time behavior, or shared constants/config for cross-layer defaults. Do not repeat literal defaults like `"chunk"` or `True` across router/node/worker code.
 - **Frontend Paradigm**: Use Vue 3 Composition API (`<script setup>`) exclusively.
