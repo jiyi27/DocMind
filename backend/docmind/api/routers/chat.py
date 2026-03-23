@@ -11,11 +11,10 @@ from langchain_core.messages import AIMessage, HumanMessage
 
 from docmind.api.dependencies import get_current_user
 from docmind.api.schemas import ChatRequest
-from docmind.api.response import ok
+from docmind.api.response import err_message, ok
 from docmind.auth.schemas import UserContext
 from docmind.core import logger
 from docmind.core.config import settings
-from docmind.core.exceptions import AppException
 from docmind.db.database import get_db
 from docmind.db.repositories import ChatMessageRepository, ChatSessionRepository
 from docmind.retrieval.graph import rag_graph
@@ -250,20 +249,10 @@ async def chat_stream(
 
             # ── Done event ────────────────────────────────────────────────────
             yield _sse_event({"type": "done", "session_id": request.session_id})
-        except AppException as exc:
-            logger.warning(
-                "chat_stream_app_exception",
-                {
-                    "session_id": request.session_id,
-                    "error_type": type(exc).__name__,
-                    "message": exc.message,
-                },
-                exc=exc,
-            )
-            yield _sse_event({"type": "error", "message": exc.message})
         except Exception as exc:
-            logger.error(
-                "chat_stream_unhandled_exception",
+            log = logger.warning if hasattr(exc, "message") else logger.error
+            log(
+                "chat_stream_exception",
                 {
                     "session_id": request.session_id,
                     "error_type": type(exc).__name__,
@@ -271,12 +260,7 @@ async def chat_stream(
                 },
                 exc=exc,
             )
-            yield _sse_event(
-                {
-                    "type": "error",
-                    "message": "An unexpected error occurred. Please try again later.",
-                }
-            )
+            yield _sse_event({"type": "error", "message": err_message(exc)})
 
     return StreamingResponse(
         event_generator(),

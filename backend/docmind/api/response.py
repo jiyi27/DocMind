@@ -9,9 +9,10 @@ HTTP status is always 200 so that clients only need to inspect ``code``.
 
 Exception handler priority (highest → lowest)
 ---------------------------------------------
-1. AppException          – known business errors; message is safe to expose
-2. RequestValidationError – Pydantic / FastAPI request validation failure
-3. Exception             – catch-all; logs full details, returns generic message
+1. HTTPException          – auth / permission / not-found errors from FastAPI
+2. AppException           – known business errors; message is safe to expose
+3. RequestValidationError – Pydantic / FastAPI request validation failure
+4. Exception              – catch-all; logs full details, returns generic message
 """
 
 from __future__ import annotations
@@ -19,11 +20,14 @@ from __future__ import annotations
 from typing import Any
 
 from fastapi import FastAPI, Request
-from fastapi.exceptions import RequestValidationError
+from fastapi.exceptions import HTTPException, RequestValidationError
 from fastapi.responses import JSONResponse
 
 from docmind.core.exceptions import AppException
 from docmind.core import logger
+
+
+_GENERIC_ERROR = "An unexpected error occurred. Please try again later."
 
 
 # ── Response envelope ──────────────────────────────────────────────────────────
@@ -48,11 +52,42 @@ def err(message: str, data: Any = None) -> JSONResponse:
 # ── Exception handler registration ────────────────────────────────────────────
 
 
+def err_message(exc: Exception) -> str:
+    """Extract a client-safe error message from any exception.
+
+    Used by SSE generators that must handle exceptions inline rather than
+    relying on global handlers.
+    """
+    if isinstance(exc, AppException):
+        return exc.message
+    return _GENERIC_ERROR
+
+
 def register_exception_handlers(app: FastAPI) -> None:
     """Attach all global exception handlers to *app*.
 
     Call this once during application startup, before any requests are served.
     """
+
+    @app.exception_handler(HTTPException)
+    async def http_exception_handler(
+        request: Request, exc: HTTPException
+    ) -> JSONResponse:
+        """Wrap FastAPI HTTPException into the unified response envelope.
+
+        Covers auth (401), permission (403), not-found (404), and any
+        explicit ``raise HTTPException(...)`` in router code.
+        """
+        logger.warning(
+            "http_exception",
+            {
+                "method": request.method,
+                "url": str(request.url),
+                "status_code": exc.status_code,
+                "detail": exc.detail,
+            },
+        )
+        return err(exc.detail if isinstance(exc.detail, str) else str(exc.detail))
 
     @app.exception_handler(AppException)
     async def app_exception_handler(
@@ -109,4 +144,4 @@ def register_exception_handlers(app: FastAPI) -> None:
             },
             exc=exc,
         )
-        return err("An unexpected error occurred. Please try again later.")
+        return err(_GENERIC_ERROR)
