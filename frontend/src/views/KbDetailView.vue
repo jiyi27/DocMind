@@ -107,21 +107,21 @@
         <div class="confluence-stat">
           <span class="confluence-label">Last Status</span>
           <span class="confluence-value">
-            <el-tag :type="syncStatusTagType(kbDetail.confluence_last_sync_status)" effect="plain">
+            <el-tooltip
+              v-if="kbDetail.confluence_last_sync_status === 'failed' && kbDetail.confluence_last_sync_error"
+              :content="kbDetail.confluence_last_sync_error"
+              placement="top"
+            >
+              <el-tag :type="syncStatusTagType(kbDetail.confluence_last_sync_status)" effect="plain">
+                {{ formatSyncStatus(kbDetail.confluence_last_sync_status) }}
+              </el-tag>
+            </el-tooltip>
+            <el-tag v-else :type="syncStatusTagType(kbDetail.confluence_last_sync_status)" effect="plain">
               {{ formatSyncStatus(kbDetail.confluence_last_sync_status) }}
             </el-tag>
           </span>
         </div>
       </div>
-
-      <el-alert
-        v-if="kbDetail.confluence_last_sync_status === 'failed' && kbDetail.confluence_last_sync_error"
-        :title="kbDetail.confluence_last_sync_error"
-        type="error"
-        :closable="false"
-        show-icon
-        class="sync-error-alert"
-      />
     </div>
 
     <el-dialog
@@ -279,6 +279,7 @@
       title="Confluence Sync History"
       size="720px"
       :destroy-on-close="false"
+      @closed="handleHistoryDrawerClosed"
     >
       <div class="history-toolbar">
         <el-button plain :loading="historyLoading" @click="loadSyncJobs">
@@ -357,31 +358,43 @@
                     </el-tag>
                   </template>
                 </el-table-column>
-                <el-table-column prop="status" label="Status" width="100">
+                <el-table-column prop="status" label="Status" width="120">
                   <template #default="{ row }">
-                    <el-tag size="small" effect="plain" :type="syncStatusTagType(row.status)">
+                    <el-tooltip
+                      v-if="row.status === 'failed' && row.error_message"
+                      :content="row.error_message"
+                      placement="top"
+                    >
+                      <el-tag size="small" effect="plain" :type="syncStatusTagType(row.status)">
+                        {{ row.status }}
+                      </el-tag>
+                    </el-tooltip>
+                    <el-tag v-else size="small" effect="plain" :type="syncStatusTagType(row.status)">
                       {{ row.status }}
                     </el-tag>
                   </template>
                 </el-table-column>
                 <el-table-column prop="document_title" label="Document Title" min-width="180" />
-                <el-table-column prop="external_doc_id" label="Page ID" width="120" />
+                <el-table-column prop="source_url" label="Page URL" min-width="220">
+                  <template #default="{ row }">
+                    <a
+                      v-if="row.source_url"
+                      :href="row.source_url"
+                      target="_blank"
+                      rel="noreferrer"
+                      class="record-link"
+                    >
+                      Open Page
+                    </a>
+                    <span v-else>-</span>
+                  </template>
+                </el-table-column>
                 <el-table-column prop="created_at" label="Created At" width="180">
                   <template #default="{ row }">
                     {{ formatDateTime(row.created_at) }}
                   </template>
                 </el-table-column>
               </el-table>
-
-              <el-alert
-                v-for="record in failedRecords"
-                :key="record.id"
-                :title="`${record.document_title || record.external_doc_id}: ${record.error_message}`"
-                type="error"
-                :closable="false"
-                show-icon
-                class="record-error-alert"
-              />
             </div>
           </div>
         </div>
@@ -420,7 +433,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ArrowLeft, Files, Upload } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
@@ -438,7 +451,6 @@ const kbStore = useKbStore()
 const kbId = computed(() => route.params.id)
 const kbDetail = computed(() => kbStore.currentKb)
 const canEdit = computed(() => authStore.isSuperAdmin)
-const failedRecords = computed(() => jobRecords.value.filter((record) => record.status === 'failed' && record.error_message))
 const docListRef = ref(null)
 const infoDialogVisible = ref(false)
 const connectionDialogVisible = ref(false)
@@ -456,6 +468,7 @@ const expandedJobId = ref('')
 const infoFormRef = ref(null)
 const connectionFormRef = ref(null)
 const confluenceFormRef = ref(null)
+let historyPollingTimer = null
 
 const infoForm = ref({
   display_name: '',
@@ -504,6 +517,10 @@ onMounted(async () => {
   syncFormsFromKb()
 })
 
+onUnmounted(() => {
+  clearHistoryPolling()
+})
+
 function syncFormsFromKb() {
   infoForm.value.display_name = kbDetail.value?.display_name || ''
   infoForm.value.description = kbDetail.value?.description || ''
@@ -524,6 +541,33 @@ function formatDateTime(dateStr) {
     hour: '2-digit',
     minute: '2-digit',
   })
+}
+
+function clearHistoryPolling() {
+  if (historyPollingTimer) {
+    clearTimeout(historyPollingTimer)
+    historyPollingTimer = null
+  }
+}
+
+function hasActiveSyncJobs() {
+  return syncJobs.value.some((job) => job.status === 'pending' || job.status === 'running')
+}
+
+function scheduleHistoryPolling() {
+  clearHistoryPolling()
+
+  if (!historyDrawerVisible.value || !hasActiveSyncJobs()) {
+    return
+  }
+
+  historyPollingTimer = setTimeout(async () => {
+    await loadSyncJobs({ silent: true })
+    if (expandedJobId.value) {
+      await loadJobRecords(expandedJobId.value, { silent: true })
+    }
+    scheduleHistoryPolling()
+  }, 3000)
 }
 
 function formatRetrievalMode(mode) {
@@ -571,6 +615,12 @@ function openConfluenceDialog() {
 async function openHistoryDrawer() {
   historyDrawerVisible.value = true
   await loadSyncJobs()
+}
+
+function handleHistoryDrawerClosed() {
+  clearHistoryPolling()
+  expandedJobId.value = ''
+  jobRecords.value = []
 }
 
 function resetInfoForm() {
@@ -656,13 +706,18 @@ async function triggerSyncNow() {
   }
 }
 
-async function loadSyncJobs() {
-  historyLoading.value = true
+async function loadSyncJobs({ silent = false } = {}) {
+  if (!silent) {
+    historyLoading.value = true
+  }
   try {
     const data = await getKbSyncJobs(kbId.value, 20)
     syncJobs.value = data?.jobs || []
+    scheduleHistoryPolling()
   } finally {
-    historyLoading.value = false
+    if (!silent) {
+      historyLoading.value = false
+    }
   }
 }
 
@@ -674,12 +729,22 @@ async function toggleJobDetails(job) {
   }
 
   expandedJobId.value = job.id
-  recordsLoading.value = true
+  await loadJobRecords(job.id)
+}
+
+async function loadJobRecords(jobId, { silent = false } = {}) {
+  if (!silent) {
+    recordsLoading.value = true
+  }
   try {
-    const data = await getKbSyncRecords(kbId.value, job.id)
-    jobRecords.value = data?.records || []
+    const data = await getKbSyncRecords(kbId.value, jobId)
+    if (expandedJobId.value === jobId) {
+      jobRecords.value = data?.records || []
+    }
   } finally {
-    recordsLoading.value = false
+    if (!silent) {
+      recordsLoading.value = false
+    }
   }
 }
 
@@ -854,9 +919,7 @@ function handleDeleted() {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace;
 }
 
-.sync-error-alert,
-.history-job-error,
-.record-error-alert {
+.history-job-error {
   margin-top: 16px;
 }
 
@@ -946,6 +1009,17 @@ function handleDeleted() {
 .records-table {
   margin-top: 4px;
 }
+
+.record-link {
+  color: var(--el-color-primary);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.record-link:hover {
+  text-decoration: underline;
+}
+
 
 .page-body {
   display: grid;
