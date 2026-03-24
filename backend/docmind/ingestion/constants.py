@@ -11,7 +11,6 @@ from docmind.core.metadata import (  # noqa: F401  (re-export)
     CHUNK_TYPE_IMAGE,
     CHUNK_TYPE_TEXT,
     DEFAULT_RETRIEVAL_MODE,
-    DEFAULT_STRICT_MODE,
     META_ALT_TEXT,
     META_CHUNK_TYPE,
     META_DOC_ID,

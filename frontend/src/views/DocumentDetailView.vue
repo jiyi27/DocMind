@@ -15,7 +15,6 @@
         <el-skeleton v-if="loadingMeta" :rows="1" animated />
         <template v-else>
           <el-tag type="info">{{ displayedChunkCount }} Chunks</el-tag>
-          <el-tag v-if="docMeta.doc_type" type="success">{{ docMeta.doc_type }}</el-tag>
         </template>
       </div>
     </div>
@@ -100,7 +99,6 @@ const docId = computed(() => route.params.id)
 const preset = {
   title: typeof route.query.title === 'string' ? route.query.title : '',
   fileName: typeof route.query.fileName === 'string' ? route.query.fileName : '',
-  docType: typeof route.query.docType === 'string' ? route.query.docType : '',
   kbName: typeof route.query.kbName === 'string' ? route.query.kbName : '',
   chunkCount: typeof route.query.chunkCount === 'string'
     ? Number(route.query.chunkCount)
@@ -111,7 +109,6 @@ const preset = {
 const docMeta = ref({
   title: preset.title || null,
   file_name: preset.fileName || null,
-  doc_type: preset.docType || null,
   chunk_count: Number.isFinite(preset.chunkCount) ? preset.chunkCount : null,
   created_at: null,
   kb_id: preset.kbId || null,

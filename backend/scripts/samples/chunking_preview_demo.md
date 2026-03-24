@@ -4,9 +4,9 @@ This document is intentionally mixed and slightly long so chunking behavior is e
 
 ## Product Overview
 
-DocMind ingests internal documents and transforms them into retrieval-ready chunks. The chunking layer tries to preserve meaning rather than cutting at arbitrary character offsets. In practice that means headers should create boundaries, breadcrumbs should be attached to the final chunk text, and special Markdown structures should remain readable after splitting. When you tweak target size, max size, strict mode, or overlap, this file gives you one place to visually inspect what changed.
+DocMind ingests internal documents and transforms them into retrieval-ready chunks. The chunking layer tries to preserve meaning rather than cutting at arbitrary character offsets. In practice that means headers should create boundaries, breadcrumbs should be attached to the final chunk text, and special Markdown structures should remain readable after splitting. When you tweak target size, max size, or overlap, this file gives you one place to visually inspect what changed.
 
-The retrieval team usually cares about two competing goals at the same time. First, each chunk should be compact enough for embedding and ranking. Second, each chunk should still contain enough local context that a user question can match the right part of the original document without losing section meaning. That tradeoff is the reason this preview file includes both short blocks and intentionally longer prose that may need to be split in non-strict mode.
+The retrieval team usually cares about two competing goals at the same time. First, each chunk should be compact enough for embedding and ranking. Second, each chunk should still contain enough local context that a user question can match the right part of the original document without losing section meaning. That tradeoff is the reason this preview file includes both short blocks and intentionally longer prose that may need to be automatically split.
 
 ### Ingestion States
 
@@ -46,15 +46,13 @@ The quote above is useful for checking whether blockquote syntax is stripped whi
 | Setting        | Example | Why It Matters                                                 |
 | -------------- | ------- | -------------------------------------------------------------- |
 | chunk_size     | 260     | Controls how aggressively content is packed into each chunk    |
-| max_chunk_size | 420     | Defines the semantic block ceiling in strict mode              |
 | chunk_overlap  | 100     | Keeps some trailing context between adjacent chunks            |
-| strict_mode    | false   | Lets oversized blocks be recursively halved instead of failing |
 
 The table above should be converted into prose in Markdown splitting mode. If you compare the Markdown and PDF paths, you should notice that only the Markdown-specific path receives special handling for tables, code fences, and blockquotes.
 
 ## Long Paragraph For Non-Strict Preview
 
-This paragraph is intentionally oversized so you can see what the system does when the target chunk size is much smaller than the prose itself. If you run the preview script with a small `--chunk-size` and `--strict-mode false`, the paragraph should be recursively split into smaller pieces instead of crashing the whole preview run. If you keep `--strict-mode true` and lower `--max-chunk-size` enough, the same paragraph should trigger a failure, which is also useful to verify when you are adjusting ingestion rules for production behavior. The point of this section is not realistic writing quality but a predictable large semantic block that exposes the difference between strict and non-strict handling.
+This paragraph is intentionally oversized so you can see what the system does when the target chunk size is much smaller than the prose itself. If you run the preview script with a small `--chunk-size`, the paragraph should be recursively split into smaller pieces instead of crashing the whole preview run. The point of this section is not realistic writing quality but a predictable large semantic block that makes automatic splitting easy to inspect.
 
 ## Closing Section
 

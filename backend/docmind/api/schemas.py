@@ -5,7 +5,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from docmind.core.config import settings
-from docmind.ingestion.constants import DEFAULT_RETRIEVAL_MODE, DEFAULT_STRICT_MODE
+from docmind.ingestion.constants import DEFAULT_RETRIEVAL_MODE
 
 
 class DocumentMetadata(BaseModel):
@@ -22,17 +22,9 @@ class IngestionOptions(BaseModel):
         default=DEFAULT_RETRIEVAL_MODE,
         description="'chunk': retrieve individual chunks. 'full_doc': retrieve the full article when any chunk matches.",
     )
-    strict_mode: bool = Field(
-        default=DEFAULT_STRICT_MODE,
-        description="Enable strict mode. If true, excessively long chunks will cause failure.",
-    )
     chunk_size: int = Field(
         default=settings.ingestion.chunk_size,
         description="Target chunk size for semantic merging.",
-    )
-    max_chunk_size: int = Field(
-        default=settings.ingestion.max_chunk_size,
-        description="Maximum allowed size for an atomic block (e.g., code block).",
     )
     chunk_overlap: int = Field(
         default=settings.ingestion.chunk_overlap,
@@ -89,7 +81,6 @@ class DocumentListItem(BaseModel):
     status: str
     error_message: str | None = None
     created_at: str
-    strict_mode: bool
     kb_name: str | None = None
     kb_display_name: str | None = None
     uploader_name: str | None = None

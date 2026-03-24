@@ -6,9 +6,7 @@ Run from the backend directory:
 Example:
     uv run python scripts/preview_chunking.py scripts/samples/chunking_preview_demo.md \
         --chunk-size 260 \
-        --max-chunk-size 420 \
         --chunk-overlap 120 \
-        --strict-mode false \
         --show-documents
 """
 
@@ -28,17 +26,6 @@ from docmind.ingestion.nodes import load_document_node, split_text_node, _split_
 
 SECTION_LINE = "=" * 88
 SUBSECTION_LINE = "-" * 88
-
-
-def _parse_bool(value: str) -> bool:
-    normalized = value.strip().lower()
-    if normalized in {"1", "true", "yes", "y", "on"}:
-        return True
-    if normalized in {"0", "false", "no", "n", "off"}:
-        return False
-    raise argparse.ArgumentTypeError(
-        f"Invalid boolean value '{value}'. Use true/false."
-    )
 
 
 def _format_metadata(doc: Document) -> str:
@@ -94,22 +81,10 @@ def main() -> None:
         help="Target chunk size passed into split_text_node.",
     )
     parser.add_argument(
-        "--max-chunk-size",
-        type=int,
-        default=1000,
-        help="Max semantic block size used by strict mode.",
-    )
-    parser.add_argument(
         "--chunk-overlap",
         type=int,
         default=120,
         help="Overlap budget passed into split_text_node.",
-    )
-    parser.add_argument(
-        "--strict-mode",
-        type=_parse_bool,
-        default=True,
-        help="Whether to raise on oversized semantic blocks. Use true/false.",
     )
     parser.add_argument(
         "--retrieval-mode",
@@ -148,9 +123,7 @@ def main() -> None:
         "kb_name": "preview-kb",
         "retrieval_mode": args.retrieval_mode,
         "chunk_size": args.chunk_size,
-        "max_chunk_size": args.max_chunk_size,
         "chunk_overlap": args.chunk_overlap,
-        "strict_mode": args.strict_mode,
     }
 
     print(SECTION_LINE)
@@ -159,9 +132,7 @@ def main() -> None:
     print(f"file:            {file_path}")
     print(f"title:           {args.title or file_path.stem}")
     print(f"chunk_size:      {args.chunk_size}")
-    print(f"max_chunk_size:  {args.max_chunk_size}")
     print(f"chunk_overlap:   {args.chunk_overlap}")
-    print(f"strict_mode:     {args.strict_mode}")
     print(f"retrieval_mode:  {args.retrieval_mode}")
     print()
 
@@ -180,9 +151,7 @@ def main() -> None:
                     _split_pdf(
                         doc,
                         args.chunk_size,
-                        args.max_chunk_size,
                         args.chunk_overlap,
-                        args.strict_mode,
                     )
                 )
         else:

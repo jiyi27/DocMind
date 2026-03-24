@@ -6,7 +6,6 @@ from docmind.api.schemas import DocumentListItem
 
 
 def serialize_document_list_item(document: dict[str, Any]) -> dict[str, Any]:
-    strict_mode = document.get("strict_mode")
     item = DocumentListItem(
         id=document["id"],
         user_id=document["user_id"],
@@ -17,7 +16,6 @@ def serialize_document_list_item(document: dict[str, Any]) -> dict[str, Any]:
         status=document.get("status") or "",
         error_message=document.get("error_message") or "",
         created_at=document["created_at"],
-        strict_mode=bool(strict_mode),
         kb_name=document.get("kb_name"),
         kb_display_name=document.get("kb_display_name"),
         uploader_name=document.get("uploader_name"),

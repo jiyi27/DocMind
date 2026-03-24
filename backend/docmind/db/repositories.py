@@ -224,12 +224,10 @@ class DocumentRepository:
         status: str = "pending",
         error_message: str = "",
         file_path: str = "",
-        strict_mode: bool = True,
         retrieval_mode: str = "chunk",
     ) -> dict[str, Any]:
         _id = doc_id or str(uuid.uuid4())
         now = utc_now_iso()
-        strict_int = 1 if strict_mode else 0
         await self.db.execute(
             """
             INSERT INTO documents (id, user_id, kb_id, file_name, title, doc_type, chunk_count, status, error_message, file_path, strict_mode, retrieval_mode, created_at)
@@ -246,7 +244,7 @@ class DocumentRepository:
                 status,
                 error_message,
                 file_path,
-                strict_int,
+                0,
                 retrieval_mode,
                 now,
             ),
@@ -263,7 +261,7 @@ class DocumentRepository:
             "status": status,
             "error_message": error_message,
             "file_path": file_path,
-            "strict_mode": strict_int,
+            "strict_mode": 0,
             "retrieval_mode": retrieval_mode,
             "created_at": now,
         }

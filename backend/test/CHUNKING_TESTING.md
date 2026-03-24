@@ -40,17 +40,7 @@ Verifies:
 - blockquotes stay atomic and the `>` prefix is removed in final chunk text
 - Markdown tables are converted to prose and stay atomic
 
-### 3. Strict mode behavior
-
-Test entrypoint:
-
-- `split_text_node(state)`
-
-Verifies:
-
-- when a semantic block exceeds `max_chunk_size`, strict mode raises `ValueError`
-
-### 4. Non-strict mode behavior
+### 3. Oversized block handling
 
 Test entrypoint:
 
@@ -60,7 +50,7 @@ Verifies:
 
 - oversized blocks are recursively split instead of failing the whole ingestion step
 
-### 5. PDF paragraph splitting
+### 4. PDF paragraph splitting
 
 Test entrypoint:
 
@@ -71,7 +61,7 @@ Verifies:
 - plain text paragraph splitting for PDF-like content
 - overlap across adjacent PDF chunks
 
-### 6. Metadata inheritance in the ingestion workflow
+### 5. Metadata inheritance in the ingestion workflow
 
 Test entrypoints:
 
@@ -83,7 +73,7 @@ Verifies:
 - metadata stamped during load is preserved after splitting
 - identity fields such as `doc_id`, `user_id`, `kb_name`, and `retrieval_mode` appear on output chunks
 
-### 7. Pure helper functions
+### 6. Pure helper functions
 
 Direct tests are intentionally limited to helpers that are stable, pure, and useful in isolation:
 
@@ -110,7 +100,7 @@ Current fixture files:
 - `test/fixtures/atomic_blocks.md`
   Used for fenced code block, blockquote, and table behavior.
 - `test/fixtures/oversized_block.md`
-  Used for strict vs non-strict handling of oversized semantic blocks.
+  Used for automatic splitting of oversized semantic blocks.
 
 Guideline:
 

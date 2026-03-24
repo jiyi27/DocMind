@@ -38,28 +38,6 @@
         />
       </el-form-item>
 
-      <el-row :gutter="12">
-        <el-col :span="12">
-          <el-form-item label="Doc Type">
-              <el-select v-model="form.doc_type" placeholder="Select type" style="width: 100%">
-              <el-option label="All" value="all" />
-              <el-option label="Manual" value="manual" />
-              <el-option label="FAQ" value="faq" />
-              <el-option label="Policy" value="policy" />
-            </el-select>
-          </el-form-item>
-        </el-col>
-        <el-col :span="12">
-          <el-form-item label="Service">
-            <el-input
-              v-model="form.service"
-              placeholder="e.g. all or service1,service2"
-              clearable
-            />
-          </el-form-item>
-        </el-col>
-      </el-row>
-
       <el-form-item label="Source URL (optional)">
         <el-input
           v-model="form.url"
@@ -83,39 +61,24 @@
         </div>
       </el-form-item>
 
-      <el-form-item>
-        <el-checkbox v-model="form.strict_mode">
-          Strict Chunking Validation
-        </el-checkbox>
-        <div style="font-size: 12px; color: #909399; line-height: 1.2; margin-top: 4px;">
-          If enabled, extremely long text blocks or code snippets that exceed limits will fail the ingestion to guarantee semantic integrity. If disabled, they will be forcefully chunked.
-        </div>
-      </el-form-item>
-
-      <el-collapse accordion v-if="form.strict_mode" style="border: none; margin-bottom: 18px;">
+      <el-collapse accordion style="border: none; margin-bottom: 18px;">
         <el-collapse-item name="1">
           <template #title>
             <span style="font-size: 13px; color: #606266; font-weight: normal;">Advanced Chunking Settings</span>
           </template>
           <div style="padding: 10px 0 0 0;">
-            <el-row :gutter="12">
-              <el-col :span="12">
-                <el-form-item label="Target Chunk Size" style="margin-bottom: 0;">
-                  <el-input-number v-model="form.chunk_size" :min="100" :max="8000" controls-position="right" style="width: 100%" />
-                  <div style="font-size: 11px; color: #909399; margin-top: 4px; line-height: 1.2;">
-                    Ideal token size for a combined chunk.
-                  </div>
-                </el-form-item>
-              </el-col>
-              <el-col :span="12">
-                <el-form-item label="Max Chunk Size" style="margin-bottom: 0;">
-                  <el-input-number v-model="form.max_chunk_size" :min="200" :max="8000" controls-position="right" style="width: 100%" />
-                  <div style="font-size: 11px; color: #909399; margin-top: 4px; line-height: 1.2;">
-                    Absolute limit for an indivisible block (e.g. code).
-                  </div>
-                </el-form-item>
-              </el-col>
-            </el-row>
+            <el-form-item label="Target Chunk Size" style="margin-bottom: 0;">
+              <el-input-number v-model="form.chunk_size" :min="100" :max="8000" controls-position="right" style="width: 100%" />
+              <div style="font-size: 11px; color: #909399; margin-top: 4px; line-height: 1.2;">
+                Ideal token size for a combined chunk.
+              </div>
+            </el-form-item>
+            <el-form-item label="Chunk Overlap" style="margin: 12px 0 0 0;">
+              <el-input-number v-model="form.chunk_overlap" :min="0" :max="4000" controls-position="right" style="width: 100%" />
+              <div style="font-size: 11px; color: #909399; margin-top: 4px; line-height: 1.2;">
+                Repeats a small amount of trailing context in the next chunk.
+              </div>
+            </el-form-item>
           </div>
         </el-collapse-item>
       </el-collapse>
@@ -158,13 +121,10 @@ const fileList = ref([])
 
 const form = reactive({
   title: '',
-  doc_type: 'all',
-  service: 'all',
   url: '',
   retrieval_mode: 'chunk',
-  strict_mode: true,
   chunk_size: 500,
-  max_chunk_size: 1500,
+  chunk_overlap: 100,
 })
 
 function handleFileChange(file) {
@@ -189,12 +149,9 @@ async function handleUpload() {
   formData.append('file', selectedFile.value)
   if (form.title) formData.append('title', form.title)
   if (form.url) formData.append('url', form.url)
-  if (form.doc_type) formData.append('doc_type', form.doc_type)
-  if (form.service) formData.append('service', form.service)
   formData.append('retrieval_mode', form.retrieval_mode)
-  formData.append('strict_mode', form.strict_mode)
   formData.append('chunk_size', form.chunk_size)
-  formData.append('max_chunk_size', form.max_chunk_size)
+  formData.append('chunk_overlap', form.chunk_overlap)
 
   uploading.value = true
   try {
@@ -214,13 +171,10 @@ function resetForm() {
   selectedFile.value = null
   fileList.value = []
   form.title = ''
-  form.doc_type = 'all'
-  form.service = 'all'
   form.url = ''
   form.retrieval_mode = 'chunk'
-  form.strict_mode = true
   form.chunk_size = 500
-  form.max_chunk_size = 1500
+  form.chunk_overlap = 100
   uploadRef.value?.clearFiles()
 }
 </script>

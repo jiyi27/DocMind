@@ -44,7 +44,6 @@
               </el-tag>
             </p>
             <p class="doc-meta">
-              <el-tag size="small" type="info">{{ doc.doc_type || 'all' }}</el-tag>
               <span class="doc-chunks">
                 <el-icon><Coin /></el-icon>
                 {{ doc.chunk_count }} Chunks
@@ -150,7 +149,6 @@ function goToDetail(doc) {
       kbName: kbName || undefined,
       title: doc.title || undefined,
       fileName: doc.file_name || undefined,
-      docType: doc.doc_type || undefined,
       chunkCount: doc.chunk_count ?? undefined,
     },
   })

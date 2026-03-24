@@ -264,20 +264,24 @@ For each page in `to_create`:
   "file_path": "data/uploads/{doc_id}_{page_id}.md",
   "metadata": {
     "title": "<page title>",
-    "url": "<source_url>",
-    "doc_type": "all",
-    "service": "all"
+    "url": "<source_url>"
+  },
+  "options": {
+    "retrieval_mode": "<confluence_retrieval_mode>",
+    "strict_mode": false,
+    "chunk_size": "<settings.ingestion.chunk_size>",
+    "max_chunk_size": "<settings.ingestion.max_chunk_size>",
+    "chunk_overlap": "<settings.ingestion.chunk_overlap>"
   },
   "user_id": "",
   "doc_id": "<doc_id>",
-  "kb_name": "<kb name slug>",
-  "retrieval_mode": "<confluence_retrieval_mode>",
-  "strict_mode": false,
-  "chunk_size": "<settings.ingestion.chunk_size>",
-  "max_chunk_size": "<settings.ingestion.max_chunk_size>",
-  "chunk_overlap": "<settings.ingestion.chunk_overlap>"
+  "kb_name": "<kb name slug>"
 }
 ```
+
+`metadata` is now reserved for business document attributes only. Do not put runtime
+processing controls such as `retrieval_mode`, `strict_mode`, or chunk sizes inside
+`metadata`; those belong under `options`.
 
 `strict_mode` is always `false` for Confluence documents. Confluence pages frequently
 contain long paragraphs that would trigger strict-mode validation failures.
@@ -473,15 +477,32 @@ The ingestion pipeline is invoked by inserting a record into `ingestion_jobs`. T
 The sync service must never call the graph directly — always go through the job queue.
 
 The `payload_json` must be a valid `IngestionState` dict. Required fields: `file_path`,
-`metadata`, `user_id`, `doc_id`, `kb_name`, `retrieval_mode`, `strict_mode`, `chunk_size`,
-`max_chunk_size`, `chunk_overlap`. Missing fields cause silent fallback to defaults or
-runtime errors inside graph nodes.
+`metadata`, `options`, `user_id`, `doc_id`, `kb_name`.
+
+Expected `metadata` shape:
+
+- `title`
+- `url`
+
+Expected `options` shape:
+
+- `retrieval_mode`
+- `strict_mode`
+- `chunk_size`
+- `max_chunk_size`
+- `chunk_overlap`
+
+Missing `options` fields cause fallback to backend defaults inside graph nodes. Avoid relying
+on those implicit fallbacks in sync code; enqueue explicit values instead.
 
 `kb_name` is `knowledge_bases.name` (the Qdrant collection slug), not `kb_id`.
 Always look up the KB record and read the `name` field before constructing the payload.
 
 Always set `strict_mode=False` for Confluence documents. Confluence HTML frequently
 produces long paragraphs after conversion that would fail strict-mode chunk validation.
+
+The current upload/ingestion implementation no longer uses `doc_type` or `service`
+metadata. Do not include them in Confluence sync payloads.
 
 ### Sync record semantics
 

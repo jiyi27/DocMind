@@ -34,7 +34,6 @@ from docmind.db.repositories import (
 )
 from docmind.ingestion.constants import (
     DEFAULT_RETRIEVAL_MODE,
-    DEFAULT_STRICT_MODE,
     RETRIEVAL_MODES,
 )
 from docmind.ingestion.loaders import load_document
@@ -64,15 +63,8 @@ async def ingest_document(
     retrieval_mode: str = Form(
         default=DEFAULT_RETRIEVAL_MODE, description="'chunk' or 'full_doc'"
     ),
-    strict_mode: bool = Form(
-        default=DEFAULT_STRICT_MODE, description="Enable strict chunking validation"
-    ),
     chunk_size: int = Form(
         default=settings.ingestion.chunk_size, description="Target chunk size"
-    ),
-    max_chunk_size: int = Form(
-        default=settings.ingestion.max_chunk_size,
-        description="Max allowed chunk size for code blocks",
     ),
     chunk_overlap: int = Form(
         default=settings.ingestion.chunk_overlap,
@@ -106,9 +98,7 @@ async def ingest_document(
     )
     options = IngestionOptions(
         retrieval_mode=retrieval_mode,  # type: ignore[arg-type]
-        strict_mode=strict_mode,
         chunk_size=chunk_size,
-        max_chunk_size=max_chunk_size,
         chunk_overlap=chunk_overlap,
     )
 
@@ -161,7 +151,6 @@ async def ingest_document(
             doc_id=doc_id,
             status="pending",
             file_path=str(tmp_path),
-            strict_mode=options.strict_mode,
             retrieval_mode=options.retrieval_mode,
         )
         payload = {

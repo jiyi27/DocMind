@@ -15,7 +15,6 @@ from docmind.core.metadata import (
     CHUNK_TYPE_IMAGE,
     CHUNK_TYPE_TEXT,
     DEFAULT_RETRIEVAL_MODE,
-    DEFAULT_STRICT_MODE,
     META_ALT_TEXT,
     META_CHUNK_TYPE,
     META_DOC_ID,
@@ -219,9 +218,9 @@ def _iter_language_fenced_blocks(text: str) -> list[re.Match[str]]:
 
 
 def _custom_split_markdown(
-    doc: Document, target_size: int, max_size: int, overlap: int, strict: bool
+    doc: Document, target_size: int, overlap: int
 ) -> list[Document]:
-    """Strictly split Markdown respecting headers, code blocks, blockquotes, tables, and paragraphs.
+    """Split Markdown while preserving headers, code blocks, blockquotes, tables, and paragraphs.
 
     Processing order:
       1. Protect fenced code blocks  (they contain blank lines that would confuse paragraph splitting)
@@ -295,23 +294,13 @@ def _custom_split_markdown(
 
     def append_content_block(block: str) -> None:
         restored = _restore_all(block)
-        block_len = len(restored)
-        if strict:
-            if block_len > max_size:
-                snippet = restored[:50].replace("\n", " ") + "..."
-                raise ValueError(
-                    f"Strict mode validation failed: a semantic block exceeds the max length "
-                    f"of {max_size} chars (actual: {block_len}). Snippet: '{snippet}'"
-                )
-            _pack(restored)
-        else:
-            pieces = (
-                _halve_text(restored, target_size)
-                if block_len > target_size
-                else [restored]
-            )
-            for piece in pieces:
-                _pack(piece)
+        pieces = (
+            _halve_text(restored, target_size)
+            if len(restored) > target_size
+            else [restored]
+        )
+        for piece in pieces:
+            _pack(piece)
 
     # --- 4. Block classifier + typed handlers ---
     _HEADER_RE = re.compile(r"^(#{1,6})\s+(.*)")
@@ -389,13 +378,10 @@ def _custom_split_markdown(
     return docs
 
 
-def _split_pdf(
-    doc: Document, target_size: int, max_size: int, overlap: int, strict: bool
-) -> list[Document]:
+def _split_pdf(doc: Document, target_size: int, overlap: int) -> list[Document]:
     """Split plain text (PDF) by physical paragraphs.
 
-    In strict mode, raises if any paragraph exceeds *max_size*.
-    In non-strict mode, recursively halves oversized paragraphs instead.
+    Oversized paragraphs are recursively halved instead of failing ingestion.
     """
     raw_chunks = [c.strip() for c in doc.page_content.split("\n\n") if c.strip()]
 
@@ -425,12 +411,6 @@ def _split_pdf(
 
     for chunk in raw_chunks:
         block_len = len(chunk)
-        if strict and block_len > max_size:
-            snippet = chunk[:50].replace("\n", " ") + "..."
-            raise ValueError(
-                f"Strict mode validation failed: A semantic block (e.g., paragraph) "
-                f"exceeds the max length of {max_size} chars (actual: {block_len}). Snippet: '{snippet}'"
-            )
         pieces = _halve_text(chunk, target_size) if block_len > target_size else [chunk]
         for piece in pieces:
             _pack(piece)
@@ -444,9 +424,7 @@ def split_text_node(state: IngestionState) -> dict:
     try:
         options = state.get("options", {})
         target_size = options.get("chunk_size", settings.ingestion.chunk_size)
-        max_size = options.get("max_chunk_size", settings.ingestion.max_chunk_size)
         chunk_overlap = options.get("chunk_overlap", settings.ingestion.chunk_overlap)
-        strict_mode = options.get("strict_mode", DEFAULT_STRICT_MODE)
 
         final_chunks = []
 
@@ -454,18 +432,13 @@ def split_text_node(state: IngestionState) -> dict:
             # PDFs are now converted to Markdown by pymupdf4llm at load time,
             # so all supported formats go through the Markdown splitter which
             # understands headings, tables, code blocks, and blockquotes.
-            final_chunks.extend(
-                _custom_split_markdown(
-                    doc, target_size, max_size, chunk_overlap, strict_mode
-                )
-            )
+            final_chunks.extend(_custom_split_markdown(doc, target_size, chunk_overlap))
 
     except Exception as exc:
         logger.error(
             "ingest_split_failed",
             {
                 "doc_count": len(state["documents"]),
-                "strict_mode": options.get("strict_mode", DEFAULT_STRICT_MODE),
                 "error_type": type(exc).__name__,
                 "error": str(exc),
             },

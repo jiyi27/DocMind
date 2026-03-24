@@ -11,9 +11,7 @@ class IngestionOptions(TypedDict, total=False):
     """Runtime controls for ingestion behavior."""
 
     retrieval_mode: str
-    strict_mode: bool
     chunk_size: int
-    max_chunk_size: int
     chunk_overlap: int
 
 
@@ -27,7 +25,7 @@ class IngestionState(TypedDict, total=False):
     metadata : dict
         User-provided document metadata (title, url).
     options : dict
-        Runtime processing controls (retrieval mode, chunk sizes, strictness).
+        Runtime processing controls (retrieval mode, chunk sizes, overlap).
     user_id : str
         ID of the user who uploaded the document.
     doc_id : str

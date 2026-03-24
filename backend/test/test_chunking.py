@@ -28,9 +28,7 @@ def _split_markdown(
     fixture_name: str,
     *,
     chunk_size: int,
-    max_chunk_size: int = 240,
     chunk_overlap: int = 0,
-    strict_mode: bool = True,
 ) -> list[Document]:
     state = {
         "documents": [
@@ -45,9 +43,7 @@ def _split_markdown(
         "options": {
             "retrieval_mode": "chunk",
             "chunk_size": chunk_size,
-            "max_chunk_size": max_chunk_size,
             "chunk_overlap": chunk_overlap,
-            "strict_mode": strict_mode,
         },
     }
     return split_text_node(state)["chunks"]
@@ -58,8 +54,6 @@ def _split_pdf(
     *,
     chunk_size: int,
     chunk_overlap: int = 0,
-    max_chunk_size: int = 240,
-    strict_mode: bool = True,
 ) -> list[Document]:
     state = {
         "documents": [
@@ -74,9 +68,7 @@ def _split_pdf(
         "options": {
             "retrieval_mode": "chunk",
             "chunk_size": chunk_size,
-            "max_chunk_size": max_chunk_size,
             "chunk_overlap": chunk_overlap,
-            "strict_mode": strict_mode,
         },
     }
     return split_text_node(state)["chunks"]
@@ -152,24 +144,11 @@ class TestAtomicBlocks:
         assert "Feature: Chunk Size, Value: 400" in table_chunks[0].page_content
 
 
-class TestStrictMode:
-    def test_oversized_markdown_block_raises(self) -> None:
-        with pytest.raises(ValueError, match="Strict mode validation failed"):
-            _split_markdown(
-                "oversized_block.md",
-                chunk_size=120,
-                max_chunk_size=140,
-                strict_mode=True,
-            )
-
-
-class TestNonStrictMode:
+class TestOversizedBlocks:
     def test_oversized_markdown_block_is_split_instead_of_failing(self) -> None:
         chunks = _split_markdown(
             "oversized_block.md",
             chunk_size=120,
-            max_chunk_size=140,
-            strict_mode=False,
         )
 
         assert len(chunks) >= 3
@@ -192,7 +171,6 @@ class TestPdfSplitting:
             pdf_text,
             chunk_size=130,
             chunk_overlap=70,
-            strict_mode=True,
         )
 
         assert len(chunks) == 2
@@ -223,9 +201,7 @@ class TestMetadataInheritance:
             "kb_name": "kb-demo",
             "retrieval_mode": "chunk",
             "chunk_size": 160,
-            "max_chunk_size": 240,
             "chunk_overlap": 0,
-            "strict_mode": True,
         }
 
         monkeypatch.setattr(ingestion_nodes, "load_document", lambda _: [doc])

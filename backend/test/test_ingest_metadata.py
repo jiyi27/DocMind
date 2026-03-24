@@ -31,9 +31,7 @@ def test_document_metadata_defaults_are_empty_strings() -> None:
 def test_ingestion_options_defaults_follow_settings() -> None:
     options = IngestionOptions()
     assert options.retrieval_mode in {"chunk", "full_doc"}
-    assert isinstance(options.strict_mode, bool)
     assert options.chunk_size > 0
-    assert options.max_chunk_size > 0
     assert options.chunk_overlap >= 0
 
 
