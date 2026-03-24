@@ -10,7 +10,13 @@ from typing import AsyncGenerator
 
 import aiosqlite
 
-from docmind.db.models import ALL_TABLES, MIGRATE_KNOWLEDGE_BASES_EMBEDDING_COLUMNS
+from docmind.db.models import (
+    ALL_TABLES,
+    CREATE_CONFLUENCE_UNIQUE_INDEX,
+    MIGRATE_DOCUMENTS_SOURCE_COLUMNS,
+    MIGRATE_KNOWLEDGE_BASES_CONFLUENCE_COLUMNS,
+    MIGRATE_KNOWLEDGE_BASES_EMBEDDING_COLUMNS,
+)
 
 _DEFAULT_DB_PATH = Path(__file__).resolve().parents[2] / "data" / "docmind.db"
 _PRAGMAS = (
@@ -65,12 +71,18 @@ def create_sync_connection() -> sqlite3.Connection:
 
 async def _migrate_db(conn: aiosqlite.Connection) -> None:
     """Apply idempotent schema migrations for existing databases."""
-    for stmt in MIGRATE_KNOWLEDGE_BASES_EMBEDDING_COLUMNS:
-        try:
-            await conn.execute(stmt)
-        except Exception:
-            # Column already exists — safe to ignore.
-            pass
+    migration_lists = [
+        MIGRATE_KNOWLEDGE_BASES_EMBEDDING_COLUMNS,
+        MIGRATE_KNOWLEDGE_BASES_CONFLUENCE_COLUMNS,
+        MIGRATE_DOCUMENTS_SOURCE_COLUMNS,
+    ]
+    for stmts in migration_lists:
+        for stmt in stmts:
+            try:
+                await conn.execute(stmt)
+            except Exception:
+                # Column already exists — safe to ignore.
+                pass
     await conn.commit()
 
 
@@ -84,6 +96,7 @@ async def init_db() -> None:
 
     for ddl in ALL_TABLES:
         await _GLOBAL_CONN.execute(ddl)
+    await _GLOBAL_CONN.execute(CREATE_CONFLUENCE_UNIQUE_INDEX)
     await _GLOBAL_CONN.commit()
 
     await _migrate_db(_GLOBAL_CONN)

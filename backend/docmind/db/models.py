@@ -4,16 +4,22 @@ DDL statements for all database tables.
 
 CREATE_KNOWLEDGE_BASES_TABLE = """
 CREATE TABLE IF NOT EXISTS knowledge_bases (
-    id                  TEXT PRIMARY KEY,
-    name                TEXT UNIQUE NOT NULL,
-    display_name        TEXT NOT NULL,
-    description         TEXT DEFAULT '',
-    created_at          TEXT NOT NULL,
-    embedding_provider  TEXT NOT NULL DEFAULT 'openai_compatible',
-    embedding_model     TEXT NOT NULL DEFAULT '',
-    embedding_base_url  TEXT NOT NULL DEFAULT '',
-    embedding_api_key   TEXT NOT NULL DEFAULT '',
-    vector_dimension    INTEGER NOT NULL DEFAULT 0
+    id                          TEXT PRIMARY KEY,
+    name                        TEXT UNIQUE NOT NULL,
+    display_name                TEXT NOT NULL,
+    description                 TEXT DEFAULT '',
+    created_at                  TEXT NOT NULL,
+    embedding_provider          TEXT NOT NULL DEFAULT 'openai_compatible',
+    embedding_model             TEXT NOT NULL DEFAULT '',
+    embedding_base_url          TEXT NOT NULL DEFAULT '',
+    embedding_api_key           TEXT NOT NULL DEFAULT '',
+    vector_dimension            INTEGER NOT NULL DEFAULT 0,
+    confluence_root_page_id     TEXT DEFAULT '',
+    confluence_sync_enabled     INTEGER NOT NULL DEFAULT 0,
+    confluence_retrieval_mode   TEXT NOT NULL DEFAULT 'chunk',
+    confluence_last_sync_at     TEXT DEFAULT '',
+    confluence_last_sync_status TEXT DEFAULT '',
+    confluence_last_sync_error  TEXT DEFAULT ''
 );
 """
 
@@ -38,19 +44,23 @@ CREATE TABLE IF NOT EXISTS users (
 
 CREATE_DOCUMENTS_TABLE = """
 CREATE TABLE IF NOT EXISTS documents (
-    id          TEXT PRIMARY KEY,
-    user_id     TEXT NOT NULL REFERENCES users(id),
-    kb_id       TEXT NOT NULL REFERENCES knowledge_bases(id),
-    file_name   TEXT NOT NULL,
-    title       TEXT DEFAULT '',
-    doc_type    TEXT DEFAULT '',
-    chunk_count INTEGER DEFAULT 0,
-    status        TEXT DEFAULT 'pending',
-    error_message TEXT DEFAULT '',
-    file_path     TEXT DEFAULT '',
+    id              TEXT PRIMARY KEY,
+    user_id         TEXT REFERENCES users(id),
+    kb_id           TEXT NOT NULL REFERENCES knowledge_bases(id),
+    file_name       TEXT NOT NULL,
+    title           TEXT DEFAULT '',
+    doc_type        TEXT DEFAULT '',
+    chunk_count     INTEGER DEFAULT 0,
+    status          TEXT DEFAULT 'pending',
+    error_message   TEXT DEFAULT '',
+    file_path       TEXT DEFAULT '',
     strict_mode     INTEGER DEFAULT 1,
     retrieval_mode  TEXT DEFAULT 'chunk',
-    created_at  TEXT NOT NULL
+    source_type     TEXT NOT NULL DEFAULT 'manual',
+    external_doc_id TEXT DEFAULT '',
+    source_url      TEXT DEFAULT '',
+    source_version  INTEGER NOT NULL DEFAULT 0,
+    created_at      TEXT NOT NULL
 );
 """
 
@@ -98,9 +108,63 @@ CREATE TABLE IF NOT EXISTS chat_messages (
 );
 """
 
+CREATE_KB_SYNC_JOBS_TABLE = """
+CREATE TABLE IF NOT EXISTS kb_sync_jobs (
+    id              TEXT PRIMARY KEY,
+    kb_id           TEXT NOT NULL REFERENCES knowledge_bases(id),
+    status          TEXT NOT NULL DEFAULT 'pending',
+    trigger_type    TEXT NOT NULL DEFAULT 'scheduled',
+    error_message   TEXT DEFAULT '',
+    created_at      TEXT NOT NULL,
+    started_at      TEXT DEFAULT '',
+    finished_at     TEXT DEFAULT '',
+    updated_at      TEXT NOT NULL
+);
+"""
+
+CREATE_KB_SYNC_RECORDS_TABLE = """
+CREATE TABLE IF NOT EXISTS kb_sync_records (
+    id              TEXT PRIMARY KEY,
+    job_id          TEXT NOT NULL REFERENCES kb_sync_jobs(id) ON DELETE CASCADE,
+    kb_id           TEXT NOT NULL REFERENCES knowledge_bases(id),
+    external_doc_id TEXT NOT NULL,
+    document_title  TEXT DEFAULT '',
+    source_url      TEXT DEFAULT '',
+    operation       TEXT NOT NULL,
+    status          TEXT NOT NULL,
+    error_message   TEXT DEFAULT '',
+    created_at      TEXT NOT NULL
+);
+"""
+
+MIGRATE_KNOWLEDGE_BASES_CONFLUENCE_COLUMNS = [
+    "ALTER TABLE knowledge_bases ADD COLUMN confluence_root_page_id TEXT DEFAULT ''",
+    "ALTER TABLE knowledge_bases ADD COLUMN confluence_sync_enabled INTEGER NOT NULL DEFAULT 0",
+    "ALTER TABLE knowledge_bases ADD COLUMN confluence_retrieval_mode TEXT NOT NULL DEFAULT 'chunk'",
+    "ALTER TABLE knowledge_bases ADD COLUMN confluence_last_sync_at TEXT DEFAULT ''",
+    "ALTER TABLE knowledge_bases ADD COLUMN confluence_last_sync_status TEXT DEFAULT ''",
+    "ALTER TABLE knowledge_bases ADD COLUMN confluence_last_sync_error TEXT DEFAULT ''",
+]
+
+MIGRATE_DOCUMENTS_SOURCE_COLUMNS = [
+    "ALTER TABLE documents ADD COLUMN source_type TEXT NOT NULL DEFAULT 'manual'",
+    "ALTER TABLE documents ADD COLUMN external_doc_id TEXT DEFAULT ''",
+    "ALTER TABLE documents ADD COLUMN source_url TEXT DEFAULT ''",
+    "ALTER TABLE documents ADD COLUMN source_version INTEGER NOT NULL DEFAULT 0",
+]
+
+CREATE_CONFLUENCE_UNIQUE_INDEX = """
+CREATE UNIQUE INDEX IF NOT EXISTS idx_documents_confluence_unique
+ON documents (kb_id, external_doc_id)
+WHERE source_type = 'confluence';
+"""
+
 __all__ = [
     "ALL_TABLES",
     "MIGRATE_KNOWLEDGE_BASES_EMBEDDING_COLUMNS",
+    "MIGRATE_KNOWLEDGE_BASES_CONFLUENCE_COLUMNS",
+    "MIGRATE_DOCUMENTS_SOURCE_COLUMNS",
+    "CREATE_CONFLUENCE_UNIQUE_INDEX",
 ]
 
 ALL_TABLES = [
@@ -110,4 +174,6 @@ ALL_TABLES = [
     CREATE_INGESTION_JOBS_TABLE,
     CREATE_CHAT_SESSIONS_TABLE,
     CREATE_CHAT_MESSAGES_TABLE,
+    CREATE_KB_SYNC_JOBS_TABLE,
+    CREATE_KB_SYNC_RECORDS_TABLE,
 ]

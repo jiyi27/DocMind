@@ -31,8 +31,18 @@ async def lifespan(app: FastAPI):
     worker = IngestionQueueWorker()
     worker.start()
 
+    # Start Confluence sync worker only if configured
+    confluence_worker = None
+    if settings.confluence.enabled:
+        from docmind.integrations.confluence.worker import ConfluenceSyncWorker
+
+        confluence_worker = ConfluenceSyncWorker()
+        confluence_worker.start()
+
     yield  # App is running
 
     # Cleanup resources on shutdown
+    if confluence_worker is not None:
+        confluence_worker.stop()
     worker.stop()
     await close_db()

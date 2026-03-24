@@ -37,10 +37,8 @@ from docmind.ingestion.constants import (
     RETRIEVAL_MODES,
 )
 from docmind.ingestion.loaders import load_document
-from docmind.vectorstore.qdrant_store import (
-    delete_documents_by_doc_id,
-    get_chunks_by_doc_id,
-)
+from docmind.services.document_service import delete_document_and_vectors
+from docmind.vectorstore.qdrant_store import get_chunks_by_doc_id
 
 router = APIRouter(prefix="/ingest", tags=["ingestion"])
 
@@ -324,11 +322,8 @@ async def delete_document(
                 detail="Not authorized to delete this document",
             )
 
-        # Delete vectors from Qdrant first
-        delete_documents_by_doc_id(current_user.kb_name, doc_id)
-
-        # Delete DB record
-        await doc_repo.delete(doc_id)
+        # Delete vectors (using doc's real KB) and DB record
+        await delete_document_and_vectors(db, doc_id)
 
     return ok(
         data={"doc_id": doc_id},

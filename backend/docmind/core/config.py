@@ -159,6 +159,23 @@ class CORSConfig:
 
 
 @dataclass(frozen=True)
+class ConfluenceConfig:
+    """Confluence integration (optional).
+
+    If both base_url and pat are empty, integration is disabled.
+    If only one is set, startup fails fast with a clear error.
+    """
+
+    base_url: str
+    pat: str
+    sync_interval_seconds: int
+
+    @property
+    def enabled(self) -> bool:
+        return bool(self.base_url and self.pat)
+
+
+@dataclass(frozen=True)
 class Settings:
     """Root settings aggregating all sub-configurations."""
 
@@ -170,6 +187,7 @@ class Settings:
     jwt: JWTConfig
     admin: AdminConfig
     cors: CORSConfig
+    confluence: ConfluenceConfig
 
     def validate(self) -> list[str]:
         """Return the list of missing / invalid environment variables collected at import time."""
@@ -201,6 +219,30 @@ def _load_image_vision_config() -> "ImageVisionConfig":
         )
     # For ocr / none, the vision fields are unused; store empty strings.
     return ImageVisionConfig(api_key="", model="", base_url="")
+
+
+def _load_confluence_config() -> "ConfluenceConfig":
+    """Read Confluence env vars with optional semantics.
+
+    Both empty → integration disabled.
+    Only one set → record error in _MISSING for fail-fast at startup.
+    """
+    base_url = os.getenv("CONFLUENCE_BASE_URL", "").strip()
+    pat = os.getenv("CONFLUENCE_PAT", "").strip()
+    interval = int(
+        os.getenv("CONFLUENCE_SYNC_INTERVAL_SECONDS", "300").strip() or "300"
+    )
+
+    if bool(base_url) != bool(pat):
+        _MISSING.append(
+            "CONFLUENCE_BASE_URL and CONFLUENCE_PAT must both be set or both be empty"
+        )
+
+    return ConfluenceConfig(
+        base_url=base_url,
+        pat=pat,
+        sync_interval_seconds=interval,
+    )
 
 
 def _build_settings() -> Settings:
@@ -251,6 +293,7 @@ def _build_settings() -> Settings:
                 if origin.strip()
             ],
         ),
+        confluence=_load_confluence_config(),
     )
 
 

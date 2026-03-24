@@ -152,6 +152,52 @@ class KBRepository:
         await self.db.commit()
         return await self.get_by_id(kb_id)
 
+    async def update_confluence_settings(
+        self,
+        kb_id: str,
+        root_page_id: str,
+        sync_enabled: bool,
+        retrieval_mode: str,
+    ) -> dict[str, Any] | None:
+        await self.db.execute(
+            """
+            UPDATE knowledge_bases
+            SET confluence_root_page_id = ?,
+                confluence_sync_enabled = ?,
+                confluence_retrieval_mode = ?
+            WHERE id = ?
+            """,
+            (root_page_id, int(sync_enabled), retrieval_mode, kb_id),
+        )
+        await self.db.commit()
+        return await self.get_by_id(kb_id)
+
+    async def update_sync_status(
+        self,
+        kb_id: str,
+        last_sync_at: str,
+        last_sync_status: str,
+        last_sync_error: str = "",
+    ) -> None:
+        await self.db.execute(
+            """
+            UPDATE knowledge_bases
+            SET confluence_last_sync_at = ?,
+                confluence_last_sync_status = ?,
+                confluence_last_sync_error = ?
+            WHERE id = ?
+            """,
+            (last_sync_at, last_sync_status, last_sync_error, kb_id),
+        )
+        await self.db.commit()
+
+    async def list_sync_enabled_kbs(self) -> list[dict[str, Any]]:
+        async with self.db.execute(
+            "SELECT * FROM knowledge_bases WHERE confluence_sync_enabled = 1",
+        ) as cur:
+            rows = await cur.fetchall()
+            return [dict(r) for r in rows]
+
     async def delete(self, kb_id: str) -> bool:
         cur = await self.db.execute(
             "DELETE FROM knowledge_bases WHERE id = ?", (kb_id,)
@@ -215,7 +261,7 @@ class DocumentRepository:
 
     async def create(
         self,
-        user_id: str,
+        user_id: str | None,
         kb_id: str,
         file_name: str,
         title: str = "",
@@ -225,13 +271,20 @@ class DocumentRepository:
         error_message: str = "",
         file_path: str = "",
         retrieval_mode: str = "chunk",
+        source_type: str = "manual",
+        external_doc_id: str = "",
+        source_url: str = "",
+        source_version: int = 0,
     ) -> dict[str, Any]:
         _id = doc_id or str(uuid.uuid4())
         now = utc_now_iso()
         await self.db.execute(
             """
-            INSERT INTO documents (id, user_id, kb_id, file_name, title, doc_type, chunk_count, status, error_message, file_path, strict_mode, retrieval_mode, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO documents
+                (id, user_id, kb_id, file_name, title, doc_type, chunk_count,
+                 status, error_message, file_path, strict_mode, retrieval_mode,
+                 source_type, external_doc_id, source_url, source_version, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 _id,
@@ -246,6 +299,10 @@ class DocumentRepository:
                 file_path,
                 0,
                 retrieval_mode,
+                source_type,
+                external_doc_id,
+                source_url,
+                source_version,
                 now,
             ),
         )
@@ -263,6 +320,10 @@ class DocumentRepository:
             "file_path": file_path,
             "strict_mode": 0,
             "retrieval_mode": retrieval_mode,
+            "source_type": source_type,
+            "external_doc_id": external_doc_id,
+            "source_url": source_url,
+            "source_version": source_version,
             "created_at": now,
         }
 
@@ -359,6 +420,25 @@ class DocumentRepository:
         ) as cur:
             row = await cur.fetchone()
             return int(row[0]) if row else 0
+
+    async def get_by_external_doc_id(
+        self, kb_id: str, external_doc_id: str
+    ) -> dict[str, Any] | None:
+        """Find a Confluence-synced document by its external page ID within a KB."""
+        async with self.db.execute(
+            "SELECT * FROM documents WHERE kb_id = ? AND external_doc_id = ? AND source_type = 'confluence'",
+            (kb_id, external_doc_id),
+        ) as cur:
+            return _row_to_dict(await cur.fetchone())
+
+    async def list_confluence_docs_by_kb(self, kb_id: str) -> list[dict[str, Any]]:
+        """Return all Confluence-synced documents within a KB."""
+        async with self.db.execute(
+            "SELECT * FROM documents WHERE kb_id = ? AND source_type = 'confluence' ORDER BY created_at DESC",
+            (kb_id,),
+        ) as cur:
+            rows = await cur.fetchall()
+            return [dict(r) for r in rows]
 
     async def delete_by_kb(self, kb_id: str) -> int:
         """Delete all documents belonging to a knowledge base. Returns count deleted."""
@@ -607,6 +687,144 @@ class ChatMessageRepository:
         async with self.db.execute(
             "SELECT * FROM chat_messages WHERE session_id = ? ORDER BY created_at ASC",
             (session_id,),
+        ) as cur:
+            rows = await cur.fetchall()
+            return [dict(r) for r in rows]
+
+
+# ---------------------------------------------------------------------------
+# Sync Job Repository
+# ---------------------------------------------------------------------------
+
+
+class SyncJobRepository:
+    def __init__(self, db: aiosqlite.Connection) -> None:
+        self.db = db
+
+    async def create(
+        self,
+        kb_id: str,
+        trigger_type: str = "manual",
+    ) -> dict[str, Any]:
+        job_id = str(uuid.uuid4())
+        now = utc_now_iso()
+        await self.db.execute(
+            """
+            INSERT INTO kb_sync_jobs
+                (id, kb_id, status, trigger_type, error_message,
+                 created_at, started_at, finished_at, updated_at)
+            VALUES (?, ?, 'pending', ?, '', ?, '', '', ?)
+            """,
+            (job_id, kb_id, trigger_type, now, now),
+        )
+        await self.db.commit()
+        return {
+            "id": job_id,
+            "kb_id": kb_id,
+            "status": "pending",
+            "trigger_type": trigger_type,
+            "error_message": "",
+            "created_at": now,
+            "started_at": "",
+            "finished_at": "",
+            "updated_at": now,
+        }
+
+    async def get_by_id(self, job_id: str) -> dict[str, Any] | None:
+        async with self.db.execute(
+            "SELECT * FROM kb_sync_jobs WHERE id = ?", (job_id,)
+        ) as cur:
+            return _row_to_dict(await cur.fetchone())
+
+    async def list_by_kb(self, kb_id: str, limit: int = 20) -> list[dict[str, Any]]:
+        async with self.db.execute(
+            "SELECT * FROM kb_sync_jobs WHERE kb_id = ? ORDER BY created_at DESC LIMIT ?",
+            (kb_id, limit),
+        ) as cur:
+            rows = await cur.fetchall()
+            return [dict(r) for r in rows]
+
+    async def update_status(
+        self,
+        job_id: str,
+        status: str,
+        error_message: str = "",
+    ) -> None:
+        now = utc_now_iso()
+        fields = {"status": status, "error_message": error_message, "updated_at": now}
+        if status == "running":
+            fields["started_at"] = now
+        elif status in ("completed", "failed"):
+            fields["finished_at"] = now
+
+        set_clause = ", ".join(f"{k} = ?" for k in fields)
+        await self.db.execute(
+            f"UPDATE kb_sync_jobs SET {set_clause} WHERE id = ?",
+            (*fields.values(), job_id),
+        )
+        await self.db.commit()
+
+
+# ---------------------------------------------------------------------------
+# Sync Record Repository
+# ---------------------------------------------------------------------------
+
+
+class SyncRecordRepository:
+    def __init__(self, db: aiosqlite.Connection) -> None:
+        self.db = db
+
+    async def create(
+        self,
+        job_id: str,
+        kb_id: str,
+        external_doc_id: str,
+        document_title: str,
+        source_url: str,
+        operation: str,
+        status: str,
+        error_message: str = "",
+    ) -> dict[str, Any]:
+        record_id = str(uuid.uuid4())
+        now = utc_now_iso()
+        await self.db.execute(
+            """
+            INSERT INTO kb_sync_records
+                (id, job_id, kb_id, external_doc_id, document_title,
+                 source_url, operation, status, error_message, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                record_id,
+                job_id,
+                kb_id,
+                external_doc_id,
+                document_title,
+                source_url,
+                operation,
+                status,
+                error_message,
+                now,
+            ),
+        )
+        await self.db.commit()
+        return {
+            "id": record_id,
+            "job_id": job_id,
+            "kb_id": kb_id,
+            "external_doc_id": external_doc_id,
+            "document_title": document_title,
+            "source_url": source_url,
+            "operation": operation,
+            "status": status,
+            "error_message": error_message,
+            "created_at": now,
+        }
+
+    async def list_by_job(self, job_id: str) -> list[dict[str, Any]]:
+        async with self.db.execute(
+            "SELECT * FROM kb_sync_records WHERE job_id = ? ORDER BY created_at ASC",
+            (job_id,),
         ) as cur:
             rows = await cur.fetchall()
             return [dict(r) for r in rows]

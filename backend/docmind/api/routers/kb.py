@@ -5,8 +5,13 @@ POST   /kb              — create a new knowledge base (auto-creates Qdrant col
 GET    /kb              — list all knowledge bases
 GET    /kb/{kb_id}      — get knowledge base detail + document count
 DELETE /kb/{kb_id}      — delete knowledge base (drops Qdrant collection + all doc records)
+POST   /kb/{kb_id}/sync — trigger manual Confluence sync
+GET    /kb/{kb_id}/sync/jobs — list sync job history
+GET    /kb/{kb_id}/sync/jobs/{job_id}/records — list sync record details
 """
 
+import asyncio
+import threading
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -15,10 +20,16 @@ from pydantic import BaseModel, Field
 from docmind.api.dependencies import require_super_admin
 from docmind.api.response import ok
 from docmind.auth.schemas import UserContext
+from docmind.core.config import settings
 from docmind.core.embedding import EmbeddingParams
 from docmind.core.embedding_options import list_embedding_options
-from docmind.db.database import get_db
-from docmind.db.repositories import DocumentRepository, KBRepository
+from docmind.db.database import create_async_connection, get_db
+from docmind.db.repositories import (
+    DocumentRepository,
+    KBRepository,
+    SyncJobRepository,
+    SyncRecordRepository,
+)
 from docmind.vectorstore.qdrant_store import create_kb_collection, delete_kb_collection
 
 router = APIRouter(prefix="/kb", tags=["knowledge-base"])
@@ -31,16 +42,24 @@ class EmbeddingOverride(BaseModel):
     api_key: str = ""
 
 
+class ConfluenceSettings(BaseModel):
+    root_page_id: str = ""
+    sync_enabled: bool = False
+    retrieval_mode: Literal["chunk", "full_doc"] = "chunk"
+
+
 class KBCreate(BaseModel):
     name: str  # slug, e.g. "india" → collection "docmind_india"
     display_name: str
     description: str = ""
     embedding: EmbeddingOverride = Field(default_factory=EmbeddingOverride)
+    confluence: ConfluenceSettings | None = None
 
 
 class KBUpdate(BaseModel):
     display_name: str
     description: str = ""
+    confluence: ConfluenceSettings | None = None
 
 
 class KBEmbeddingConnectionUpdate(BaseModel):
@@ -154,7 +173,23 @@ async def create_knowledge_base(
         )
 
     # Don't expose api_key in response
-    return ok(data=_serialize_kb(kb), message="Knowledge base created")
+    kb_dict = dict(kb)
+
+    # Apply optional Confluence settings at creation time
+    if body.confluence:
+        async with get_db() as db:
+            repo = KBRepository(db)
+            kb_dict = (
+                await repo.update_confluence_settings(
+                    kb_id=kb_dict["id"],
+                    root_page_id=body.confluence.root_page_id,
+                    sync_enabled=body.confluence.sync_enabled,
+                    retrieval_mode=body.confluence.retrieval_mode,
+                )
+                or kb_dict
+            )
+
+    return ok(data=_serialize_kb(kb_dict), message="Knowledge base created")
 
 
 # ---------------------------------------------------------------------------
@@ -237,6 +272,18 @@ async def update_knowledge_base(
             description=body.description,
         )
 
+        # Apply optional Confluence settings
+        if body.confluence:
+            updated = (
+                await repo.update_confluence_settings(
+                    kb_id=kb_id,
+                    root_page_id=body.confluence.root_page_id,
+                    sync_enabled=body.confluence.sync_enabled,
+                    retrieval_mode=body.confluence.retrieval_mode,
+                )
+                or updated
+            )
+
     if not updated:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Knowledge base not found"
@@ -314,3 +361,124 @@ async def delete_knowledge_base(
         data={"kb_id": kb_id, "documents_removed": deleted_docs},
         message="Knowledge base deleted",
     )
+
+
+# ---------------------------------------------------------------------------
+# POST /kb/{kb_id}/sync — trigger manual Confluence sync
+# ---------------------------------------------------------------------------
+
+
+def _run_sync_in_thread(kb_id: str, job_id: str) -> None:
+    """Execute Confluence sync in a background thread with its own event loop and DB connection."""
+    from docmind.integrations.confluence.service import execute_sync
+
+    async def _run() -> None:
+        conn = await create_async_connection()
+        try:
+            await execute_sync(conn, kb_id, job_id)
+        finally:
+            await conn.close()
+
+    loop = asyncio.new_event_loop()
+    try:
+        loop.run_until_complete(_run())
+    finally:
+        loop.close()
+
+
+@router.post(
+    "/{kb_id}/sync",
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Trigger Confluence Sync",
+)
+async def trigger_confluence_sync(
+    kb_id: str,
+    _: UserContext = Depends(require_super_admin),
+):
+    """Create a manual sync job and start processing in the background."""
+    if not settings.confluence.enabled:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Confluence integration is not configured",
+        )
+
+    async with get_db() as db:
+        kb_repo = KBRepository(db)
+        kb = await kb_repo.get_by_id(kb_id)
+        if not kb:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Knowledge base not found"
+            )
+
+        if not kb.get("confluence_root_page_id"):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No Confluence root page configured for this KB",
+            )
+
+        job_repo = SyncJobRepository(db)
+        job = await job_repo.create(kb_id=kb_id, trigger_type="manual")
+
+    # Run sync in a background thread so the API can respond immediately
+    thread = threading.Thread(
+        target=_run_sync_in_thread,
+        args=(kb_id, job["id"]),
+        name=f"confluence-sync-{kb_id[:8]}",
+        daemon=True,
+    )
+    thread.start()
+
+    return ok(
+        data={"job_id": job["id"], "status": "pending"},
+        message="Confluence sync started",
+    )
+
+
+# ---------------------------------------------------------------------------
+# GET /kb/{kb_id}/sync/jobs — list sync job history
+# ---------------------------------------------------------------------------
+
+
+@router.get("/{kb_id}/sync/jobs", summary="List Sync Jobs")
+async def list_sync_jobs(
+    kb_id: str,
+    limit: int = 20,
+):
+    """Return sync job history for a KB, ordered by created_at DESC."""
+    async with get_db() as db:
+        kb_repo = KBRepository(db)
+        kb = await kb_repo.get_by_id(kb_id)
+        if not kb:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Knowledge base not found"
+            )
+
+        job_repo = SyncJobRepository(db)
+        jobs = await job_repo.list_by_kb(kb_id, limit=limit)
+
+    return ok(data={"total": len(jobs), "jobs": jobs})
+
+
+# ---------------------------------------------------------------------------
+# GET /kb/{kb_id}/sync/jobs/{job_id}/records — list sync record details
+# ---------------------------------------------------------------------------
+
+
+@router.get("/{kb_id}/sync/jobs/{job_id}/records", summary="List Sync Records")
+async def list_sync_records(
+    kb_id: str,
+    job_id: str,
+):
+    """Return all document-level sync records for a specific sync job."""
+    async with get_db() as db:
+        job_repo = SyncJobRepository(db)
+        job = await job_repo.get_by_id(job_id)
+        if not job or job["kb_id"] != kb_id:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Sync job not found"
+            )
+
+        record_repo = SyncRecordRepository(db)
+        records = await record_repo.list_by_job(job_id)
+
+    return ok(data={"total": len(records), "records": records})
