@@ -1,18 +1,24 @@
 <template>
   <div class="dashboard">
-    <section class="dashboard-hero">
-      <div class="hero-copy">
-        <div class="hero-title-row">
+    <section class="dashboard-toolbar">
+      <div class="toolbar-copy">
+        <div class="toolbar-title-row">
           <h1 class="page-title">Knowledge Bases</h1>
           <el-tag type="info" effect="plain" round>{{ kbStore.kbCount }}</el-tag>
         </div>
-        <p class="page-desc">
-          Keep your retrieval spaces organized, inspect embedding settings quickly, and jump into
-          document operations without digging through tables.
-        </p>
+        <div class="toolbar-meta">
+          <span class="meta-pill">
+            <span class="meta-label">Accessible</span>
+            <strong>{{ accessibleCount }}</strong>
+          </span>
+          <span class="meta-pill">
+            <span class="meta-label">Scope</span>
+            <strong>{{ isSuperAdmin ? 'All workspaces' : 'Assigned only' }}</strong>
+          </span>
+        </div>
       </div>
 
-      <div class="hero-actions">
+      <div class="toolbar-actions">
         <el-button
           v-if="isSuperAdmin"
           type="primary"
@@ -23,21 +29,6 @@
           Create Knowledge Base
         </el-button>
       </div>
-    </section>
-
-    <section class="stats-grid">
-      <article class="stat-card">
-        <span class="stat-label">Knowledge Bases</span>
-        <strong class="stat-value">{{ kbStore.kbCount }}</strong>
-      </article>
-      <article class="stat-card">
-        <span class="stat-label">Accessible Spaces</span>
-        <strong class="stat-value">{{ accessibleCount }}</strong>
-      </article>
-      <article class="stat-card">
-        <span class="stat-label">Admin Scope</span>
-        <strong class="stat-value">{{ isSuperAdmin ? 'All workspaces' : 'Assigned only' }}</strong>
-      </article>
     </section>
 
     <div v-if="kbStore.loading" class="loading-panel">
@@ -118,85 +109,66 @@ async function handleDeleteKb(kbId) {
   margin: 0 auto;
 }
 
-.dashboard-hero {
+.dashboard-toolbar {
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   justify-content: space-between;
-  gap: 20px;
-  margin-bottom: 18px;
-  padding: 24px 26px;
-  border-radius: 28px;
-  background:
-    radial-gradient(circle at top left, rgba(37, 99, 235, 0.14), transparent 34%),
-    linear-gradient(135deg, #ffffff 0%, #f8fbff 58%, #f3f8f7 100%);
-  border: 1px solid var(--dm-border);
-  box-shadow: var(--dm-shadow-lg);
+  gap: 16px;
+  margin-bottom: 20px;
+  padding: 4px 2px;
 }
 
-.hero-copy {
-  max-width: 760px;
+.toolbar-copy {
+  min-width: 0;
 }
 
-.hero-title-row {
+.toolbar-title-row {
   display: flex;
   align-items: center;
   gap: 12px;
-  margin-bottom: 10px;
   flex-wrap: wrap;
 }
 
 .page-title {
   margin: 0;
-  font-size: 32px;
-  line-height: 1.05;
+  font-size: 30px;
+  line-height: 1.1;
   font-weight: 800;
   letter-spacing: -0.03em;
   color: var(--dm-text);
 }
 
-.page-desc {
-  margin: 0;
-  color: var(--dm-text-muted);
-  line-height: 1.7;
-  font-size: 14px;
+.toolbar-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 10px;
 }
 
-.hero-actions {
+.meta-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid var(--dm-border);
+  background: rgba(255, 255, 255, 0.86);
+  color: var(--dm-text);
+  font-size: 13px;
+}
+
+.meta-label {
+  color: var(--dm-text-soft);
+}
+
+.toolbar-actions {
   flex-shrink: 0;
 }
 
 .create-button {
-  min-width: 220px;
-}
-
-.stats-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 16px;
-  margin-bottom: 22px;
-}
-
-.stat-card {
-  padding: 18px 20px;
-  border-radius: 22px;
-  background: rgba(255, 255, 255, 0.82);
-  border: 1px solid var(--dm-border);
-  box-shadow: var(--dm-shadow-md);
-}
-
-.stat-label {
-  display: block;
-  margin-bottom: 10px;
-  font-size: 12px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--dm-text-soft);
-}
-
-.stat-value {
-  font-size: 24px;
-  color: var(--dm-text);
+  min-width: 188px;
 }
 
 .loading-panel,
@@ -217,13 +189,13 @@ async function handleDeleteKb(kbId) {
 }
 
 @media (max-width: 960px) {
-  .dashboard-hero {
+  .dashboard-toolbar {
     flex-direction: column;
     align-items: stretch;
   }
 
-  .stats-grid {
-    grid-template-columns: 1fr;
+  .toolbar-meta {
+    gap: 8px;
   }
 
   .create-button {
