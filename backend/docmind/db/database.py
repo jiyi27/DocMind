@@ -11,8 +11,8 @@ from typing import AsyncGenerator
 import aiosqlite
 
 from docmind.db.models import (
+    ALL_INDEXES,
     ALL_TABLES,
-    CREATE_CONFLUENCE_UNIQUE_INDEX,
     MIGRATE_DOCUMENTS_SOURCE_COLUMNS,
     MIGRATE_KNOWLEDGE_BASES_CONFLUENCE_COLUMNS,
     MIGRATE_KNOWLEDGE_BASES_EMBEDDING_COLUMNS,
@@ -83,6 +83,9 @@ async def _migrate_db(conn: aiosqlite.Connection) -> None:
             except Exception:
                 # Column already exists — safe to ignore.
                 pass
+
+    for stmt in ALL_INDEXES:
+        await conn.execute(stmt)
     await conn.commit()
 
 
@@ -96,7 +99,8 @@ async def init_db() -> None:
 
     for ddl in ALL_TABLES:
         await _GLOBAL_CONN.execute(ddl)
-    await _GLOBAL_CONN.execute(CREATE_CONFLUENCE_UNIQUE_INDEX)
+    for stmt in ALL_INDEXES:
+        await _GLOBAL_CONN.execute(stmt)
     await _GLOBAL_CONN.commit()
 
     await _migrate_db(_GLOBAL_CONN)

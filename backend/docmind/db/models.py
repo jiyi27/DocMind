@@ -159,8 +159,44 @@ ON documents (kb_id, external_doc_id)
 WHERE source_type = 'confluence';
 """
 
+CREATE_DOCUMENTS_KB_CREATED_AT_INDEX = """
+CREATE INDEX IF NOT EXISTS idx_documents_kb_created_at
+ON documents (kb_id, created_at DESC);
+"""
+
+CREATE_DOCUMENTS_USER_CREATED_AT_INDEX = """
+CREATE INDEX IF NOT EXISTS idx_documents_user_created_at
+ON documents (user_id, created_at DESC);
+"""
+
+CREATE_DOCUMENTS_USER_KB_CREATED_AT_INDEX = """
+CREATE INDEX IF NOT EXISTS idx_documents_user_kb_created_at
+ON documents (user_id, kb_id, created_at DESC);
+"""
+
+CREATE_INGESTION_JOBS_STATUS_CREATED_AT_INDEX = """
+CREATE INDEX IF NOT EXISTS idx_ingestion_jobs_status_created_at
+ON ingestion_jobs (status, created_at ASC);
+"""
+
+CREATE_KB_SYNC_JOBS_KB_CREATED_AT_INDEX = """
+CREATE INDEX IF NOT EXISTS idx_kb_sync_jobs_kb_created_at
+ON kb_sync_jobs (kb_id, created_at DESC);
+"""
+
+CREATE_KB_SYNC_JOBS_KB_STATUS_CREATED_AT_INDEX = """
+CREATE INDEX IF NOT EXISTS idx_kb_sync_jobs_kb_status_created_at
+ON kb_sync_jobs (kb_id, status, created_at DESC);
+"""
+
+CREATE_KB_SYNC_RECORDS_JOB_CREATED_AT_INDEX = """
+CREATE INDEX IF NOT EXISTS idx_kb_sync_records_job_created_at
+ON kb_sync_records (job_id, created_at ASC);
+"""
+
 __all__ = [
     "ALL_TABLES",
+    "ALL_INDEXES",
     "MIGRATE_KNOWLEDGE_BASES_EMBEDDING_COLUMNS",
     "MIGRATE_KNOWLEDGE_BASES_CONFLUENCE_COLUMNS",
     "MIGRATE_DOCUMENTS_SOURCE_COLUMNS",
@@ -176,4 +212,15 @@ ALL_TABLES = [
     CREATE_CHAT_MESSAGES_TABLE,
     CREATE_KB_SYNC_JOBS_TABLE,
     CREATE_KB_SYNC_RECORDS_TABLE,
+]
+
+ALL_INDEXES = [
+    CREATE_CONFLUENCE_UNIQUE_INDEX,
+    CREATE_DOCUMENTS_KB_CREATED_AT_INDEX,
+    CREATE_DOCUMENTS_USER_CREATED_AT_INDEX,
+    CREATE_DOCUMENTS_USER_KB_CREATED_AT_INDEX,
+    CREATE_INGESTION_JOBS_STATUS_CREATED_AT_INDEX,
+    CREATE_KB_SYNC_JOBS_KB_CREATED_AT_INDEX,
+    CREATE_KB_SYNC_JOBS_KB_STATUS_CREATED_AT_INDEX,
+    CREATE_KB_SYNC_RECORDS_JOB_CREATED_AT_INDEX,
 ]
