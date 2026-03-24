@@ -4,6 +4,7 @@
     title="Create Knowledge Base"
     width="560px"
     :close-on-click-modal="false"
+    class="create-kb-dialog"
     @closed="resetForm"
   >
     <el-form
@@ -245,11 +246,99 @@ defineExpose({ open })
 </script>
 
 <style scoped>
+.create-kb-dialog :deep(.el-dialog) {
+  overflow: hidden;
+  border-radius: 28px;
+  border: 1px solid var(--dm-border);
+  background:
+    radial-gradient(circle at top left, rgba(37, 99, 235, 0.08), transparent 36%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(248, 250, 252, 0.96) 100%);
+  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.14);
+}
+
+.create-kb-dialog :deep(.el-dialog__header) {
+  margin: 0;
+  padding: 24px 28px 16px;
+  border-bottom: 1px solid var(--dm-border);
+}
+
+.create-kb-dialog :deep(.el-dialog__title) {
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--dm-text);
+}
+
+.create-kb-dialog :deep(.el-dialog__headerbtn) {
+  top: 20px;
+  right: 22px;
+}
+
+.create-kb-dialog :deep(.el-dialog__body) {
+  padding: 22px 28px 18px;
+}
+
+.create-kb-dialog :deep(.el-dialog__footer) {
+  padding: 18px 28px 24px;
+  border-top: 1px solid rgba(226, 232, 240, 0.78);
+}
+
+.create-kb-dialog :deep(.el-form-item) {
+  margin-bottom: 22px;
+}
+
+.create-kb-dialog :deep(.el-form-item__label) {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--dm-text);
+}
+
+.create-kb-dialog :deep(.el-input__wrapper),
+.create-kb-dialog :deep(.el-textarea__inner),
+.create-kb-dialog :deep(.el-select__wrapper) {
+  border-radius: 16px;
+  box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.18);
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.create-kb-dialog :deep(.el-input__wrapper.is-focus),
+.create-kb-dialog :deep(.el-textarea__inner:focus),
+.create-kb-dialog :deep(.el-select__wrapper.is-focused) {
+  box-shadow:
+    inset 0 0 0 1px rgba(37, 99, 235, 0.45),
+    0 0 0 4px rgba(37, 99, 235, 0.08);
+}
+
+.create-kb-dialog :deep(.el-alert) {
+  border-radius: 18px;
+}
+
+.create-kb-dialog :deep(.el-button) {
+  border-radius: 14px;
+}
+
+.create-kb-dialog :deep(.el-button--primary) {
+  padding-inline: 20px;
+}
+
 .section-title {
-  font-size: 14px;
-  font-weight: 600;
-  color: #303133;
-  margin: 6px 0 12px;
+  position: relative;
+  margin: 10px 0 16px;
+  padding-top: 6px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--dm-text-soft);
+}
+
+.section-title::after {
+  content: '';
+  display: block;
+  width: 100%;
+  height: 1px;
+  margin-top: 10px;
+  background: linear-gradient(90deg, rgba(148, 163, 184, 0.34), rgba(148, 163, 184, 0.08));
 }
 
 .section-alert {
@@ -262,7 +351,8 @@ defineExpose({ open })
 
 .form-hint {
   font-size: 12px;
-  color: #909399;
-  margin-top: 4px;
+  line-height: 1.5;
+  color: var(--dm-text-soft);
+  margin-top: 6px;
 }
 </style>

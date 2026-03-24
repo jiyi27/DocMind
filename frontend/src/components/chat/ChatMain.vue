@@ -12,7 +12,7 @@
 
       <div class="chat-thread scrollbar-hidden" ref="threadRef">
         <div v-if="conversation.messages.length === 0" class="chat-empty-thread">
-          Ask anything about your knowledge base.
+          Start a conversation with your knowledge base.
         </div>
         <div
           v-for="(message, index) in conversation.messages"
@@ -198,32 +198,12 @@ watch(
 
 .chat-empty-thread {
   margin: auto 0;
-  position: relative;
-  padding: 52px 28px;
-  border-radius: 28px;
+  padding: 20px 12px;
   text-align: center;
-  font-size: 15px;
-  font-weight: 600;
+  font-size: 18px;
+  font-weight: 500;
   letter-spacing: 0.01em;
-  color: var(--dm-text-muted);
-  background:
-    radial-gradient(circle at 50% 0%, rgba(37, 99, 235, 0.12), transparent 58%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.86) 0%, rgba(248, 250, 252, 0.78) 100%);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.92),
-    0 18px 40px rgba(15, 23, 42, 0.05);
-}
-
-.chat-empty-thread::before {
-  content: '';
-  position: absolute;
-  top: 18px;
-  left: 50%;
-  width: 88px;
-  height: 4px;
-  border-radius: 999px;
-  transform: translateX(-50%);
-  background: linear-gradient(90deg, rgba(37, 99, 235, 0), rgba(37, 99, 235, 0.42), rgba(37, 99, 235, 0));
+  color: var(--dm-text-soft);
 }
 
 .chat-message {

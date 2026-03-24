@@ -1,6 +1,6 @@
 <template>
   <div class="user-profile">
-    <section class="profile-hero">
+    <section class="profile-toolbar">
       <div class="profile-header">
         <el-avatar :size="72" class="profile-avatar">
           {{ userInitial }}
@@ -11,26 +11,21 @@
             <el-tag v-if="isSuperAdmin" type="danger" effect="plain" round>Super Admin</el-tag>
             <el-tag v-else type="info" effect="plain" round>User</el-tag>
           </div>
-          <p class="profile-desc">
-            Review your account scope and browse the documents you uploaded without leaving the
-            workspace.
-          </p>
+          <div class="profile-meta">
+            <span class="meta-pill">
+              <span class="meta-label">Username</span>
+              <strong>{{ username }}</strong>
+            </span>
+            <span class="meta-pill">
+              <span class="meta-label">Role</span>
+              <strong>{{ isSuperAdmin ? 'Super Admin' : 'User' }}</strong>
+            </span>
+            <span class="meta-pill">
+              <span class="meta-label">Knowledge Base</span>
+              <strong>{{ kbLabel }}</strong>
+            </span>
+          </div>
         </div>
-      </div>
-
-      <div class="profile-stats">
-        <article class="stat-card">
-          <span class="stat-label">Username</span>
-          <strong class="stat-value">{{ username }}</strong>
-        </article>
-        <article class="stat-card">
-          <span class="stat-label">Role</span>
-          <strong class="stat-value">{{ isSuperAdmin ? 'Super Admin' : 'User' }}</strong>
-        </article>
-        <article class="stat-card">
-          <span class="stat-label">Knowledge Base Scope</span>
-          <strong class="stat-value">{{ kbLabel }}</strong>
-        </article>
       </div>
     </section>
 
@@ -49,16 +44,30 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
+import { useKbStore } from '@/stores/kb'
 import DocumentList from '@/components/ingestion/DocumentList.vue'
 
 const authStore = useAuthStore()
+const kbStore = useKbStore()
 
 const username = computed(() => authStore.user?.username || 'User')
 const userInitial = computed(() => username.value.charAt(0).toUpperCase())
-const isSuperAdmin = computed(() => authStore.user?.role === 'super_admin')
-const kbLabel = computed(() => (isSuperAdmin.value ? 'All workspaces' : authStore.kbId || 'Assigned workspace'))
+const isSuperAdmin = computed(() => authStore.isSuperAdmin)
+const scopedKb = computed(() =>
+  kbStore.kbList.find((kb) => String(kb.id) === String(authStore.kbId)) || null,
+)
+const kbLabel = computed(() => {
+  if (isSuperAdmin.value) return 'All workspaces'
+  return scopedKb.value?.display_name || scopedKb.value?.name || 'Assigned workspace'
+})
+
+onMounted(() => {
+  if (!isSuperAdmin.value && authStore.kbId && kbStore.kbList.length === 0) {
+    kbStore.fetchKbs()
+  }
+})
 </script>
 
 <style scoped>
@@ -68,22 +77,15 @@ const kbLabel = computed(() => (isSuperAdmin.value ? 'All workspaces' : authStor
   margin: 0 auto;
 }
 
-.profile-hero {
-  margin-bottom: 22px;
-  padding: 24px;
-  border-radius: 28px;
-  background:
-    radial-gradient(circle at top left, rgba(37, 99, 235, 0.14), transparent 34%),
-    linear-gradient(135deg, #ffffff 0%, #f8fbff 58%, #f5f8fb 100%);
-  border: 1px solid var(--dm-border);
-  box-shadow: var(--dm-shadow-lg);
+.profile-toolbar {
+  margin-bottom: 20px;
+  padding: 4px 2px;
 }
 
 .profile-header {
   display: flex;
   align-items: center;
   gap: 18px;
-  margin-bottom: 20px;
 }
 
 .profile-avatar {
@@ -103,52 +105,40 @@ const kbLabel = computed(() => (isSuperAdmin.value ? 'All workspaces' : authStor
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
-  margin-bottom: 8px;
 }
 
 .profile-name {
   margin: 0;
-  font-size: 30px;
-  line-height: 1.05;
+  font-size: 28px;
+  line-height: 1.1;
   font-weight: 800;
   letter-spacing: -0.03em;
   color: var(--dm-text);
 }
 
-.profile-desc {
-  margin: 0;
-  color: var(--dm-text-muted);
-  line-height: 1.7;
-  font-size: 14px;
+.profile-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 10px;
 }
 
-.profile-stats {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 16px;
-}
-
-.stat-card {
-  padding: 18px 20px;
-  border-radius: 22px;
-  background: rgba(255, 255, 255, 0.82);
+.meta-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  padding: 0 12px;
+  border-radius: 999px;
   border: 1px solid var(--dm-border);
-  box-shadow: var(--dm-shadow-md);
-}
-
-.stat-label {
-  display: block;
-  margin-bottom: 10px;
-  font-size: 12px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--dm-text-soft);
-}
-
-.stat-value {
-  font-size: 20px;
+  background: rgba(255, 255, 255, 0.86);
   color: var(--dm-text);
+  font-size: 13px;
+}
+
+.meta-label {
+  color: var(--dm-text-soft);
 }
 
 .documents-panel {
@@ -177,7 +167,7 @@ const kbLabel = computed(() => (isSuperAdmin.value ? 'All workspaces' : authStor
 }
 
 .doc-list-wrap {
-  max-height: calc(100vh - 360px);
+  max-height: calc(100vh - 320px);
   min-height: 320px;
   overflow: hidden;
   display: flex;
@@ -188,14 +178,9 @@ const kbLabel = computed(() => (isSuperAdmin.value ? 'All workspaces' : authStor
   .profile-header {
     align-items: flex-start;
   }
-
-  .profile-stats {
-    grid-template-columns: 1fr;
-  }
 }
 
 @media (max-width: 720px) {
-  .profile-hero,
   .documents-panel {
     padding: 18px;
   }
@@ -205,7 +190,7 @@ const kbLabel = computed(() => (isSuperAdmin.value ? 'All workspaces' : authStor
   }
 
   .profile-name {
-    font-size: 26px;
+    font-size: 24px;
   }
 }
 </style>
