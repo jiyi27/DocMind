@@ -2,26 +2,21 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field
 
 from docmind.core.config import settings
-from docmind.core.metadata_config import DOC_TYPES, SERVICES
 from docmind.ingestion.constants import DEFAULT_RETRIEVAL_MODE, DEFAULT_STRICT_MODE
 
 
-class IngestMetadata(BaseModel):
-    """Metadata attached to an ingested document.
-
-    Note: business_line is no longer a field here — it is derived automatically
-    from the authenticated user's knowledge base (JWT payload).
-    """
+class DocumentMetadata(BaseModel):
+    """Business metadata attached to an ingested document."""
 
     title: str = ""
     url: str = ""
-    doc_type: str = "tech_spec"
 
-    # Multi-value fields (support comma-separated string input from form data)
-    service: list[str] = Field(default_factory=lambda: ["all"])
+
+class IngestionOptions(BaseModel):
+    """Runtime controls that affect how a document is processed."""
 
     retrieval_mode: Literal["chunk", "full_doc"] = Field(
         default=DEFAULT_RETRIEVAL_MODE,
@@ -39,29 +34,10 @@ class IngestMetadata(BaseModel):
         default=settings.ingestion.max_chunk_size,
         description="Maximum allowed size for an atomic block (e.g., code block).",
     )
-
-    @field_validator("doc_type")
-    @classmethod
-    def validate_doc_type(cls, v: str) -> str:
-        if v not in DOC_TYPES:
-            raise ValueError(f"doc_type must be one of {DOC_TYPES}, got '{v}'")
-        return v
-
-    @field_validator("service", mode="before")
-    @classmethod
-    def parse_list_field(cls, v: object) -> list[str]:
-        """Accept comma-separated string or list from form/JSON input."""
-        if isinstance(v, str):
-            return [item.strip() for item in v.split(",") if item.strip()]
-        return v  # type: ignore[return-value]
-
-    @field_validator("service")
-    @classmethod
-    def validate_service(cls, v: list[str]) -> list[str]:
-        invalid = [x for x in v if x not in SERVICES]
-        if invalid:
-            raise ValueError(f"Invalid service values {invalid}. Allowed: {SERVICES}")
-        return v
+    chunk_overlap: int = Field(
+        default=settings.ingestion.chunk_overlap,
+        description="Overlap budget between adjacent chunks.",
+    )
 
 
 class ChatRequest(BaseModel):
@@ -84,8 +60,12 @@ class ChatMessageCreate(BaseModel):
 
 class SearchRequest(BaseModel):
     query: str = Field(..., description="Search query string")
-    kb_name: str = Field(..., alias="kbName", description="Knowledge base slug to search in")
-    top_k: int = Field(default=5, alias="topK", ge=1, le=50, description="Number of results to return")
+    kb_name: str = Field(
+        ..., alias="kbName", description="Knowledge base slug to search in"
+    )
+    top_k: int = Field(
+        default=5, alias="topK", ge=1, le=50, description="Number of results to return"
+    )
 
 
 class SearchResultItem(BaseModel):
@@ -105,7 +85,6 @@ class DocumentListItem(BaseModel):
     kb_id: str
     file_name: str
     title: str
-    doc_type: str
     chunk_count: int
     status: str
     error_message: str | None = None

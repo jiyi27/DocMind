@@ -13,7 +13,6 @@ def serialize_document_list_item(document: dict[str, Any]) -> dict[str, Any]:
         kb_id=document["kb_id"],
         file_name=document["file_name"],
         title=document.get("title") or "",
-        doc_type=document.get("doc_type") or "",
         chunk_count=int(document.get("chunk_count") or 0),
         status=document.get("status") or "",
         error_message=document.get("error_message") or "",

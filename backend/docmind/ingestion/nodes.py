@@ -89,7 +89,7 @@ def load_document_node(state: IngestionState) -> dict:
     """Load documents from the given file path.
 
     PDF → one Document per page; Markdown → one Document for the whole file.
-    User-supplied metadata (title, doc_type, service, etc.) is stamped onto
+    User-supplied metadata (title, url) is stamped onto
     every Document here so all downstream chunks inherit it automatically.
     """
     file_path = state["file_path"]
@@ -110,10 +110,11 @@ def load_document_node(state: IngestionState) -> dict:
     # Stamp user-provided metadata + identity fields onto every Document so
     # that all chunks produced in the next step inherit them.
     metadata = state.get("metadata", {})
+    options = state.get("options", {})
     doc_id = state.get("doc_id", "")
     user_id = state.get("user_id", "")
     kb_name = state.get("kb_name", "")
-    retrieval_mode = state.get("retrieval_mode", DEFAULT_RETRIEVAL_MODE)
+    retrieval_mode = options.get("retrieval_mode", DEFAULT_RETRIEVAL_MODE)
     file_path = state.get("file_path", "")
     for doc in docs:
         doc.metadata.update(metadata)
@@ -441,11 +442,11 @@ def _split_pdf(
 def split_text_node(state: IngestionState) -> dict:
     """Split documents into smaller chunks."""
     try:
-        # Use values passed from user form (state), fallback to settings
-        target_size = state.get("chunk_size", settings.ingestion.chunk_size)
-        max_size = state.get("max_chunk_size", settings.ingestion.max_chunk_size)
-        chunk_overlap = state.get("chunk_overlap", settings.ingestion.chunk_overlap)
-        strict_mode = state.get("strict_mode", DEFAULT_STRICT_MODE)
+        options = state.get("options", {})
+        target_size = options.get("chunk_size", settings.ingestion.chunk_size)
+        max_size = options.get("max_chunk_size", settings.ingestion.max_chunk_size)
+        chunk_overlap = options.get("chunk_overlap", settings.ingestion.chunk_overlap)
+        strict_mode = options.get("strict_mode", DEFAULT_STRICT_MODE)
 
         final_chunks = []
 
@@ -464,7 +465,7 @@ def split_text_node(state: IngestionState) -> dict:
             "ingest_split_failed",
             {
                 "doc_count": len(state["documents"]),
-                "strict_mode": state.get("strict_mode", DEFAULT_STRICT_MODE),
+                "strict_mode": options.get("strict_mode", DEFAULT_STRICT_MODE),
                 "error_type": type(exc).__name__,
                 "error": str(exc),
             },

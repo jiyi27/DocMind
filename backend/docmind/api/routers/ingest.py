@@ -22,7 +22,7 @@ from docmind.api.serializers import (
     serialize_document_list_item,
     serialize_document_list_items,
 )
-from docmind.api.schemas import IngestMetadata
+from docmind.api.schemas import DocumentMetadata, IngestionOptions
 from docmind.api.response import ok
 from docmind.auth.schemas import UserContext
 from docmind.core.config import settings
@@ -61,8 +61,6 @@ async def ingest_document(
     file: UploadFile = File(..., description="PDF or Markdown file to ingest"),
     title: str = Form(default=""),
     url: str = Form(default=""),
-    doc_type: str = Form(default="all"),
-    service: str = Form(default="all"),
     retrieval_mode: str = Form(
         default=DEFAULT_RETRIEVAL_MODE, description="'chunk' or 'full_doc'"
     ),
@@ -75,6 +73,10 @@ async def ingest_document(
     max_chunk_size: int = Form(
         default=settings.ingestion.max_chunk_size,
         description="Max allowed chunk size for code blocks",
+    ),
+    chunk_overlap: int = Form(
+        default=settings.ingestion.chunk_overlap,
+        description="Overlap budget between adjacent chunks",
     ),
     current_user: UserContext = Depends(get_current_user),
 ):
@@ -98,15 +100,16 @@ async def ingest_document(
     kb_name = kb["name"]
     file_name = file.filename or "unknown"
 
-    metadata = IngestMetadata(
+    metadata = DocumentMetadata(
         title=title or file_name,
         url=url,
-        doc_type=doc_type,
-        service=service,  # type: ignore
-        retrieval_mode=retrieval_mode,  # type: ignore
+    )
+    options = IngestionOptions(
+        retrieval_mode=retrieval_mode,  # type: ignore[arg-type]
         strict_mode=strict_mode,
         chunk_size=chunk_size,
         max_chunk_size=max_chunk_size,
+        chunk_overlap=chunk_overlap,
     )
 
     doc_id = str(uuid.uuid4())
@@ -124,7 +127,7 @@ async def ingest_document(
 
     # For full_doc mode: parse the document now and enforce the character limit.
     # This gives the user immediate feedback without waiting for the ingestion worker.
-    if retrieval_mode == "full_doc":
+    if options.retrieval_mode == "full_doc":
         try:
             docs = load_document(str(tmp_path))
             total_chars = sum(len(d.page_content) for d in docs)
@@ -154,24 +157,20 @@ async def ingest_document(
             kb_id=kb_id,
             file_name=file_name,
             title=metadata.title,
-            doc_type=metadata.doc_type,
             chunk_count=0,
             doc_id=doc_id,
             status="pending",
             file_path=str(tmp_path),
-            strict_mode=strict_mode,
-            retrieval_mode=retrieval_mode,
+            strict_mode=options.strict_mode,
+            retrieval_mode=options.retrieval_mode,
         )
         payload = {
             "file_path": str(tmp_path),
             "metadata": metadata.model_dump(),
+            "options": options.model_dump(),
             "user_id": current_user.user_id,
             "doc_id": doc_id,
             "kb_name": kb_name,
-            "retrieval_mode": retrieval_mode,
-            "strict_mode": strict_mode,
-            "chunk_size": chunk_size,
-            "max_chunk_size": max_chunk_size,
         }
         await job_repo.create_pending(
             document_id=doc_id,

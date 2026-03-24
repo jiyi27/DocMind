@@ -7,6 +7,16 @@ from typing import TypedDict
 from langchain_core.documents import Document
 
 
+class IngestionOptions(TypedDict, total=False):
+    """Runtime controls for ingestion behavior."""
+
+    retrieval_mode: str
+    strict_mode: bool
+    chunk_size: int
+    max_chunk_size: int
+    chunk_overlap: int
+
+
 class IngestionState(TypedDict, total=False):
     """State flowing through the ingestion graph.
 
@@ -15,7 +25,9 @@ class IngestionState(TypedDict, total=False):
     file_path : str
         Path to the file to ingest.
     metadata : dict
-        User-provided metadata (title, url, doc_type, service).
+        User-provided document metadata (title, url).
+    options : dict
+        Runtime processing controls (retrieval mode, chunk sizes, strictness).
     user_id : str
         ID of the user who uploaded the document.
     doc_id : str
@@ -35,14 +47,10 @@ class IngestionState(TypedDict, total=False):
 
     file_path: str
     metadata: dict
+    options: IngestionOptions
     user_id: str
     doc_id: str
     kb_name: str
-    retrieval_mode: str
-    strict_mode: bool
-    chunk_size: int
-    max_chunk_size: int
-    chunk_overlap: int
     documents: list[Document]
     chunks: list[Document]
     status: str

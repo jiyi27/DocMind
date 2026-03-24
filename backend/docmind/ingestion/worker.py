@@ -66,7 +66,8 @@ class IngestionQueueWorker:
         document_id = job["document_id"]
         file_path = payload["file_path"]
 
-        retrieval_mode = payload.get("retrieval_mode", DEFAULT_RETRIEVAL_MODE)
+        options = payload.get("options", {})
+        retrieval_mode = options.get("retrieval_mode", DEFAULT_RETRIEVAL_MODE)
         try:
             result = ingestion_graph.invoke(payload)
             chunk_count = result.get("chunk_count", 0)

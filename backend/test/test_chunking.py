@@ -42,11 +42,13 @@ def _split_markdown(
         "doc_id": "doc-123",
         "user_id": "user-456",
         "kb_name": "kb-demo",
-        "retrieval_mode": "chunk",
-        "chunk_size": chunk_size,
-        "max_chunk_size": max_chunk_size,
-        "chunk_overlap": chunk_overlap,
-        "strict_mode": strict_mode,
+        "options": {
+            "retrieval_mode": "chunk",
+            "chunk_size": chunk_size,
+            "max_chunk_size": max_chunk_size,
+            "chunk_overlap": chunk_overlap,
+            "strict_mode": strict_mode,
+        },
     }
     return split_text_node(state)["chunks"]
 
@@ -69,11 +71,13 @@ def _split_pdf(
         "doc_id": "doc-123",
         "user_id": "user-456",
         "kb_name": "kb-demo",
-        "retrieval_mode": "chunk",
-        "chunk_size": chunk_size,
-        "max_chunk_size": max_chunk_size,
-        "chunk_overlap": chunk_overlap,
-        "strict_mode": strict_mode,
+        "options": {
+            "retrieval_mode": "chunk",
+            "chunk_size": chunk_size,
+            "max_chunk_size": max_chunk_size,
+            "chunk_overlap": chunk_overlap,
+            "strict_mode": strict_mode,
+        },
     }
     return split_text_node(state)["chunks"]
 
