@@ -12,6 +12,10 @@ export function getChatSessionDetail(sessionId) {
   return http.get(`/chats/${sessionId}`)
 }
 
+export function deleteChatSession(sessionId) {
+  return http.delete(`/chats/${sessionId}`)
+}
+
 /**
  * Send a chat message to the RAG pipeline.
  * History is managed server-side — only the session ID and current input are needed.

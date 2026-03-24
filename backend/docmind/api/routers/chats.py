@@ -4,6 +4,7 @@ Chat history router.
 GET  /chats                 - list user chat sessions
 GET  /chats/{session_id}    - get session detail with messages
 POST /chats                 - create a new chat session
+DELETE /chats/{session_id}  - delete a chat session
 POST /chats/{session_id}/messages - append a message to a session
 """
 
@@ -92,6 +93,25 @@ async def create_chat_session(
             kb_id=body.kb_id or current_user.kb_id,
         )
     return ok(data=session, message="Chat session created")
+
+
+@router.delete("/{session_id}", summary="Delete chat session")
+async def delete_chat_session(
+    session_id: str,
+    current_user: UserContext = Depends(get_current_user),
+):
+    """Delete a chat session owned by the current user."""
+    async with get_db() as db:
+        repo = ChatSessionRepository(db)
+        session = await repo.get_by_id(session_id)
+        if not session or session["user_id"] != current_user.user_id:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Chat session not found"
+            )
+
+        await repo.delete(session_id)
+
+    return ok(message="Chat session deleted")
 
 
 @router.post(

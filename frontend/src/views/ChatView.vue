@@ -9,6 +9,7 @@
         :has-more="chatList.length < chatTotal"
         @select="selectChat"
         @create="createNewChat"
+        @delete="removeChat"
         @load-more="loadMoreChats"
       />
       <ChatMain
@@ -23,12 +24,13 @@
 
 <script setup>
 import { ref, onBeforeUnmount, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import ChatSidebar from '@/components/chat/ChatSidebar.vue'
 import ChatMain from '@/components/chat/ChatMain.vue'
 import { fetchChatDetail } from '@/services/chat'
 import {
   createChatSession,
+  deleteChatSession,
   getChatSessionDetail,
   getChatSessions,
   sendChatMessageStream,
@@ -50,6 +52,30 @@ const detailCache = new Map()
 let detailRequestToken = 0
 let activeStreamController = null
 let activeStreamSessionId = ''
+
+function isConversationEmpty(conversation) {
+  return Boolean(conversation) && Array.isArray(conversation.messages) && conversation.messages.length === 0
+}
+
+function findReusableEmptyChatId() {
+  if (isConversationEmpty(activeConversation.value) && activeChatId.value) {
+    return activeChatId.value
+  }
+
+  for (const [sessionId, conversation] of detailCache.entries()) {
+    if (isConversationEmpty(conversation)) {
+      return sessionId
+    }
+  }
+
+  const listMatch = chatList.value.find((item) => (item.message_count ?? 0) === 0)
+  return listMatch?.id || ''
+}
+
+function getNextChatIdAfterDelete(deletedChatId) {
+  const remainingItems = chatList.value.filter((item) => item.id !== deletedChatId)
+  return remainingItems[0]?.id || ''
+}
 
 function syncActiveConversation(sessionId, conversation) {
   if (activeChatId.value === sessionId) {
@@ -135,6 +161,12 @@ async function selectChat(chatId) {
 }
 
 async function createNewChat() {
+  const reusableChatId = findReusableEmptyChatId()
+  if (reusableChatId) {
+    await selectChat(reusableChatId)
+    return
+  }
+
   try {
     const session = await createChatSession({ title: 'New Conversation' })
     const sessionId = session.id
@@ -154,6 +186,52 @@ async function createNewChat() {
     activeChatId.value = sessionId
   } catch {
     ElMessage.error('Failed to create new chat, please try again')
+  }
+}
+
+async function removeChat(item) {
+  if (!item?.id) return
+
+  try {
+    await ElMessageBox.confirm(
+      `Are you sure you want to delete "${item.title || 'this chat'}"? This cannot be undone.`,
+      'Delete Chat',
+      {
+        confirmButtonText: 'Delete',
+        cancelButtonText: 'Cancel',
+        type: 'warning',
+        confirmButtonClass: 'el-button--danger',
+      },
+    )
+  } catch {
+    return
+  }
+
+  const sessionId = item.id
+  const nextChatId = getNextChatIdAfterDelete(sessionId)
+
+  if (activeStreamSessionId === sessionId) {
+    abortActiveStream()
+  }
+
+  try {
+    await deleteChatSession(sessionId)
+    chatList.value = chatList.value.filter((chat) => chat.id !== sessionId)
+    detailCache.delete(sessionId)
+    chatTotal.value = Math.max(0, chatTotal.value - 1)
+
+    if (activeChatId.value === sessionId) {
+      activeChatId.value = ''
+      activeConversation.value = null
+
+      if (nextChatId) {
+        await selectChat(nextChatId)
+      }
+    }
+
+    ElMessage.success('Chat deleted')
+  } catch {
+    // Error handled by interceptor.
   }
 }
 
@@ -259,18 +337,21 @@ async function sendMessage(input) {
   margin: 0 auto;
   min-height: 0;
   overflow: hidden;
+  box-sizing: border-box;
 }
 
 .chat-shell {
   display: flex;
   height: 100%;
   min-height: 0;
-  border-radius: 28px;
+  border-radius: 30px;
   overflow: hidden;
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.96) 0%, rgba(247, 250, 252, 0.94) 100%);
-  border: 1px solid var(--dm-border);
-  box-shadow: var(--dm-shadow-lg);
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  box-shadow:
+    0 20px 50px rgba(15, 23, 42, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.65);
 }
 
 @media (max-width: 960px) {

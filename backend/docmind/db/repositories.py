@@ -547,6 +547,11 @@ class ChatSessionRepository:
         )
         await self.db.commit()
 
+    async def delete(self, session_id: str) -> None:
+        """Delete a chat session and cascade-delete its messages."""
+        await self.db.execute("DELETE FROM chat_sessions WHERE id = ?", (session_id,))
+        await self.db.commit()
+
 
 # ---------------------------------------------------------------------------
 # Chat Message Repository

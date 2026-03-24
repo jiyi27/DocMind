@@ -1,15 +1,5 @@
 <template>
   <aside class="chat-sidebar">
-    <div class="sidebar-header">
-      <div class="sidebar-copy">
-        <span class="sidebar-eyebrow">Conversations</span>
-        <h2 class="sidebar-title">Recent chats</h2>
-      </div>
-      <el-button type="primary" :icon="Plus" class="new-chat-btn" @click="$emit('create')">
-        New Chat
-      </el-button>
-    </div>
-
     <div
       class="chat-list scrollbar-hidden"
       :class="{ loading: loading }"
@@ -17,18 +7,37 @@
       @scroll.passive="onScroll"
     >
       <button
+        class="chat-item chat-create-item"
+        type="button"
+        aria-label="Create conversation"
+        title="Create conversation"
+        @click="$emit('create')"
+      >
+        <el-icon class="chat-create-icon"><EditPen /></el-icon>
+        <span class="chat-title">New chat</span>
+      </button>
+      <div
         v-for="item in items"
         :key="item.id"
         class="chat-item"
         :class="{ active: item.id === activeId }"
+        role="button"
+        tabindex="0"
         @click="$emit('select', item.id)"
+        @keydown.enter="$emit('select', item.id)"
+        @keydown.space.prevent="$emit('select', item.id)"
       >
         <span class="chat-title">{{ item.title }}</span>
-        <span v-if="item.last_message_preview" class="chat-preview">{{ item.last_message_preview }}</span>
-        <span class="chat-meta">
-          <span v-if="item.updated_at" class="chat-time">{{ formatTime(item.updated_at) }}</span>
-        </span>
-      </button>
+        <button
+          class="chat-delete-btn"
+          type="button"
+          aria-label="Delete chat"
+          title="Delete chat"
+          @click.stop="$emit('delete', item)"
+        >
+          <el-icon><Delete /></el-icon>
+        </button>
+      </div>
       <div v-if="!loading && items.length === 0" class="chat-empty">
         No conversations yet. Start one from the button above.
       </div>
@@ -40,7 +49,7 @@
 
 <script setup>
 import { ref } from 'vue'
-import { Plus } from '@element-plus/icons-vue'
+import { Delete, EditPen } from '@element-plus/icons-vue'
 
 const props = defineProps({
   items: {
@@ -65,7 +74,7 @@ const props = defineProps({
   },
 })
 
-const emit = defineEmits(['select', 'create', 'load-more'])
+const emit = defineEmits(['select', 'create', 'delete', 'load-more'])
 
 const listRef = ref(null)
 
@@ -75,13 +84,6 @@ function onScroll() {
   if (el.scrollHeight - el.scrollTop - el.clientHeight < 60) {
     emit('load-more')
   }
-}
-
-function formatTime(raw) {
-  if (!raw) return ''
-  const date = new Date(raw)
-  if (Number.isNaN(date.getTime())) return raw
-  return date.toLocaleString()
 }
 </script>
 
@@ -94,48 +96,22 @@ function formatTime(raw) {
   min-height: 0;
   background:
     linear-gradient(180deg, rgba(248, 250, 252, 0.94) 0%, rgba(241, 245, 249, 0.92) 100%);
-  border-right: 1px solid var(--dm-border-strong);
-}
-
-.sidebar-header {
-  padding: 24px 20px 18px;
-  border-bottom: 1px solid var(--dm-border-strong);
-}
-
-.sidebar-copy {
-  margin-bottom: 14px;
-}
-
-.sidebar-eyebrow {
-  display: inline-block;
-  margin-bottom: 8px;
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--dm-text-soft);
-}
-
-.sidebar-title {
-  margin: 0;
-  font-size: 22px;
-  font-weight: 800;
-  color: var(--dm-text);
-}
-
-.new-chat-btn {
-  width: 100%;
 }
 
 .chat-list {
-  padding: 14px;
+  padding: 12px 10px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 2px;
   overflow-y: auto;
   flex: 1;
   min-height: 0;
   overscroll-behavior: contain;
+}
+
+.chat-create-icon {
+  font-size: 16px;
+  color: var(--dm-text-muted);
 }
 
 .chat-list.loading {
@@ -144,55 +120,86 @@ function formatTime(raw) {
 }
 
 .chat-item {
-  border: 1px solid transparent;
-  background: rgba(255, 255, 255, 0.86);
-  border-radius: 18px;
-  padding: 14px;
+  border: none;
+  background: transparent;
+  border-radius: 12px;
+  padding: 10px 12px;
   text-align: left;
   cursor: pointer;
   display: flex;
-  flex-direction: column;
-  gap: 8px;
-  transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  position: relative;
+  transition: background-color 0.18s ease, color 0.18s ease;
+}
+
+.chat-item.chat-create-item {
+  min-height: 40px;
+  padding: 10px 12px;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px;
 }
 
 .chat-item:hover {
-  transform: translateY(-1px);
-  border-color: rgba(37, 99, 235, 0.16);
-  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
+  background: rgba(255, 255, 255, 0.62);
 }
 
 .chat-item.active {
-  border-color: rgba(37, 99, 235, 0.24);
-  background: linear-gradient(180deg, rgba(239, 246, 255, 0.98) 0%, rgba(248, 250, 252, 0.94) 100%);
-  box-shadow: 0 12px 26px rgba(37, 99, 235, 0.1);
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.chat-item.active::before {
+  content: '';
+  position: absolute;
+  left: 2px;
+  top: 8px;
+  bottom: 8px;
+  width: 3px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.72);
 }
 
 .chat-title {
-  font-size: 14px;
-  font-weight: 700;
+  font-size: 13px;
+  font-weight: 600;
   color: var(--dm-text);
+  flex: 1;
+  min-width: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.chat-preview {
-  font-size: 12px;
-  color: var(--dm-text-muted);
-  line-height: 1.5;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.chat-delete-btn {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--dm-text-soft);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.18s ease, background-color 0.18s ease, color 0.18s ease;
 }
 
-.chat-meta {
-  font-size: 12px;
-  color: var(--dm-text-soft);
+.chat-item:hover .chat-delete-btn,
+.chat-item:focus-within .chat-delete-btn,
+.chat-item.active .chat-delete-btn {
+  opacity: 1;
+  pointer-events: auto;
 }
 
-.chat-time {
-  color: var(--dm-text-soft);
+.chat-delete-btn:hover {
+  background: rgba(248, 113, 113, 0.12);
+  color: #dc2626;
 }
 
 .chat-empty,
@@ -209,8 +216,6 @@ function formatTime(raw) {
     width: 100%;
     max-height: 38vh;
     min-height: 240px;
-    border-right: none;
-    border-bottom: 1px solid var(--dm-border-strong);
   }
 }
 </style>

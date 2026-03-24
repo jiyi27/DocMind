@@ -6,10 +6,6 @@
     </div>
 
     <template v-else>
-      <div class="chat-main-header">
-        <h2 class="chat-main-title">{{ conversation.title || 'Untitled conversation' }}</h2>
-      </div>
-
       <div class="chat-thread scrollbar-hidden" ref="threadRef">
         <div v-if="conversation.messages.length === 0" class="chat-empty-thread">
           Start a conversation with your knowledge base.
@@ -164,25 +160,6 @@ watch(
   font-size: 14px;
   color: var(--dm-text-soft);
   padding: 40px;
-}
-
-.chat-main-header {
-  display: flex;
-  align-items: center;
-  padding: 14px 28px;
-  border-bottom: 1px solid var(--dm-border-strong);
-  background: rgba(255, 255, 255, 0.72);
-}
-
-.chat-main-title {
-  margin: 0;
-  font-size: 15px;
-  font-weight: 700;
-  line-height: 1.4;
-  color: var(--dm-text);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .chat-thread {
@@ -344,12 +321,11 @@ watch(
 }
 
 .chat-input-area {
-  padding: 12px 18px 14px;
-  border-top: 1px solid var(--dm-border-strong);
+  padding: 0 28px 20px;
   display: flex;
   gap: 12px;
   align-items: center;
-  background: rgba(255, 255, 255, 0.86);
+  background: transparent;
 }
 
 .chat-input-area .el-textarea {
@@ -373,7 +349,6 @@ watch(
 }
 
 @media (max-width: 960px) {
-  .chat-main-header,
   .chat-thread {
     padding: 18px;
   }
@@ -383,7 +358,7 @@ watch(
   }
 
   .chat-input-area {
-    padding: 12px 16px 14px;
+    padding: 0 18px 18px;
     align-items: stretch;
   }
 }
