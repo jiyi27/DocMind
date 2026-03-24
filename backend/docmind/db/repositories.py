@@ -744,6 +744,19 @@ class SyncJobRepository:
             rows = await cur.fetchall()
             return [dict(r) for r in rows]
 
+    async def get_active_by_kb(self, kb_id: str) -> dict[str, Any] | None:
+        async with self.db.execute(
+            """
+            SELECT *
+            FROM kb_sync_jobs
+            WHERE kb_id = ? AND status IN ('pending', 'running')
+            ORDER BY created_at DESC
+            LIMIT 1
+            """,
+            (kb_id,),
+        ) as cur:
+            return _row_to_dict(await cur.fetchone())
+
     async def update_status(
         self,
         job_id: str,

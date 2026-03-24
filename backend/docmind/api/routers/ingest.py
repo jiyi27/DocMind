@@ -1,8 +1,6 @@
 """Ingest router — file upload, document listing, and document deletion."""
 
 from __future__ import annotations
-
-import json
 from pathlib import Path
 
 import uuid
@@ -29,7 +27,6 @@ from docmind.core.config import settings
 from docmind.db.database import get_db
 from docmind.db.repositories import (
     DocumentRepository,
-    IngestionJobRepository,
     KBRepository,
 )
 from docmind.ingestion.constants import (
@@ -37,7 +34,11 @@ from docmind.ingestion.constants import (
     RETRIEVAL_MODES,
 )
 from docmind.ingestion.loaders import load_document
-from docmind.services.document_service import delete_document_and_vectors
+from docmind.services.document_service import (
+    create_pending_document,
+    delete_document_and_vectors,
+    enqueue_ingestion_job,
+)
 from docmind.vectorstore.qdrant_store import get_chunks_by_doc_id
 
 router = APIRouter(prefix="/ingest", tags=["ingestion"])
@@ -138,31 +139,26 @@ async def ingest_document(
 
     # Persist document record to SQLite as pending
     async with get_db() as db:
-        doc_repo = DocumentRepository(db)
-        job_repo = IngestionJobRepository(db)
-        await doc_repo.create(
-            user_id=current_user.user_id,
+        await create_pending_document(
+            db,
             kb_id=kb_id,
             file_name=file_name,
             title=metadata.title,
-            chunk_count=0,
-            doc_id=doc_id,
-            status="pending",
             file_path=str(tmp_path),
             retrieval_mode=options.retrieval_mode,
+            user_id=current_user.user_id,
+            doc_id=doc_id,
         )
-        payload = {
-            "file_path": str(tmp_path),
-            "metadata": metadata.model_dump(),
-            "options": options.model_dump(),
-            "user_id": current_user.user_id,
-            "doc_id": doc_id,
-            "kb_name": kb_name,
-        }
-        await job_repo.create_pending(
-            document_id=doc_id,
-            payload_json=json.dumps(payload, ensure_ascii=False),
+        await enqueue_ingestion_job(
+            db,
+            doc_id=doc_id,
+            file_path=str(tmp_path),
+            metadata=metadata.model_dump(),
+            options=options.model_dump(),
+            user_id=current_user.user_id,
+            kb_name=kb_name,
         )
+        doc_repo = DocumentRepository(db)
         document_item = await doc_repo.get_by_id_with_display_info(doc_id)
 
     if not document_item:

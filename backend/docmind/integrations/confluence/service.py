@@ -156,7 +156,7 @@ async def _apply_update(
     retrieval_mode: str,
     job_id: str,
 ) -> None:
-    """Update: create replacement doc first, then delete old one (no gap)."""
+    """Update an existing page by rebuilding its local document record."""
     record_repo = SyncRecordRepository(db)
     new_doc_id = str(uuid.uuid4())
 
@@ -182,7 +182,10 @@ async def _apply_update(
 
         file_path = _save_markdown(new_doc_id, page.page_id, md_content)
 
-        # Create new document first
+        # We intentionally delete first here to preserve the one-page-per-KB
+        # uniqueness rule without introducing extra state for replacement rows.
+        await delete_document_and_vectors(db, old_doc["id"])
+
         await create_pending_document(
             db,
             kb_id=kb_id,
@@ -211,9 +214,6 @@ async def _apply_update(
             user_id="",
             kb_name=kb_name,
         )
-
-        # Only after replacement is enqueued, delete old doc + vectors
-        await delete_document_and_vectors(db, old_doc["id"])
 
         await record_repo.create(
             job_id=job_id,

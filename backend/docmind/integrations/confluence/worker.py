@@ -78,6 +78,10 @@ class ConfluenceSyncWorker:
             for kb in kbs:
                 kb_id = kb["id"]
                 try:
+                    active_job = await job_repo.get_active_by_kb(kb_id)
+                    if active_job:
+                        continue
+
                     job = await job_repo.create(kb_id=kb_id, trigger_type="scheduled")
                     await execute_sync(conn, kb_id, job["id"])
                 except Exception as exc:

@@ -48,6 +48,12 @@ class ConfluenceSettings(BaseModel):
     retrieval_mode: Literal["chunk", "full_doc"] = "chunk"
 
 
+class ConfluenceSettingsPatch(BaseModel):
+    root_page_id: str | None = None
+    sync_enabled: bool | None = None
+    retrieval_mode: Literal["chunk", "full_doc"] | None = None
+
+
 class KBCreate(BaseModel):
     name: str  # slug, e.g. "india" → collection "docmind_india"
     display_name: str
@@ -59,7 +65,7 @@ class KBCreate(BaseModel):
 class KBUpdate(BaseModel):
     display_name: str
     description: str = ""
-    confluence: ConfluenceSettings | None = None
+    confluence: ConfluenceSettingsPatch | None = None
 
 
 class KBEmbeddingConnectionUpdate(BaseModel):
@@ -123,6 +129,29 @@ def _serialize_kb(kb: dict) -> dict:
         ),
         "embedding_api_key_source": (
             "custom" if kb.get("embedding_api_key") else "default"
+        ),
+    }
+
+
+def _merge_confluence_settings(
+    kb: dict,
+    patch: "ConfluenceSettingsPatch",
+) -> dict[str, str | bool]:
+    return {
+        "root_page_id": (
+            patch.root_page_id
+            if patch.root_page_id is not None
+            else kb.get("confluence_root_page_id", "")
+        ),
+        "sync_enabled": (
+            patch.sync_enabled
+            if patch.sync_enabled is not None
+            else bool(kb.get("confluence_sync_enabled"))
+        ),
+        "retrieval_mode": (
+            patch.retrieval_mode
+            if patch.retrieval_mode is not None
+            else kb.get("confluence_retrieval_mode", "chunk")
         ),
     }
 
@@ -274,12 +303,13 @@ async def update_knowledge_base(
 
         # Apply optional Confluence settings
         if body.confluence:
+            merged = _merge_confluence_settings(kb, body.confluence)
             updated = (
                 await repo.update_confluence_settings(
                     kb_id=kb_id,
-                    root_page_id=body.confluence.root_page_id,
-                    sync_enabled=body.confluence.sync_enabled,
-                    retrieval_mode=body.confluence.retrieval_mode,
+                    root_page_id=str(merged["root_page_id"]),
+                    sync_enabled=bool(merged["sync_enabled"]),
+                    retrieval_mode=str(merged["retrieval_mode"]),
                 )
                 or updated
             )
@@ -417,6 +447,13 @@ async def trigger_confluence_sync(
             )
 
         job_repo = SyncJobRepository(db)
+        active_job = await job_repo.get_active_by_kb(kb_id)
+        if active_job:
+            return ok(
+                data={"job_id": active_job["id"], "status": active_job["status"]},
+                message="A Confluence sync job is already in progress",
+            )
+
         job = await job_repo.create(kb_id=kb_id, trigger_type="manual")
 
     # Run sync in a background thread so the API can respond immediately
