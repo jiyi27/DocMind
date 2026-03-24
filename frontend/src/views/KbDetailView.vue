@@ -50,6 +50,80 @@
       </div>
     </div>
 
+    <div v-if="kbDetail" class="confluence-panel">
+      <div class="panel-header">
+        <div>
+          <h2 class="panel-title">Confluence Sync</h2>
+          <p class="panel-subtitle">Manage KB-level Confluence binding, manual sync, and job history.</p>
+        </div>
+        <div class="panel-actions">
+          <el-button v-if="canEdit" plain @click="openConfluenceDialog">
+            Configure
+          </el-button>
+          <el-button plain @click="openHistoryDrawer">
+            View History
+          </el-button>
+          <el-button
+            v-if="canEdit"
+            type="primary"
+            :loading="syncTriggering"
+            :disabled="!kbDetail.confluence_root_page_id"
+            @click="triggerSyncNow"
+          >
+            Sync Now
+          </el-button>
+        </div>
+      </div>
+
+      <div class="confluence-grid">
+        <div class="confluence-stat">
+          <span class="confluence-label">Root Page ID</span>
+          <span class="confluence-value confluence-value--mono">
+            {{ kbDetail.confluence_root_page_id || 'Not configured' }}
+          </span>
+        </div>
+        <div class="confluence-stat">
+          <span class="confluence-label">Sync Enabled</span>
+          <span class="confluence-value">
+            <el-tag :type="kbDetail.confluence_sync_enabled ? 'success' : 'info'" effect="plain">
+              {{ kbDetail.confluence_sync_enabled ? 'Enabled' : 'Disabled' }}
+            </el-tag>
+          </span>
+        </div>
+        <div class="confluence-stat">
+          <span class="confluence-label">Retrieval Mode</span>
+          <span class="confluence-value">
+            <el-tag effect="plain" type="warning">
+              {{ formatRetrievalMode(kbDetail.confluence_retrieval_mode) }}
+            </el-tag>
+          </span>
+        </div>
+        <div class="confluence-stat">
+          <span class="confluence-label">Last Sync</span>
+          <span class="confluence-value">
+            {{ kbDetail.confluence_last_sync_at ? formatDateTime(kbDetail.confluence_last_sync_at) : 'Never synced' }}
+          </span>
+        </div>
+        <div class="confluence-stat">
+          <span class="confluence-label">Last Status</span>
+          <span class="confluence-value">
+            <el-tag :type="syncStatusTagType(kbDetail.confluence_last_sync_status)" effect="plain">
+              {{ formatSyncStatus(kbDetail.confluence_last_sync_status) }}
+            </el-tag>
+          </span>
+        </div>
+      </div>
+
+      <el-alert
+        v-if="kbDetail.confluence_last_sync_status === 'failed' && kbDetail.confluence_last_sync_error"
+        :title="kbDetail.confluence_last_sync_error"
+        type="error"
+        :closable="false"
+        show-icon
+        class="sync-error-alert"
+      />
+    </div>
+
     <el-dialog
       v-model="infoDialogVisible"
       title="Edit Knowledge Base"
@@ -157,6 +231,163 @@
       </template>
     </el-dialog>
 
+    <el-dialog
+      v-model="confluenceDialogVisible"
+      title="Confluence Sync Settings"
+      width="560px"
+      :close-on-click-modal="false"
+      @closed="resetConfluenceForm"
+    >
+      <el-form
+        ref="confluenceFormRef"
+        :model="confluenceForm"
+        :rules="confluenceRules"
+        label-position="top"
+      >
+        <el-form-item label="Root Page ID" prop="root_page_id">
+          <el-input
+            v-model="confluenceForm.root_page_id"
+            placeholder="e.g. 39383288"
+            clearable
+          />
+          <div class="form-hint">Bind this KB to a Confluence root page so sync can walk its page tree.</div>
+        </el-form-item>
+
+        <el-form-item label="Retrieval Mode" prop="retrieval_mode">
+          <el-radio-group v-model="confluenceForm.retrieval_mode">
+            <el-radio-button label="chunk">Fragment</el-radio-button>
+            <el-radio-button label="full_doc">Full Article</el-radio-button>
+          </el-radio-group>
+        </el-form-item>
+
+        <el-form-item label="Sync Enabled">
+          <el-switch v-model="confluenceForm.sync_enabled" />
+          <div class="form-hint">When enabled, the background worker can pick this KB up for scheduled sync.</div>
+        </el-form-item>
+      </el-form>
+
+      <template #footer>
+        <el-button @click="confluenceDialogVisible = false">Cancel</el-button>
+        <el-button type="primary" :loading="confluenceSaving" @click="submitConfluenceForm">
+          Save
+        </el-button>
+      </template>
+    </el-dialog>
+
+    <el-drawer
+      v-model="historyDrawerVisible"
+      title="Confluence Sync History"
+      size="720px"
+      :destroy-on-close="false"
+    >
+      <div class="history-toolbar">
+        <el-button plain :loading="historyLoading" @click="loadSyncJobs">
+          Refresh
+        </el-button>
+      </div>
+
+      <el-skeleton v-if="historyLoading && syncJobs.length === 0" :rows="6" animated />
+
+      <el-empty
+        v-else-if="syncJobs.length === 0"
+        description="No sync jobs yet."
+        :image-size="72"
+      />
+
+      <div v-else class="history-list">
+        <div
+          v-for="job in syncJobs"
+          :key="job.id"
+          class="history-item"
+        >
+          <div class="history-item-main">
+            <div class="history-item-header">
+              <div class="history-job-meta">
+                <el-tag :type="syncStatusTagType(job.status)" effect="plain">
+                  {{ formatSyncStatus(job.status) }}
+                </el-tag>
+                <el-tag effect="plain" type="info">
+                  {{ job.trigger_type === 'manual' ? 'Manual' : 'Scheduled' }}
+                </el-tag>
+              </div>
+              <el-button
+                text
+                @click="toggleJobDetails(job)"
+              >
+                {{ expandedJobId === job.id ? 'Hide Records' : 'View Records' }}
+              </el-button>
+            </div>
+
+            <div class="history-job-lines">
+              <div>Created: {{ formatDateTime(job.created_at) }}</div>
+              <div v-if="job.started_at">Started: {{ formatDateTime(job.started_at) }}</div>
+              <div v-if="job.finished_at">Finished: {{ formatDateTime(job.finished_at) }}</div>
+              <div class="history-job-id">Job ID: {{ job.id }}</div>
+            </div>
+
+            <el-alert
+              v-if="job.error_message"
+              :title="job.error_message"
+              type="error"
+              :closable="false"
+              show-icon
+              class="history-job-error"
+            />
+
+            <div v-if="expandedJobId === job.id" class="records-section">
+              <el-skeleton v-if="recordsLoading" :rows="4" animated />
+
+              <el-empty
+                v-else-if="jobRecords.length === 0"
+                description="No record details for this job."
+                :image-size="64"
+              />
+
+              <el-table
+                v-else
+                :data="jobRecords"
+                size="small"
+                border
+                class="records-table"
+              >
+                <el-table-column prop="operation" label="Operation" width="100">
+                  <template #default="{ row }">
+                    <el-tag size="small" effect="plain" :type="operationTagType(row.operation)">
+                      {{ row.operation }}
+                    </el-tag>
+                  </template>
+                </el-table-column>
+                <el-table-column prop="status" label="Status" width="100">
+                  <template #default="{ row }">
+                    <el-tag size="small" effect="plain" :type="syncStatusTagType(row.status)">
+                      {{ row.status }}
+                    </el-tag>
+                  </template>
+                </el-table-column>
+                <el-table-column prop="document_title" label="Document Title" min-width="180" />
+                <el-table-column prop="external_doc_id" label="Page ID" width="120" />
+                <el-table-column prop="created_at" label="Created At" width="180">
+                  <template #default="{ row }">
+                    {{ formatDateTime(row.created_at) }}
+                  </template>
+                </el-table-column>
+              </el-table>
+
+              <el-alert
+                v-for="record in failedRecords"
+                :key="record.id"
+                :title="`${record.document_title || record.external_doc_id}: ${record.error_message}`"
+                type="error"
+                :closable="false"
+                show-icon
+                class="record-error-alert"
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+    </el-drawer>
+
     <div class="page-body">
       <div class="upload-column">
         <div class="column-card">
@@ -195,6 +426,7 @@ import { ArrowLeft, Files, Upload } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
 import { useKbStore } from '@/stores/kb'
+import { getKbSyncJobs, getKbSyncRecords, triggerKbSync } from '@/api/kb'
 import UploadZone from '@/components/ingestion/UploadZone.vue'
 import DocumentList from '@/components/ingestion/DocumentList.vue'
 
@@ -206,13 +438,24 @@ const kbStore = useKbStore()
 const kbId = computed(() => route.params.id)
 const kbDetail = computed(() => kbStore.currentKb)
 const canEdit = computed(() => authStore.isSuperAdmin)
+const failedRecords = computed(() => jobRecords.value.filter((record) => record.status === 'failed' && record.error_message))
 const docListRef = ref(null)
 const infoDialogVisible = ref(false)
 const connectionDialogVisible = ref(false)
+const confluenceDialogVisible = ref(false)
+const historyDrawerVisible = ref(false)
 const infoSaving = ref(false)
 const connectionSaving = ref(false)
+const confluenceSaving = ref(false)
+const syncTriggering = ref(false)
+const historyLoading = ref(false)
+const recordsLoading = ref(false)
+const syncJobs = ref([])
+const jobRecords = ref([])
+const expandedJobId = ref('')
 const infoFormRef = ref(null)
 const connectionFormRef = ref(null)
+const confluenceFormRef = ref(null)
 
 const infoForm = ref({
   display_name: '',
@@ -224,6 +467,12 @@ const connectionForm = ref({
   api_key: '',
 })
 
+const confluenceForm = ref({
+  root_page_id: '',
+  sync_enabled: false,
+  retrieval_mode: 'chunk',
+})
+
 const infoRules = {
   display_name: [
     { required: true, message: 'Please enter a display name', trigger: 'blur' },
@@ -231,8 +480,28 @@ const infoRules = {
   ],
 }
 
+const confluenceRules = {
+  root_page_id: [
+    {
+      validator: (_, value, callback) => {
+        if (!value || !value.trim()) {
+          callback()
+          return
+        }
+        if (!/^\d+$/.test(value.trim())) {
+          callback(new Error('Root page ID must be numeric'))
+          return
+        }
+        callback()
+      },
+      trigger: 'blur',
+    },
+  ],
+}
+
 onMounted(async () => {
   await kbStore.fetchKbDetail(kbId.value)
+  syncFormsFromKb()
 })
 
 function syncFormsFromKb() {
@@ -240,6 +509,48 @@ function syncFormsFromKb() {
   infoForm.value.description = kbDetail.value?.description || ''
   connectionForm.value.base_url = kbDetail.value?.embedding_base_url || ''
   connectionForm.value.api_key = ''
+  confluenceForm.value.root_page_id = kbDetail.value?.confluence_root_page_id || ''
+  confluenceForm.value.sync_enabled = Boolean(kbDetail.value?.confluence_sync_enabled)
+  confluenceForm.value.retrieval_mode = kbDetail.value?.confluence_retrieval_mode || 'chunk'
+}
+
+function formatDateTime(dateStr) {
+  if (!dateStr) return '-'
+  const date = new Date(dateStr)
+  return date.toLocaleString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
+function formatRetrievalMode(mode) {
+  return mode === 'full_doc' ? 'Full Article' : 'Fragment'
+}
+
+function formatSyncStatus(status) {
+  if (!status) return 'Never synced'
+  if (status === 'completed') return 'Completed'
+  if (status === 'failed') return 'Failed'
+  if (status === 'running') return 'Running'
+  if (status === 'pending') return 'Pending'
+  return status
+}
+
+function syncStatusTagType(status) {
+  if (status === 'completed' || status === 'success') return 'success'
+  if (status === 'failed') return 'danger'
+  if (status === 'running' || status === 'processing') return 'warning'
+  return 'info'
+}
+
+function operationTagType(operation) {
+  if (operation === 'create') return 'success'
+  if (operation === 'update') return 'warning'
+  if (operation === 'delete') return 'danger'
+  return 'info'
 }
 
 function openInfoDialog() {
@@ -252,6 +563,16 @@ function openConnectionDialog() {
   connectionDialogVisible.value = true
 }
 
+function openConfluenceDialog() {
+  syncFormsFromKb()
+  confluenceDialogVisible.value = true
+}
+
+async function openHistoryDrawer() {
+  historyDrawerVisible.value = true
+  await loadSyncJobs()
+}
+
 function resetInfoForm() {
   syncFormsFromKb()
   infoFormRef.value?.clearValidate()
@@ -260,6 +581,11 @@ function resetInfoForm() {
 function resetConnectionForm() {
   syncFormsFromKb()
   connectionFormRef.value?.clearValidate?.()
+}
+
+function resetConfluenceForm() {
+  syncFormsFromKb()
+  confluenceFormRef.value?.clearValidate?.()
 }
 
 async function submitInfoForm() {
@@ -290,6 +616,70 @@ async function submitConnectionForm() {
     ElMessage.success('Embedding connection updated')
   } finally {
     connectionSaving.value = false
+  }
+}
+
+async function submitConfluenceForm() {
+  const valid = await confluenceFormRef.value?.validate().catch(() => false)
+  if (!valid) return
+
+  confluenceSaving.value = true
+  try {
+    await kbStore.updateKbInfo(kbId.value, {
+      display_name: kbDetail.value.display_name,
+      description: kbDetail.value.description || '',
+      confluence: {
+        root_page_id: confluenceForm.value.root_page_id.trim(),
+        sync_enabled: confluenceForm.value.sync_enabled,
+        retrieval_mode: confluenceForm.value.retrieval_mode,
+      },
+    })
+    confluenceDialogVisible.value = false
+    syncFormsFromKb()
+    ElMessage.success('Confluence settings updated')
+  } finally {
+    confluenceSaving.value = false
+  }
+}
+
+async function triggerSyncNow() {
+  syncTriggering.value = true
+  try {
+    const data = await triggerKbSync(kbId.value)
+    await kbStore.fetchKbDetail(kbId.value)
+    if (historyDrawerVisible.value) {
+      await loadSyncJobs()
+    }
+    ElMessage.success(data?.status === 'pending' ? 'Confluence sync started' : 'Existing sync job is still running')
+  } finally {
+    syncTriggering.value = false
+  }
+}
+
+async function loadSyncJobs() {
+  historyLoading.value = true
+  try {
+    const data = await getKbSyncJobs(kbId.value, 20)
+    syncJobs.value = data?.jobs || []
+  } finally {
+    historyLoading.value = false
+  }
+}
+
+async function toggleJobDetails(job) {
+  if (expandedJobId.value === job.id) {
+    expandedJobId.value = ''
+    jobRecords.value = []
+    return
+  }
+
+  expandedJobId.value = job.id
+  recordsLoading.value = true
+  try {
+    const data = await getKbSyncRecords(kbId.value, job.id)
+    jobRecords.value = data?.records || []
+  } finally {
+    recordsLoading.value = false
   }
 }
 
@@ -373,10 +763,15 @@ function handleDeleted() {
   padding-left: 40px;
 }
 
-.overview-card {
+.overview-card,
+.confluence-panel,
+.column-card {
   background: #fff;
   border: 1px solid #e4e7ed;
   border-radius: 10px;
+}
+
+.overview-card {
   padding: 16px 18px;
 }
 
@@ -391,6 +786,78 @@ function handleDeleted() {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+.confluence-panel {
+  margin-left: 40px;
+  padding: 20px 22px;
+}
+
+.panel-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 18px;
+}
+
+.panel-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: #303133;
+}
+
+.panel-subtitle {
+  margin: 6px 0 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #909399;
+}
+
+.panel-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.confluence-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.confluence-stat {
+  border: 1px solid #ebeef5;
+  border-radius: 8px;
+  padding: 14px;
+  background: #fafafa;
+}
+
+.confluence-label {
+  display: block;
+  font-size: 12px;
+  color: #909399;
+  margin-bottom: 8px;
+}
+
+.confluence-value {
+  display: block;
+  font-size: 13px;
+  color: #303133;
+  word-break: break-word;
+}
+
+.confluence-value--mono,
+.history-job-id {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace;
+}
+
+.sync-error-alert,
+.history-job-error,
+.record-error-alert {
+  margin-top: 16px;
 }
 
 .dialog-alert {
@@ -431,6 +898,55 @@ function handleDeleted() {
   margin-top: 4px;
 }
 
+.history-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 16px;
+}
+
+.history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.history-item {
+  border: 1px solid #e4e7ed;
+  border-radius: 10px;
+  padding: 16px;
+  background: #fff;
+}
+
+.history-item-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.history-job-meta {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.history-job-lines {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  color: #606266;
+}
+
+.records-section {
+  margin-top: 16px;
+}
+
+.records-table {
+  margin-top: 4px;
+}
+
 .page-body {
   display: grid;
   grid-template-columns: 420px 1fr;
@@ -452,9 +968,6 @@ function handleDeleted() {
 }
 
 .column-card {
-  background: #fff;
-  border: 1px solid #e4e7ed;
-  border-radius: 8px;
   padding: 20px;
 }
 
@@ -468,16 +981,30 @@ function handleDeleted() {
   margin: 0;
 }
 
+@media (max-width: 1200px) {
+  .confluence-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 @media (max-width: 960px) {
   .kb-overview {
     grid-template-columns: 1fr;
+  }
+
+  .confluence-panel,
+  .kb-overview,
+  .page-body {
+    margin-left: 0;
+    padding-left: 0;
   }
 
   .page-body {
     grid-template-columns: 1fr;
   }
 
-  .connection-readonly {
+  .connection-readonly,
+  .confluence-grid {
     grid-template-columns: 1fr;
   }
 }

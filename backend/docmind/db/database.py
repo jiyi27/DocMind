@@ -99,8 +99,6 @@ async def init_db() -> None:
 
     for ddl in ALL_TABLES:
         await _GLOBAL_CONN.execute(ddl)
-    for stmt in ALL_INDEXES:
-        await _GLOBAL_CONN.execute(stmt)
     await _GLOBAL_CONN.commit()
 
     await _migrate_db(_GLOBAL_CONN)
