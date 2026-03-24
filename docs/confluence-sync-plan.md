@@ -11,6 +11,12 @@ Add a minimal Confluence integration for knowledge bases.
 
 This plan is intentionally scoped to Confluence only.
 
+Implementation principles:
+
+- reuse the existing upload + `ingestion_jobs` queue path
+- do not add a separate indexing pipeline
+- keep V1 simple; no webhook support
+
 ## Verified API Facts
 
 These points were verified against the current target instance:
@@ -29,7 +35,7 @@ These points were verified against the current target instance:
 1. Create KB with optional Confluence root page binding.
 2. Enable or disable Confluence sync per KB.
 3. Add a KB-level sync job table.
-4. Add a Confluence sync worker.
+4. Add a manual `sync now` API for one KB.
 5. Traverse the root page subtree via recursive `child/page`.
 6. Detect page create, update, and delete.
 7. Auto-fill Confluence document metadata:
@@ -37,7 +43,8 @@ These points were verified against the current target instance:
    - page id
    - URL
    - version
-8. Add a manual `sync now` API for one KB.
+
+Background sync worker belongs to Phase 3, not the initial manual-sync milestone.
 
 ## Required Data Changes
 
@@ -249,15 +256,9 @@ For each page in `to_create`:
    against `settings.retrieval.max_full_doc_chars`. If exceeded, write a `kb_sync_records`
    entry with `operation='create'`, `status='failed'`, and the size reason in
    `error_message`. Do not fail the entire sync job. Move to the next page.
-5. Create a document record with:
-   - `source_type='confluence'`
-   - `external_doc_id=page_id`
-   - `source_url`
-   - `source_version`
-   - `title`
-   - `user_id = NULL` to indicate a system-owned Confluence document
-6. Insert a job into `ingestion_jobs` with the following `payload_json` structure,
-   which must match `IngestionState` exactly:
+5. Create a document record with `source_type='confluence'`, `external_doc_id=page_id`,
+   `source_url`, `source_version`, `title`, and `user_id = NULL`.
+6. Insert a job into `ingestion_jobs` with this payload shape:
 
 ```json
 {
@@ -268,9 +269,7 @@ For each page in `to_create`:
   },
   "options": {
     "retrieval_mode": "<confluence_retrieval_mode>",
-    "strict_mode": false,
     "chunk_size": "<settings.ingestion.chunk_size>",
-    "max_chunk_size": "<settings.ingestion.max_chunk_size>",
     "chunk_overlap": "<settings.ingestion.chunk_overlap>"
   },
   "user_id": "",
@@ -280,11 +279,8 @@ For each page in `to_create`:
 ```
 
 `metadata` is now reserved for business document attributes only. Do not put runtime
-processing controls such as `retrieval_mode`, `strict_mode`, or chunk sizes inside
+processing controls such as `retrieval_mode` or chunk sizes inside
 `metadata`; those belong under `options`.
-
-`strict_mode` is always `false` for Confluence documents. Confluence pages frequently
-contain long paragraphs that would trigger strict-mode validation failures.
 
 `kb_name` is the knowledge base slug (`knowledge_bases.name`), not `kb_id`. The sync
 service must look up the KB record to get this value before constructing the payload.
@@ -460,72 +456,40 @@ Done when:
 - enabled KBs sync automatically
 - sync failures are visible
 
-## Notes for the Implementing AI
+## Implementation Notes
 
-- Prefer reusing the current ingestion pipeline instead of adding a separate indexing path.
 - For subtree discovery, do not use `descendant/page`; use recursive `child/page`.
-- Generate Confluence document URLs from `_links.base + _links.webui`.
+- Generate document URLs from `_links.base + _links.webui`.
 - Only fetch full page body for `to_create` and `to_update`.
-- Use `markdownify` for HTML-to-Markdown conversion; save output as `.md` to reuse the existing loader.
-- All Confluence sync modules go under `docmind/integrations/confluence/`.
-- Prefer `NULL` `documents.user_id` for Confluence-owned records over a synthetic user bound to a real KB.
+- Use `markdownify` and save temporary content as `.md` so the existing loader can ingest it.
+- All Confluence-specific code goes under `docmind/integrations/confluence/`.
+- Prefer `NULL` `documents.user_id` for Confluence-owned records.
 
-### Ingestion pipeline contract
+### Ingestion Contract
 
-The ingestion pipeline is invoked by inserting a record into `ingestion_jobs`. The existing
-`IngestionQueueWorker` polls this table and calls `ingestion_graph.invoke(payload_json)`.
-The sync service must never call the graph directly — always go through the job queue.
+Confluence sync must enqueue work through `ingestion_jobs`; do not call the graph directly.
+The payload must be a valid `IngestionState` with `file_path`, `metadata`, `options`,
+`user_id`, `doc_id`, and `kb_name`.
 
-The `payload_json` must be a valid `IngestionState` dict. Required fields: `file_path`,
-`metadata`, `options`, `user_id`, `doc_id`, `kb_name`.
+Use:
 
-Expected `metadata` shape:
+- `metadata`: `title`, `url`
+- `options`: `retrieval_mode`, `chunk_size`, `chunk_overlap`
 
-- `title`
-- `url`
+Always look up `knowledge_bases.name` for `kb_name`. Do not include obsolete fields such as
+`doc_type` or `service`.
 
-Expected `options` shape:
+### Sync Semantics
 
-- `retrieval_mode`
-- `strict_mode`
-- `chunk_size`
-- `max_chunk_size`
-- `chunk_overlap`
+- Every planned operation must write a `kb_sync_records` row.
+- `status='success'` for `create` and `update` means the ingestion job was enqueued successfully, not that embedding finished.
 
-Missing `options` fields cause fallback to backend defaults inside graph nodes. Avoid relying
-on those implicit fallbacks in sync code; enqueue explicit values instead.
+### Document Lifecycle Safety
 
-`kb_name` is `knowledge_bases.name` (the Qdrant collection slug), not `kb_id`.
-Always look up the KB record and read the `name` field before constructing the payload.
+`document_service` should own the shared lifecycle helpers:
 
-Always set `strict_mode=False` for Confluence documents. Confluence HTML frequently
-produces long paragraphs after conversion that would fail strict-mode chunk validation.
+- create pending document rows
+- enqueue ingestion jobs
+- delete documents and vectors using the document's real `kb_id` and resolved KB collection name
 
-The current upload/ingestion implementation no longer uses `doc_type` or `service`
-metadata. Do not include them in Confluence sync payloads.
-
-### Sync record semantics
-
-A `kb_sync_records` row must be written for every planned operation. Never silently drop
-a page — always leave a traceable record.
-
-`status='success'` for `create` and `update` means the ingestion job was enqueued, not
-that embedding completed. Embedding failures are visible in `documents.status` and
-`ingestion_jobs.error_message`, not in `kb_sync_records`. Do not conflate the two layers.
-
-### Document lifecycle safety
-
-Extract reusable lifecycle helpers into `docmind/services/document_service.py`.
-
-Responsibilities:
-
-- create a pending document record
-- enqueue an ingestion job from a valid `IngestionState` payload
-- delete a document and its vectors by resolving the real KB collection from `documents.kb_id`
-
-Important rule:
-
-- deletion must look up the document's KB first and then resolve `knowledge_bases.name`
-- never use `current_user.kb_name` for cross-source lifecycle operations
-
-- Keep V1 simple. Do not add webhook support yet.
+Never use `current_user.kb_name` for cross-source lifecycle operations.
