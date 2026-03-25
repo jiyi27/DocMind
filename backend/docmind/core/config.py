@@ -168,7 +168,6 @@ class ConfluenceConfig:
 
     base_url: str
     pat: str
-    sync_interval_seconds: int
 
     @property
     def enabled(self) -> bool:
@@ -229,9 +228,6 @@ def _load_confluence_config() -> "ConfluenceConfig":
     """
     base_url = os.getenv("CONFLUENCE_BASE_URL", "").strip()
     pat = os.getenv("CONFLUENCE_PAT", "").strip()
-    interval = int(
-        os.getenv("CONFLUENCE_SYNC_INTERVAL_SECONDS", "300").strip() or "300"
-    )
 
     if bool(base_url) != bool(pat):
         _MISSING.append(
@@ -241,7 +237,6 @@ def _load_confluence_config() -> "ConfluenceConfig":
     return ConfluenceConfig(
         base_url=base_url,
         pat=pat,
-        sync_interval_seconds=interval,
     )
 
 

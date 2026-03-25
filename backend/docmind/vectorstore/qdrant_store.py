@@ -29,6 +29,24 @@ _DISTANCE = Distance.COSINE
 _store_cache: dict[str, QdrantVectorStore] = {}
 _lock = threading.Lock()
 
+
+def _make_client() -> QdrantClient:
+    """Create a QdrantClient that bypasses system proxy settings.
+
+    Background: httpx (used internally by qdrant-client) respects HTTP_PROXY /
+    HTTPS_PROXY environment variables by default (trust_env=True). On developer
+    machines running a system proxy (e.g. Clash, Surge), this causes all Qdrant
+    requests to be routed through the proxy. Proxy software typically rejects
+    localhost destinations, resulting in a ReadTimeout.
+
+    Decision: trust_env=False disables env-based proxy detection entirely.
+
+    Trade-off: if Qdrant is ever moved to an external host that requires a proxy
+    to reach, this setting must be revisited and an explicit proxy URL should be
+    added to settings instead of relying on the system environment.
+    """
+    return QdrantClient(url=settings.qdrant.url, trust_env=False)
+
 # Re-export so external imports of VectorStoreError from this module still work.
 __all__ = [
     "VectorStoreError",
@@ -124,7 +142,7 @@ async def create_kb_collection(
     col = kb_collection_name(kb_name)
     try:
         emb = get_embedding_model(embedding_params)
-        client = QdrantClient(url=settings.qdrant.url)
+        client = _make_client()
         existing = {c.name for c in client.get_collections().collections}
         if col not in existing:
             vector_size = _probe_vector_size(emb)
@@ -165,7 +183,7 @@ async def delete_kb_collection(kb_name: str) -> None:
     """
     col = kb_collection_name(kb_name)
     try:
-        client = QdrantClient(url=settings.qdrant.url)
+        client = _make_client()
         existing = {c.name for c in client.get_collections().collections}
         if col in existing:
             client.delete_collection(col)
@@ -199,7 +217,7 @@ def get_chunks_by_doc_id(
     _STRIP_KEYS = {META_DOC_ID, META_USER_ID, META_KB_NAME}
 
     try:
-        client = QdrantClient(url=settings.qdrant.url)
+        client = _make_client()
 
         # Count total matching points
         total = client.count(
@@ -268,7 +286,7 @@ def delete_documents_by_doc_id(kb_name: str, doc_id: str) -> None:
 
     col = kb_collection_name(kb_name)
     try:
-        client = QdrantClient(url=settings.qdrant.url)
+        client = _make_client()
         client.delete(
             collection_name=col,
             points_selector=Filter(
@@ -314,7 +332,7 @@ def get_vector_store(
 
         try:
             emb = embeddings
-            client = QdrantClient(url=settings.qdrant.url)
+            client = _make_client()
             _ensure_collection(client, col, emb)
 
             store = QdrantVectorStore.from_existing_collection(

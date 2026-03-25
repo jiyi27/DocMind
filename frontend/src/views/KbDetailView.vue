@@ -67,7 +67,7 @@
             v-if="canEdit"
             type="primary"
             :loading="syncTriggering"
-            :disabled="!kbDetail.confluence_root_page_id"
+            :disabled="!kbDetail.confluence_root_page_id || !kbDetail.confluence_capability_enabled"
             @click="triggerSyncNow"
           >
             Sync Now
@@ -96,6 +96,12 @@
             <el-tag effect="plain" type="warning">
               {{ formatRetrievalMode(kbDetail.confluence_retrieval_mode) }}
             </el-tag>
+          </span>
+        </div>
+        <div class="confluence-stat">
+          <span class="confluence-label">Sync Interval</span>
+          <span class="confluence-value">
+            {{ formatSyncInterval(kbDetail.confluence_sync_interval_minutes) }}
           </span>
         </div>
         <div class="confluence-stat">
@@ -238,6 +244,14 @@
       :close-on-click-modal="false"
       @closed="resetConfluenceForm"
     >
+      <el-alert
+        :title="kbDetail?.confluence_capability_message || 'Confluence status unavailable.'"
+        :type="kbDetail?.confluence_capability_enabled ? 'success' : 'warning'"
+        :closable="false"
+        show-icon
+        class="dialog-alert"
+      />
+
       <el-form
         ref="confluenceFormRef"
         :model="confluenceForm"
@@ -258,6 +272,16 @@
             <el-radio-button label="chunk">Fragment</el-radio-button>
             <el-radio-button label="full_doc">Full Article</el-radio-button>
           </el-radio-group>
+        </el-form-item>
+
+        <el-form-item label="Sync Interval" prop="sync_interval_minutes">
+          <el-input-number
+            v-model="confluenceForm.sync_interval_minutes"
+            :min="5"
+            :step="5"
+            :precision="0"
+          />
+          <div class="form-hint">Auto sync checks this KB on the configured minute interval. Minimum 5 minutes.</div>
         </el-form-item>
 
         <el-form-item label="Auto Sync">
@@ -501,6 +525,7 @@ const connectionForm = ref({
 const confluenceForm = ref({
   root_page_id: '',
   sync_enabled: false,
+  sync_interval_minutes: 5,
   retrieval_mode: 'chunk',
 })
 
@@ -528,6 +553,18 @@ const confluenceRules = {
       trigger: 'blur',
     },
   ],
+  sync_interval_minutes: [
+    {
+      validator: (_, value, callback) => {
+        if (!Number.isInteger(value) || value < 5) {
+          callback(new Error('Sync interval must be at least 5 minutes'))
+          return
+        }
+        callback()
+      },
+      trigger: 'change',
+    },
+  ],
 }
 
 onMounted(async () => {
@@ -546,6 +583,7 @@ function syncFormsFromKb() {
   connectionForm.value.api_key = ''
   confluenceForm.value.root_page_id = kbDetail.value?.confluence_root_page_id || ''
   confluenceForm.value.sync_enabled = Boolean(kbDetail.value?.confluence_sync_enabled)
+  confluenceForm.value.sync_interval_minutes = Number(kbDetail.value?.confluence_sync_interval_minutes || 5)
   confluenceForm.value.retrieval_mode = kbDetail.value?.confluence_retrieval_mode || 'chunk'
 }
 
@@ -590,6 +628,11 @@ function scheduleHistoryPolling() {
 
 function formatRetrievalMode(mode) {
   return mode === 'full_doc' ? 'Full Article' : 'Fragment'
+}
+
+function formatSyncInterval(minutes) {
+  const value = Number(minutes || 0)
+  return `${value} minute${value === 1 ? '' : 's'}`
 }
 
 function formatSyncStatus(status) {
@@ -699,6 +742,7 @@ async function submitConfluenceForm() {
       confluence: {
         root_page_id: confluenceForm.value.root_page_id.trim(),
         sync_enabled: confluenceForm.value.sync_enabled,
+        sync_interval_minutes: confluenceForm.value.sync_interval_minutes,
         retrieval_mode: confluenceForm.value.retrieval_mode,
       },
     })

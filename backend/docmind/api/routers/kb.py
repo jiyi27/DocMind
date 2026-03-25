@@ -45,12 +45,14 @@ class EmbeddingOverride(BaseModel):
 class ConfluenceSettings(BaseModel):
     root_page_id: str = ""
     sync_enabled: bool = False
+    sync_interval_minutes: int = 5
     retrieval_mode: Literal["chunk", "full_doc"] = "chunk"
 
 
 class ConfluenceSettingsPatch(BaseModel):
     root_page_id: str | None = None
     sync_enabled: bool | None = None
+    sync_interval_minutes: int | None = None
     retrieval_mode: Literal["chunk", "full_doc"] | None = None
 
 
@@ -130,13 +132,19 @@ def _serialize_kb(kb: dict) -> dict:
         "embedding_api_key_source": (
             "custom" if kb.get("embedding_api_key") else "default"
         ),
+        "confluence_capability_enabled": settings.confluence.enabled,
+        "confluence_capability_message": (
+            "Confluence integration is enabled on the backend."
+            if settings.confluence.enabled
+            else "Confluence integration is not enabled on the backend. Configure CONFLUENCE_BASE_URL and CONFLUENCE_PAT on the server."
+        ),
     }
 
 
 def _merge_confluence_settings(
     kb: dict,
     patch: "ConfluenceSettingsPatch",
-) -> dict[str, str | bool]:
+) -> dict[str, str | bool | int]:
     return {
         "root_page_id": (
             patch.root_page_id
@@ -148,12 +156,34 @@ def _merge_confluence_settings(
             if patch.sync_enabled is not None
             else bool(kb.get("confluence_sync_enabled"))
         ),
+        "sync_interval_minutes": (
+            patch.sync_interval_minutes
+            if patch.sync_interval_minutes is not None
+            else int(kb.get("confluence_sync_interval_minutes") or 5)
+        ),
         "retrieval_mode": (
             patch.retrieval_mode
             if patch.retrieval_mode is not None
             else kb.get("confluence_retrieval_mode", "chunk")
         ),
     }
+
+
+def _validate_confluence_settings(
+    settings_payload: "ConfluenceSettings | dict[str, str | bool | int]",
+) -> None:
+    sync_interval_minutes = int(settings_payload["sync_interval_minutes"])
+    if sync_interval_minutes < 5:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="confluence.sync_interval_minutes must be at least 5",
+        )
+
+    if bool(settings_payload["sync_enabled"]) and not settings.confluence.enabled:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Confluence integration is not enabled on the backend",
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -175,6 +205,8 @@ async def create_knowledge_base(
         )
 
     emb_params = _build_embedding_params(body.embedding)
+    if body.confluence:
+        _validate_confluence_settings(body.confluence.model_dump())
 
     async with get_db() as db:
         repo = KBRepository(db)
@@ -213,6 +245,7 @@ async def create_knowledge_base(
                     kb_id=kb_dict["id"],
                     root_page_id=body.confluence.root_page_id,
                     sync_enabled=body.confluence.sync_enabled,
+                    sync_interval_minutes=body.confluence.sync_interval_minutes,
                     retrieval_mode=body.confluence.retrieval_mode,
                 )
                 or kb_dict
@@ -304,11 +337,13 @@ async def update_knowledge_base(
         # Apply optional Confluence settings
         if body.confluence:
             merged = _merge_confluence_settings(kb, body.confluence)
+            _validate_confluence_settings(merged)
             updated = (
                 await repo.update_confluence_settings(
                     kb_id=kb_id,
                     root_page_id=str(merged["root_page_id"]),
                     sync_enabled=bool(merged["sync_enabled"]),
+                    sync_interval_minutes=int(merged["sync_interval_minutes"]),
                     retrieval_mode=str(merged["retrieval_mode"]),
                 )
                 or updated

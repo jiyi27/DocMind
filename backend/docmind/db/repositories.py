@@ -171,6 +171,7 @@ class KBRepository:
         kb_id: str,
         root_page_id: str,
         sync_enabled: bool,
+        sync_interval_minutes: int,
         retrieval_mode: str,
     ) -> dict[str, Any] | None:
         await self.db.execute(
@@ -178,10 +179,17 @@ class KBRepository:
             UPDATE knowledge_bases
             SET confluence_root_page_id = ?,
                 confluence_sync_enabled = ?,
+                confluence_sync_interval_minutes = ?,
                 confluence_retrieval_mode = ?
             WHERE id = ?
             """,
-            (root_page_id, int(sync_enabled), retrieval_mode, kb_id),
+            (
+                root_page_id,
+                int(sync_enabled),
+                sync_interval_minutes,
+                retrieval_mode,
+                kb_id,
+            ),
         )
         await self.db.commit()
         return await self.get_by_id(kb_id)

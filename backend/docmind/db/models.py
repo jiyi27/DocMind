@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS knowledge_bases (
     vector_dimension            INTEGER NOT NULL DEFAULT 0,
     confluence_root_page_id     TEXT DEFAULT '',
     confluence_sync_enabled     INTEGER NOT NULL DEFAULT 0,
+    confluence_sync_interval_minutes INTEGER NOT NULL DEFAULT 5,
     confluence_retrieval_mode   TEXT NOT NULL DEFAULT 'chunk',
     confluence_last_sync_at     TEXT DEFAULT '',
     confluence_last_sync_status TEXT DEFAULT '',
@@ -140,6 +141,7 @@ CREATE TABLE IF NOT EXISTS kb_sync_records (
 MIGRATE_KNOWLEDGE_BASES_CONFLUENCE_COLUMNS = [
     "ALTER TABLE knowledge_bases ADD COLUMN confluence_root_page_id TEXT DEFAULT ''",
     "ALTER TABLE knowledge_bases ADD COLUMN confluence_sync_enabled INTEGER NOT NULL DEFAULT 0",
+    "ALTER TABLE knowledge_bases ADD COLUMN confluence_sync_interval_minutes INTEGER NOT NULL DEFAULT 5",
     "ALTER TABLE knowledge_bases ADD COLUMN confluence_retrieval_mode TEXT NOT NULL DEFAULT 'chunk'",
     "ALTER TABLE knowledge_bases ADD COLUMN confluence_last_sync_at TEXT DEFAULT ''",
     "ALTER TABLE knowledge_bases ADD COLUMN confluence_last_sync_status TEXT DEFAULT ''",
