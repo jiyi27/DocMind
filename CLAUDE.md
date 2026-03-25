@@ -21,15 +21,36 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Architecture Boundaries (Backend)
 - HTTP handlers live in `docmind/api/`
 - **Do not put business/domain logic in API handlers**
+- Shared business logic (used by multiple routers or integrations) lives in `docmind/services/`
 - LangGraph workflows live in `docmind/ingestion/` and `docmind/retrieval/`
 - Relational database (SQLite) operations live in `docmind/db/`
 - Vector database (Qdrant) abstractions live in `docmind/vectorstore/`
+- Cross-cutting concerns (config, LLM/embedding factories, logging, exceptions) live in `docmind/core/`
+- JWT auth and password hashing live in `docmind/auth/`
+- Optional third-party integrations (currently only Confluence) live in `docmind/integrations/`
 
 ## Architecture Boundaries (Frontend)
 - API calls and Axios clients live in `src/api/`
 - Global state management lives in `src/stores/` (Pinia)
 - Page-level configurations live in `src/views/`
 - Reusable UI elements live in `src/components/`
+
+## Key Domain Concepts
+
+### Document Retrieval Modes
+Each document has a `retrieval_mode` of either `chunk` or `full_doc`. This affects the entire pipeline:
+- **`chunk`** (default): Document is split into chunks during ingestion, stored as vectors in Qdrant, and the source file is deleted. Retrieval uses vector search.
+- **`full_doc`**: Document is NOT chunked; the source file is kept on disk after ingestion. At retrieval time, the entire file is read and injected into context (up to `MAX_FULL_DOC_CHARS`). Only the title/metadata is embedded in Qdrant.
+
+### Qdrant Collections
+Each knowledge base gets its own Qdrant collection named `docmind_{kb_name}` (e.g., KB named `"india"` → collection `"docmind_india"`). The `settings.qdrant.collection` value is the base prefix only.
+
+### Background Workers
+Two background threads are started in `docmind/api/lifespan.py` at startup and stopped on shutdown:
+- **`IngestionQueueWorker`** (always): Polls `ingestion_jobs` in SQLite every 5 seconds and runs the `ingestion_graph` LangGraph pipeline for each pending job.
+- **`ConfluenceSyncWorker`** (optional): Started only when `CONFLUENCE_BASE_URL` and `CONFLUENCE_PAT` are both set. Polls KBs with `confluence_sync_enabled=true` and syncs pages according to their configured interval.
+
+Both graph instances (`ingestion_graph`, `rag_graph`) are module-level singletons — safe to reuse across requests.
 
 ## Coding Conventions
 - **Backend Types**: Use strict Python 3.12+ typing (e.g., `list[str]`, `dict[str, Any]` instead of `typing.List`).
