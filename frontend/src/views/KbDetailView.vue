@@ -338,11 +338,23 @@
             <div v-if="expandedJobId === job.id" class="records-section">
               <el-skeleton v-if="recordsLoading" :rows="4" animated />
 
-              <el-empty
-                v-else-if="jobRecords.length === 0"
-                description="No record details for this job."
-                :image-size="64"
-              />
+              <template v-else-if="jobRecords.length === 0">
+                <el-empty
+                  v-if="job.summary && job.summary.scanned > 0"
+                  :description="`Scanned ${job.summary.scanned} page(s) — all up to date, no updates needed.`"
+                  :image-size="64"
+                />
+                <el-empty
+                  v-else-if="job.summary && job.summary.scanned === 0"
+                  description="No pages found in the Confluence space."
+                  :image-size="64"
+                />
+                <el-empty
+                  v-else
+                  description="No record details for this job."
+                  :image-size="64"
+                />
+              </template>
 
               <el-table
                 v-else

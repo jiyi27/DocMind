@@ -337,14 +337,17 @@ async def execute_sync(db: aiosqlite.Connection, kb_id: str, job_id: str) -> Non
         # 3. Build plan
         plan = build_sync_plan(remote_pages, local_docs)
 
+        summary = plan.to_summary()
+        await job_repo.update_summary(job_id, summary.model_dump())
+
         logger.info(
             "confluence_sync_plan",
             {
                 "kb_id": kb_id,
-                "create": len(plan.to_create),
-                "update": len(plan.to_update),
-                "delete": len(plan.to_delete),
-                "unchanged": len(plan.unchanged),
+                "create": summary.created,
+                "update": summary.updated,
+                "delete": summary.deleted,
+                "unchanged": summary.unchanged,
             },
         )
 

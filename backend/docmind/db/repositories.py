@@ -4,6 +4,7 @@ Data access layer — CRUD operations for all entities.
 
 from __future__ import annotations
 
+import json
 import uuid
 from typing import Any
 
@@ -16,6 +17,19 @@ def _row_to_dict(row: aiosqlite.Row | None) -> dict[str, Any] | None:
     if row is None:
         return None
     return dict(row)
+
+
+def _parse_sync_job(job: dict[str, Any]) -> dict[str, Any]:
+    """Deserialize the JSON ``summary`` field of a sync job row."""
+    raw = job.get("summary", "")
+    if raw:
+        try:
+            job["summary"] = json.loads(raw)
+        except (json.JSONDecodeError, TypeError):
+            job["summary"] = None
+    else:
+        job["summary"] = None
+    return job
 
 
 def _document_list_query(where_clause: str) -> str:
@@ -718,23 +732,27 @@ class SyncJobRepository:
             (job_id, kb_id, trigger_type, now, now),
         )
         await self.db.commit()
-        return {
-            "id": job_id,
-            "kb_id": kb_id,
-            "status": "pending",
-            "trigger_type": trigger_type,
-            "error_message": "",
-            "created_at": now,
-            "started_at": "",
-            "finished_at": "",
-            "updated_at": now,
-        }
+        return _parse_sync_job(
+            {
+                "id": job_id,
+                "kb_id": kb_id,
+                "status": "pending",
+                "trigger_type": trigger_type,
+                "error_message": "",
+                "summary": "",
+                "created_at": now,
+                "started_at": "",
+                "finished_at": "",
+                "updated_at": now,
+            }
+        )
 
     async def get_by_id(self, job_id: str) -> dict[str, Any] | None:
         async with self.db.execute(
             "SELECT * FROM kb_sync_jobs WHERE id = ?", (job_id,)
         ) as cur:
-            return _row_to_dict(await cur.fetchone())
+            row = _row_to_dict(await cur.fetchone())
+            return _parse_sync_job(row) if row else None
 
     async def list_by_kb(self, kb_id: str, limit: int = 20) -> list[dict[str, Any]]:
         async with self.db.execute(
@@ -742,7 +760,7 @@ class SyncJobRepository:
             (kb_id, limit),
         ) as cur:
             rows = await cur.fetchall()
-            return [dict(r) for r in rows]
+            return [_parse_sync_job(dict(r)) for r in rows]
 
     async def get_active_by_kb(self, kb_id: str) -> dict[str, Any] | None:
         async with self.db.execute(
@@ -755,7 +773,15 @@ class SyncJobRepository:
             """,
             (kb_id,),
         ) as cur:
-            return _row_to_dict(await cur.fetchone())
+            row = _row_to_dict(await cur.fetchone())
+            return _parse_sync_job(row) if row else None
+
+    async def update_summary(self, job_id: str, summary: dict[str, Any]) -> None:
+        await self.db.execute(
+            "UPDATE kb_sync_jobs SET summary = ? WHERE id = ?",
+            (json.dumps(summary), job_id),
+        )
+        await self.db.commit()
 
     async def update_status(
         self,

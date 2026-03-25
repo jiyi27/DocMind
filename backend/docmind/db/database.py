@@ -14,6 +14,7 @@ from docmind.db.models import (
     ALL_INDEXES,
     ALL_TABLES,
     MIGRATE_DOCUMENTS_SOURCE_COLUMNS,
+    MIGRATE_KB_SYNC_JOBS_SUMMARY_COLUMN,
     MIGRATE_KNOWLEDGE_BASES_CONFLUENCE_COLUMNS,
     MIGRATE_KNOWLEDGE_BASES_EMBEDDING_COLUMNS,
 )
@@ -75,6 +76,7 @@ async def _migrate_db(conn: aiosqlite.Connection) -> None:
         MIGRATE_KNOWLEDGE_BASES_EMBEDDING_COLUMNS,
         MIGRATE_KNOWLEDGE_BASES_CONFLUENCE_COLUMNS,
         MIGRATE_DOCUMENTS_SOURCE_COLUMNS,
+        MIGRATE_KB_SYNC_JOBS_SUMMARY_COLUMN,
     ]
     for stmts in migration_lists:
         for stmt in stmts:

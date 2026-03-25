@@ -9,7 +9,23 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from pydantic import BaseModel
+
 from docmind.integrations.confluence.client import PageSummary
+
+
+class SyncJobSummary(BaseModel):
+    """Persisted scan summary for a completed sync job.
+
+    Stored as JSON in ``kb_sync_jobs.summary`` so the frontend can explain
+    an empty records list (e.g. "42 pages scanned, all up to date").
+    """
+
+    scanned: int = 0
+    unchanged: int = 0
+    created: int = 0
+    updated: int = 0
+    deleted: int = 0
 
 
 @dataclass
@@ -24,6 +40,18 @@ class SyncPlan:
     @property
     def total_operations(self) -> int:
         return len(self.to_create) + len(self.to_update) + len(self.to_delete)
+
+    def to_summary(self) -> SyncJobSummary:
+        return SyncJobSummary(
+            scanned=len(self.to_create)
+            + len(self.to_update)
+            + len(self.to_delete)
+            + len(self.unchanged),
+            unchanged=len(self.unchanged),
+            created=len(self.to_create),
+            updated=len(self.to_update),
+            deleted=len(self.to_delete),
+        )
 
 
 def build_sync_plan(
