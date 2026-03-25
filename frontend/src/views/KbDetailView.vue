@@ -1034,21 +1034,36 @@ function handleDeleted() {
 
 
 .page-body {
-  display: grid;
-  grid-template-columns: 420px 1fr;
+  display: flex;
   gap: 24px;
-  align-items: start;
+  align-items: stretch;
+  min-height: calc(100vh - 180px);
   padding-left: 40px;
 }
 
 .upload-column,
 .list-column {
+  display: flex;
+  align-self: stretch;
   min-width: 0;
 }
 
-.list-column .column-card {
+.upload-column {
+  flex: 0 0 420px;
+}
+
+.list-column {
+  flex: 1 1 auto;
+}
+
+.page-body .column-card {
   display: flex;
   flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 100%;
+}
+
+.list-column .column-card {
   max-height: calc(100vh - 180px);
   overflow: hidden;
 }
@@ -1086,7 +1101,7 @@ function handleDeleted() {
   }
 
   .page-body {
-    grid-template-columns: 1fr;
+    flex-direction: column;
   }
 
   .connection-readonly,
