@@ -11,7 +11,7 @@ Add a minimal Confluence integration for knowledge bases.
 
 This plan is intentionally scoped to Confluence only.
 
-Implementation principles:
+Implementation principles
 
 - reuse the existing upload + `ingestion_jobs` queue path
 - do not add a separate indexing pipeline
@@ -19,15 +19,15 @@ Implementation principles:
 
 ## Verified API Facts
 
-These points were verified against the current target instance:
+These points were verified against the current target instance
 
-- `GET /rest/api/content/{page_id}?expand=title,version,ancestors,space,body.view`
+- `GET /rest/api/content/{page_id}?expand=title, version, ancestors, space, body.view`
   returns `id`, `title`, `version.number`, `_links.base`, `_links.webui`, and page HTML.
 - `GET /rest/api/content/{page_id}/child/page`
-  works and supports `start`, `limit`, and `expand=version,space`.
+  works and supports `start`, `limit`, and `expand=version, space`.
 - `GET /rest/api/content/{page_id}/descendant/page`
   returns `501`, so subtree traversal must use recursive `child/page`.
-- Document URL can be generated automatically:
+- Document URL can be generated automatically
   - `source_url = _links.base + _links.webui`
 
 ## V1 Scope
@@ -38,7 +38,7 @@ These points were verified against the current target instance:
 4. Add a manual `sync now` API for one KB.
 5. Traverse the root page subtree via recursive `child/page`.
 6. Detect page create, update, and delete.
-7. Auto-fill Confluence document metadata:
+7. Auto-fill Confluence document metadata
    - title
    - page id
    - URL
@@ -50,7 +50,7 @@ Background sync worker belongs to Phase 3, not the initial manual-sync milestone
 
 ### `knowledge_bases`
 
-Add:
+Add
 
 - `confluence_root_page_id TEXT DEFAULT ''`
 - `confluence_sync_enabled INTEGER NOT NULL DEFAULT 0`
@@ -70,28 +70,28 @@ existing idempotent `ALTER TABLE` migration pattern in `database.py`.
 
 ### `documents`
 
-Add:
+Add
 
 - `source_type TEXT NOT NULL DEFAULT 'manual'`
 - `external_doc_id TEXT DEFAULT ''`
 - `source_url TEXT DEFAULT ''`
 - `source_version INTEGER NOT NULL DEFAULT 0`
 
-Allowed `source_type` values:
+Allowed `source_type` values
 
 - `'manual'` — uploaded by a user through the ingest API (default for all existing documents)
 - `'confluence'` — created automatically by the Confluence sync worker
 
 These columns are added via `MIGRATE_DOCUMENTS_SOURCE_COLUMNS` using the same pattern.
 
-Recommended uniqueness rule:
+Recommended uniqueness rule
 
 - one Confluence page per KB
 - enforce uniqueness at the database layer, not only in application logic
 - preferred SQLite implementation: partial unique index on `(kb_id, external_doc_id)`
   where `source_type = 'confluence'`
 
-Example:
+Example
 
 ```sql
 CREATE UNIQUE INDEX IF NOT EXISTS idx_documents_confluence_unique
@@ -100,7 +100,7 @@ WHERE source_type = 'confluence';
 ```
 
 Application code should still check for an existing Confluence document first, but the
-unique index is the final guard against duplicate rows caused by retries, manual sync,
+unique index is the final guard against duplicate rows caused by retries, manual sync, 
 scheduled sync, or race conditions.
 
 ### `kb_sync_jobs`
@@ -134,10 +134,10 @@ Create a new table. One record per document operation within a sync run.
 - `error_message TEXT DEFAULT ''`
 - `created_at TEXT NOT NULL`
 
-`status` values:
+`status` values
 
 - `'success'` — operation completed at the sync layer. For `create` and `update` this
-  means the document record was created and the ingestion job was enqueued successfully,
+  means the document record was created and the ingestion job was enqueued successfully, 
   not that embedding has finished. Final indexing status is tracked separately in
   `documents.status`.
 - `'failed'` — the operation did not complete. Covers all failure cases: Confluence API
@@ -152,19 +152,19 @@ V1 should not create a fake `confluence_admin` user bound to an arbitrary KB. In
 schema, `users.kb_id` is a real foreign key, so attaching a system user to "the first KB"
 would make that KB harder or impossible to delete cleanly later.
 
-Preferred approach:
+Preferred approach
 
 - allow `documents.user_id` to be nullable
 - for `source_type='confluence'`, store `user_id = NULL`
 - treat `NULL` uploader as a system-owned document in serializers / frontend display
 - keep authorization based on `documents.kb_id` plus the caller's role, not on document owner
 
-Frontend / API display:
+Frontend / API display
 
 - `uploader_name = NULL` from SQL joins remains acceptable at the storage layer
 - serializers or frontend can render this as `System` or `Confluence Sync`
 
-Fallback if nullable `documents.user_id` is rejected:
+Fallback if nullable `documents.user_id` is rejected
 
 - introduce a real system-user concept only after first relaxing the `users.kb_id` constraint
   or otherwise allowing a user record that is not tied to a business KB
@@ -174,20 +174,20 @@ Fallback if nullable `documents.user_id` is rejected:
 
 Before implementing sync, extract reusable document operations from the ingest router.
 
-Create `docmind/services/document_service.py` with functions for:
+Create `docmind/services/document_service.py` with functions for
 
 - creating a pending document record
 - enqueueing an ingestion job
 - deleting a document and its vectors
 
-Important fix:
+Important fix
 
 - document deletion must resolve the document's real KB collection via `documents.kb_id`
 - do not rely on `current_user.kb_name`
 
 ## New Modules
 
-Add these modules:
+Add these modules
 
 - `docmind/integrations/confluence/__init__.py`
 - `docmind/integrations/confluence/client.py`
@@ -202,10 +202,10 @@ and may be reused by other integrations.
 
 ## Confluence Client Responsibilities
 
-The Confluence client should provide:
+The Confluence client should provide
 
 - `get_page(page_id, expand=...)`
-- `list_child_pages(page_id, start=0, limit=50, expand='version,space')`
+- `list_child_pages(page_id, start=0, limit=50, expand='version, space')`
 - `walk_page_tree(root_page_id)`
 
 `walk_page_tree` should recursively call `child/page` and return a flat list of page summaries.
@@ -219,7 +219,7 @@ Rationale: Confluence HTML contains nested lists, code blocks, and tables. `mark
 handles these structures more reliably than `html2text`, producing cleaner output for the
 downstream splitter.
 
-Conversion and file handling:
+Conversion and file handling
 
 1. Convert HTML to Markdown text via `markdownify`.
 2. Save the result as `data/uploads/{doc_id}_{page_id}.md`.
@@ -230,13 +230,13 @@ The existing `load_document` dispatcher in `loaders.py` already handles `.md` fi
 
 ## Sync Planner Rules
 
-For one KB:
+For one KB
 
 - Load all remote pages under the root page.
 - Load all local documents where `source_type = 'confluence'`.
 - Compare by `external_doc_id`.
 
-Planner output:
+Planner output
 
 - `to_create`: remote page exists, local doc does not
 - `to_update`: remote page exists, local doc exists, `remote.version > local.source_version`
@@ -247,7 +247,7 @@ Planner output:
 
 ### Create
 
-For each page in `to_create`:
+For each page in `to_create`
 
 1. Fetch page detail with `body.view`.
 2. Convert HTML to Markdown using `markdownify`.
@@ -256,24 +256,24 @@ For each page in `to_create`:
    against `settings.retrieval.max_full_doc_chars`. If exceeded, write a `kb_sync_records`
    entry with `operation='create'`, `status='failed'`, and the size reason in
    `error_message`. Do not fail the entire sync job. Move to the next page.
-5. Create a document record with `source_type='confluence'`, `external_doc_id=page_id`,
+5. Create a document record with `source_type='confluence'`, `external_doc_id=page_id`
    `source_url`, `source_version`, `title`, and `user_id = NULL`.
-6. Insert a job into `ingestion_jobs` with this payload shape:
+6. Insert a job into `ingestion_jobs` with this payload shape
 
 ```json
 {
-  "file_path": "data/uploads/{doc_id}_{page_id}.md",
+  "file_path": "data/uploads/{doc_id}_{page_id}.md", 
   "metadata": {
-    "title": "<page title>",
+    "title": "<page title>", 
     "url": "<source_url>"
-  },
+  }, 
   "options": {
-    "retrieval_mode": "<confluence_retrieval_mode>",
-    "chunk_size": "<settings.ingestion.chunk_size>",
+    "retrieval_mode": "<confluence_retrieval_mode>", 
+    "chunk_size": "<settings.ingestion.chunk_size>", 
     "chunk_overlap": "<settings.ingestion.chunk_overlap>"
-  },
-  "user_id": "",
-  "doc_id": "<doc_id>",
+  }, 
+  "user_id": "", 
+  "doc_id": "<doc_id>", 
   "kb_name": "<kb name slug>"
 }
 ```
@@ -298,7 +298,7 @@ the file is kept permanently for retrieval.
 V1 strategy must avoid a delete-first gap. Do not delete the old local document before the
 replacement content has been prepared successfully.
 
-Safer V1 strategy:
+Safer V1 strategy
 
 1. Fetch the latest page detail with `body.view`.
 2. Convert HTML to Markdown using `markdownify`.
@@ -310,7 +310,7 @@ Safer V1 strategy:
    enqueued successfully, delete the old document and its vectors.
 6. Write a `kb_sync_records` entry with `operation='update'`, `status='success'`.
 
-Failure rule:
+Failure rule
 
 - if any step before replacement enqueue fails, leave the old document and vectors intact
 - V1 may temporarily tolerate a short overlap window between old and new local records if
@@ -325,7 +325,7 @@ Failure rule:
 
 ## Configuration
 
-Use global backend config for V1:
+Use global backend config for V1
 
 - `CONFLUENCE_BASE_URL`
 - `CONFLUENCE_PAT`
@@ -336,7 +336,7 @@ Do not add per-KB Confluence credentials in V1.
 Add a `ConfluenceConfig` dataclass to `core/config.py`, but do not load it with the same
 "always required" semantics used by core runtime dependencies like JWT or Qdrant.
 
-Expected behavior:
+Expected behavior
 
 - if both `CONFLUENCE_BASE_URL` and `CONFLUENCE_PAT` are empty, Confluence integration is
   treated as disabled and the sync worker does not start
@@ -349,13 +349,13 @@ Add corresponding entries to `.env.example` and keep the optional-startup behavi
 
 ### KB Create / Update
 
-Allow KB payload to include optional Confluence settings:
+Allow KB payload to include optional Confluence settings
 
 ```json
 {
   "confluence": {
-    "root_page_id": "39383288",
-    "sync_enabled": true,
+    "root_page_id": "39383288", 
+    "sync_enabled": true, 
     "retrieval_mode": "chunk"
   }
 }
@@ -366,30 +366,30 @@ Allow KB payload to include optional Confluence settings:
 
 ### Manual Sync
 
-Add:
+Add
 
 - `POST /kb/{kb_id}/sync`
 
-Behavior:
+Behavior
 
 - create a pending `kb_sync_jobs` record with `trigger_type='manual'`
 - return accepted response
 
 ### Sync Records
 
-Add:
+Add
 
 - `GET /kb/{kb_id}/sync/jobs` — list sync runs for a KB, ordered by `created_at DESC`
 - `GET /kb/{kb_id}/sync/jobs/{job_id}/records` — list all document-level records for a specific sync run
 
-Response fields for each record: `external_doc_id`, `document_title`, `source_url`,
+Response fields for each record: `external_doc_id`, `document_title`, `source_url`, 
 `operation`, `status`, `error_message`, `created_at`.
 
 ## Worker Model
 
 Keep the current ingestion worker.
 
-Add a second worker for KB sync:
+Add a second worker for KB sync
 
 - find KBs with `confluence_sync_enabled = 1`
 - create or claim sync jobs
@@ -404,7 +404,7 @@ fully available.
 
 ### Phase 1: Foundations
 
-Implement:
+Implement
 
 - DB changes for `knowledge_bases` (`MIGRATE_KNOWLEDGE_BASES_CONFLUENCE_COLUMNS`)
 - DB changes for `documents` (`MIGRATE_DOCUMENTS_SOURCE_COLUMNS`)
@@ -416,7 +416,7 @@ Implement:
 - optional config entries for Confluence
 - nullable / system-owned document handling for Confluence sources
 
-Done when:
+Done when
 
 - manual upload still works
 - reusable document lifecycle methods exist
@@ -424,7 +424,7 @@ Done when:
 
 ### Phase 2: Manual Confluence Sync
 
-Implement:
+Implement
 
 - `ConfluenceClient`
 - recursive subtree traversal via `child/page`
@@ -433,7 +433,7 @@ Implement:
 - KB create/update support for Confluence binding
 - `POST /kb/{kb_id}/sync`
 
-Done when:
+Done when
 
 - one KB can be manually synced from Confluence
 - new pages are created
@@ -444,14 +444,14 @@ Done when:
 
 ### Phase 3: Background Sync Worker
 
-Implement:
+Implement
 
 - `integrations/confluence/worker.py`
 - periodic sync loop
 - sync job claiming/execution
 - KB sync status updates
 
-Done when:
+Done when
 
 - enabled KBs sync automatically
 - sync failures are visible
@@ -468,10 +468,10 @@ Done when:
 ### Ingestion Contract
 
 Confluence sync must enqueue work through `ingestion_jobs`; do not call the graph directly.
-The payload must be a valid `IngestionState` with `file_path`, `metadata`, `options`,
+The payload must be a valid `IngestionState` with `file_path`, `metadata`, `options`, 
 `user_id`, `doc_id`, and `kb_name`.
 
-Use:
+Use
 
 - `metadata`: `title`, `url`
 - `options`: `retrieval_mode`, `chunk_size`, `chunk_overlap`
@@ -486,7 +486,7 @@ Always look up `knowledge_bases.name` for `kb_name`. Do not include obsolete fie
 
 ### Document Lifecycle Safety
 
-`document_service` should own the shared lifecycle helpers:
+`document_service` should own the shared lifecycle helpers
 
 - create pending document rows
 - enqueue ingestion jobs
