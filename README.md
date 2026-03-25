@@ -18,14 +18,14 @@ A robust, multi-tenant RAG (Retrieval-Augmented Generation) Knowledge Base syste
 
 ## Key Features
 
-- **Multi-Tenant Architecture**: User registration, JWT-based authentication, and role-based access control (user / admin / super-admin) with proper data isolation.
-- **Advanced RAG Pipelines**: Orchestrated via **LangGraph** for both document ingestion and conversational retrieval workflows.
-- **Relational Metadata Management**: Uses SQLite to track Users, Knowledge Bases, Documents, and Chat Sessions with full history.
-- **High-Performance Vector Search**: Uses **Qdrant** for scalable similarity search with dynamic collection creation per knowledge base (`docmind_{kb_name}`).
-- **Source Citations & Traceability**: Every chat response includes cited source references linked back to the original document chunks, enabling full answer provenance and auditability.
-- **Flexible LLM & Per-KB Embeddings**: LLMs remain globally configured via environment variables, while each knowledge base can bind its own embedding provider/model/connection settings.
-- **Streaming Chat**: Server-Sent Events (SSE) support for real-time token-by-token response streaming.
-- **Full-Stack Application**: Vue 3 frontend with a complete UI covering authentication, knowledge base management, document ingestion, and conversational chat.
+- **Knowledge-Base Isolation with RBAC**: Users authenticate with JWT and are scoped to knowledge bases with `user`, `admin`, and `super_admin` roles.
+- **LangGraph-Driven Ingestion and Retrieval**: Both ingestion and chat retrieval are modeled as explicit workflows instead of ad-hoc request handlers.
+- **Per-KB Embedding Identity**: Each knowledge base persists its own embedding provider, model, vector dimension, and connection settings to avoid vector drift.
+- **Hybrid Retrieval Modes**: Confluence-backed KBs can retrieve either classic chunks or bounded full-document context (`full_doc`) depending on the use case.
+- **Confluence Sync**: Optional Confluence integration supports KB-level root page binding, manual sync, scheduled sync, and sync job history inspection.
+- **Image-Aware Ingestion**: Markdown image blocks can be skipped, OCR'd, or summarized with a multimodal model, depending on `IMAGE_PROCESSOR`.
+- **Streaming Chat and Standalone Search**: The app supports SSE chat responses with citations plus a separate pure vector-search experience.
+- **Operational Simplicity**: SQLite stores app metadata, Qdrant stores vectors, and collections are created dynamically per KB as `docmind_{kb_name}`.
 
 ## Architecture & Tech Stack
 
@@ -35,7 +35,7 @@ A robust, multi-tenant RAG (Retrieval-Augmented Generation) Knowledge Base syste
 - **Workflow Orchestration**: LangGraph, LangChain
 - **Vector Database**: Qdrant (Docker)
 - **Embedding Model**: Per-knowledge-base embedding configuration (supports OpenAI-compatible endpoints and HuggingFace models)
-- **LLM**: Any OpenAI-compatible endpoint (default: OpenRouter `google/gemini-2.5-flash`)
+- **LLM**: Any OpenAI-compatible endpoint (default in `.env.example`: OpenRouter `google/gemini-3.1-flash-lite-preview`)
 - **Relational DB**: SQLite
 
 ### Frontend
@@ -134,6 +134,7 @@ docker compose exec <service> <command>
 ### 3. Configure Environment
 
 ```bash
+cd backend
 cp .env.example .env
 ```
 
@@ -142,12 +143,19 @@ Edit `.env` and set the required values — at minimum:
 | Variable                | Description                                                                                                |
 | ----------------------- | ---------------------------------------------------------------------------------------------------------- |
 | `LLM_API_KEY`           | API key for your LLM provider (e.g. OpenRouter key)                                                        |
-| `LLM_MODEL`             | Model name (default: `google/gemini-2.5-flash`)                                                            |
+| `LLM_MODEL`             | Model name (example default: `google/gemini-3.1-flash-lite-preview`)                                       |
 | `LLM_BASE_URL`          | OpenAI-compatible endpoint (default: `https://openrouter.ai/api/v1`)                                       |
 | `JWT_SECRET_KEY`        | Random secret for signing JWTs — generate with: `python -c "import secrets; print(secrets.token_hex(32))"` |
 | `SUPER_ADMIN_USERNAMES` | Comma-separated usernames that get super-admin privileges                                                  |
 
-See `.env.example` for all available options including chunking, retrieval, and logging settings.
+Optional backend capabilities you may also want to configure:
+
+- `CONFLUENCE_BASE_URL` and `CONFLUENCE_PAT` to enable Confluence sync
+- `IMAGE_PROCESSOR` plus `IMAGE_VISION_*` if you want OCR or multimodal image summarization
+- `CORS_ORIGINS` if the frontend is served from a non-default origin
+- `DOCMIND_DB_PATH` if you want to override the default SQLite location
+
+See `backend/.env.example` for the full set of supported options.
 
 ### Knowledge Base Embedding Configuration
 
@@ -161,6 +169,7 @@ When creating a knowledge base, you can choose the embedding provider and model 
 ### 4. Run the Backend
 
 ```bash
+cd backend
 make dev
 ```
 
@@ -181,25 +190,34 @@ The frontend will be available at `http://localhost:5173`. It connects to the ba
 
 DocMind exposes a complete RESTful API. Key endpoints:
 
-| Method   | Endpoint                       | Description                                           |
-| -------- | ------------------------------ | ----------------------------------------------------- |
-| `POST`   | `/auth/register`               | Register a new user                                   |
-| `POST`   | `/auth/login`                  | Login and obtain a JWT                                |
-| `GET`    | `/kb`                          | List accessible knowledge bases                       |
-| `GET`    | `/kb/embedding-options`        | List available embedding providers and field metadata |
-| `POST`   | `/kb`                          | Create a knowledge base (super-admin only)            |
-| `PATCH`  | `/kb/{kb_id}`                  | Update KB display name and description                |
-| `PATCH`  | `/kb/{kb_id}/embedding-connection` | Update KB embedding base URL / API key            |
-| `DELETE` | `/kb/{kb_id}`                  | Delete a knowledge base (super-admin only)            |
-| `POST`   | `/ingest/{kb_id}`              | Upload and ingest a document (async, background task) |
-| `GET`    | `/ingest/documents/kb/{kb_id}` | List documents in a knowledge base                    |
-| `GET`    | `/ingest/{doc_id}/chunks`      | View processed chunks for a document                  |
-| `DELETE` | `/ingest/{doc_id}`             | Delete a document                                     |
-| `POST`   | `/chat`                        | Query a knowledge base (non-streaming)                |
-| `POST`   | `/chat/stream`                 | Query a knowledge base (SSE streaming)                |
-| `GET`    | `/chats`                       | List chat sessions                                    |
-| `GET`    | `/chats/{session_id}`          | Get chat session with message history                 |
-| `GET`    | `/health`                      | Health check (Qdrant + LLM connectivity)              |
+| Method   | Endpoint                                 | Description                                              |
+| -------- | ---------------------------------------- | -------------------------------------------------------- |
+| `POST`   | `/auth/register`                         | Register a new user                                      |
+| `POST`   | `/auth/login`                            | Login and obtain a JWT                                   |
+| `GET`    | `/kb`                                    | List accessible knowledge bases                          |
+| `GET`    | `/kb/{kb_id}`                            | Get KB details, including embedding and Confluence state |
+| `GET`    | `/kb/embedding-options`                  | List available embedding providers and field metadata    |
+| `POST`   | `/kb`                                    | Create a knowledge base (super-admin only)               |
+| `PATCH`  | `/kb/{kb_id}`                            | Update KB metadata and optional Confluence settings      |
+| `PATCH`  | `/kb/{kb_id}/embedding-connection`       | Update KB embedding base URL / API key                   |
+| `POST`   | `/kb/{kb_id}/sync`                       | Trigger a Confluence sync job                            |
+| `GET`    | `/kb/{kb_id}/sync/jobs`                  | List Confluence sync jobs                                |
+| `GET`    | `/kb/{kb_id}/sync/jobs/{job_id}/records` | Inspect sync records for a job                           |
+| `DELETE` | `/kb/{kb_id}`                            | Delete a knowledge base (super-admin only)               |
+| `POST`   | `/ingest/{kb_id}`                        | Upload and ingest a document (async, background task)    |
+| `GET`    | `/ingest/documents`                      | List current user's uploaded documents                   |
+| `GET`    | `/ingest/documents/kb/{kb_id}`           | List documents in a knowledge base                       |
+| `GET`    | `/ingest/documents/{doc_id}`             | Get document detail                                      |
+| `GET`    | `/ingest/{doc_id}/chunks`                | View processed chunks for a document                     |
+| `DELETE` | `/ingest/{doc_id}`                       | Delete a document                                        |
+| `POST`   | `/chat`                                  | Query a knowledge base (non-streaming)                   |
+| `POST`   | `/chat/stream`                           | Query a knowledge base (SSE streaming)                   |
+| `POST`   | `/search`                                | Run pure vector search without LLM generation            |
+| `GET`    | `/chats`                                 | List chat sessions                                       |
+| `POST`   | `/chats`                                 | Create a chat session                                    |
+| `GET`    | `/chats/{session_id}`                    | Get chat session with message history                    |
+| `DELETE` | `/chats/{session_id}`                    | Delete a chat session                                    |
+| `GET`    | `/health`                                | Health check (Qdrant + LLM connectivity)                 |
 
 ## Utility Commands
 
@@ -213,8 +231,9 @@ DocMind exposes a complete RESTful API. Key endpoints:
 | `docker compose ps`                               | Check container status                                   |
 | `docker compose down -v`                          | Stop containers and delete volumes (data loss)           |
 
-## Roadmap
+## Current Scope
 
-- [ ] **Document Storage with MinIO** — Persist uploaded documents to an object store during ingestion, exposing a download endpoint for users to retrieve original files.
-- [x] **Frontend UI** — Responsive Vue 3 web interface covering knowledge base management, document ingestion, and conversational chat.
-- [x] **LLM-based Document Pre-processing** — Pre-ingestion pipeline using LLM to generate code summaries and improve chunking quality before vectorization.
+- [x] **Frontend UI** — Authentication, KB management, document ingestion, semantic search, and chat are all available in the Vue app.
+- [x] **LLM-Assisted Ingestion** — Code summarization and image-aware preprocessing are available as part of the ingestion pipeline.
+- [x] **Confluence Integration** — KB-level Confluence binding, manual sync, scheduled sync, and sync history inspection are implemented.
+- [ ] ~~**Object Storage for Source Files** — Persist original uploaded files in external object storage instead of relying only on local disk.~~
