@@ -11,9 +11,12 @@ Each JSON line contains:
     - caller    : {file, line, func} of the log call site
 
 When an exception is active (inside an except block), ``data`` is automatically
-enriched with three extra keys:
-    - origin     : {file, line, func} — outermost traceback frame (entry point)
-    - trigger    : {file, line, func, code} — innermost frame (raise site)
+enriched with:
+    - error_type : exception class name
+    - error      : ``str(exc)``
+    - traceback  : raw formatted traceback, including chained causes/contexts
+    - origin     : {file, line, func} — first app frame when available
+    - trigger    : {file, line, func, code} — last app frame when available
     - call_chain : list of "file:line func" strings, outermost → innermost
 
 Configuration (via .env / environment variables):
@@ -56,6 +59,15 @@ def get_request_id() -> str:
 
 # Level ordering — entries below the configured minimum are silently dropped
 _LEVELS = {"debug": 0, "info": 1, "warning": 2, "error": 3}
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+
+
+def _is_app_frame(filename: str) -> bool:
+    """Return whether a traceback frame belongs to this backend project."""
+    try:
+        return Path(filename).resolve().is_relative_to(_PROJECT_ROOT)
+    except OSError:
+        return False
 
 
 def _log_dir() -> Path:
@@ -67,9 +79,12 @@ def _log_dir() -> Path:
     return d
 
 
-def _serialize_traceback(exc: BaseException) -> dict[str, object]:
-    """Convert a single exception traceback into structured log fields."""
-    frames = traceback.extract_tb(exc.__traceback__)
+def _serialize_traceback(
+    exc: BaseException,
+    *,
+    caller: dict[str, object] | None = None,
+) -> dict[str, object]:
+    """Convert an exception into raw traceback and concise summary fields."""
     result: dict[str, object] = {
         "error_type": type(exc).__name__,
         "error": str(exc),
@@ -78,38 +93,69 @@ def _serialize_traceback(exc: BaseException) -> dict[str, object]:
         ),
     }
 
+    frames = traceback.extract_tb(exc.__traceback__)
     if not frames:
         return result
 
-    origin_frame = frames[0]
-    trigger_frame = frames[-1]
+    app_frames: list[dict[str, object]] = []
+    ext_frames: list[dict[str, object]] = []
+    for frame in frames:
+        entry = f"{os.path.basename(frame.filename)}:{frame.lineno} {frame.name}"
+        frame_info = {
+            "file": os.path.basename(frame.filename),
+            "line": frame.lineno,
+            "func": frame.name,
+            "code": frame.line,
+            "entry": entry,
+        }
+        if _is_app_frame(frame.filename):
+            app_frames.append(frame_info)
+        else:
+            ext_frames.append(frame_info)
+
+    visible_app_frames = app_frames
+    if caller is not None and len(app_frames) > 1:
+        first_frame = app_frames[0]
+        if (
+            first_frame["file"] == caller["file"]
+            and first_frame["func"] == caller["func"]
+        ):
+            visible_app_frames = app_frames[1:]
+
+    preferred_frames = visible_app_frames or app_frames or ext_frames
+    origin_frame = preferred_frames[0]
+    trigger_frame = preferred_frames[-1]
     result["origin"] = {
-        "file": os.path.basename(origin_frame.filename),
-        "line": origin_frame.lineno,
-        "func": origin_frame.name,
+        "file": origin_frame["file"],
+        "line": origin_frame["line"],
+        "func": origin_frame["func"],
     }
     result["trigger"] = {
-        "file": os.path.basename(trigger_frame.filename),
-        "line": trigger_frame.lineno,
-        "func": trigger_frame.name,
-        "code": trigger_frame.line,
+        "file": trigger_frame["file"],
+        "line": trigger_frame["line"],
+        "func": trigger_frame["func"],
+        "code": trigger_frame["code"],
     }
-    result["call_chain"] = [
-        f"{os.path.basename(frame.filename)}:{frame.lineno} {frame.name}"
-        for frame in frames
-    ]
+    result["call_chain"] = [frame["entry"] for frame in preferred_frames]
+    if ext_frames:
+        result["ext_frames"] = [frame["entry"] for frame in ext_frames]
+
     return result
 
 
-def _exception_chain(exc: BaseException) -> list[dict[str, object]]:
-    """Return the chained exceptions from outermost to root cause."""
+def _exception_chain(
+    exc: BaseException,
+    *,
+    caller: dict[str, object] | None = None,
+) -> list[dict[str, object]]:
+    """Return chained exceptions from outermost to root cause."""
     chain: list[dict[str, object]] = []
     seen: set[int] = set()
     current: BaseException | None = exc
 
     while current is not None and id(current) not in seen:
         seen.add(id(current))
-        chain.append(_serialize_traceback(current))
+        chain.append(_serialize_traceback(current, caller=caller))
         current = current.__cause__ or current.__context__
 
     return chain
@@ -165,11 +211,11 @@ def _write(
     active_exc = exc or sys.exc_info()[1]
     if active_exc is not None:
         record["data"] = dict(data)
-        record["data"].update(_serialize_traceback(active_exc))
+        record["data"].update(_serialize_traceback(active_exc, caller=caller))
 
-        chain = _exception_chain(active_exc)
+        chain = _exception_chain(active_exc, caller=caller)
         if len(chain) > 1:
-            record["data"]["exception_chain"] = chain
+            record["data"]["exception_chain"] = chain[1:]
             root_cause = chain[-1]
             record["data"]["root_cause"] = {
                 "error_type": root_cause["error_type"],

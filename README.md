@@ -92,6 +92,10 @@ DocMind/
     └── package.json
 ```
 
+## Logging Note
+
+Exception logs keep both the raw Python `traceback` and a structured summary (`origin`, `trigger`, `call_chain`, etc.). The raw `traceback` is the final debugging source of truth and should not be removed. The structured summary depends on the current backend source-tree layout to distinguish app frames from external frames, so if you move `backend/docmind/core/logger.py`, split backend code across additional roots, or run internal code from outside the current backend project tree, review the frame-classification logic in `backend/docmind/core/logger.py`. See [docs/exception_logging_design.zh-CN.md](docs/exception_logging_design.zh-CN.md) for the detailed design notes.
+
 ## Quick Start
 
 ### 1. Prerequisites
