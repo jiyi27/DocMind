@@ -17,6 +17,12 @@ from docmind.core.config import settings
 from docmind.core import logger
 from docmind.core.embedding import EmbeddingParams, get_embedding_model
 from docmind.core.exceptions import VectorStoreError
+from docmind.core.metadata import META_DOC_ID, META_KB_NAME, META_USER_ID
+
+# Qdrant payload path for the doc_id filter field.
+# langchain-qdrant serialises Document.metadata under a "metadata" key in the
+# Qdrant payload, so the filter path is always "metadata.<key>".
+_QDRANT_DOC_ID_PATH: str = f"metadata.{META_DOC_ID}"
 
 _DISTANCE = Distance.COSINE
 
@@ -190,7 +196,7 @@ def get_chunks_by_doc_id(
 
     col = kb_collection_name(kb_name)
     # Fields to strip from payload before returning — internal/redundant fields
-    _STRIP_KEYS = {"doc_id", "user_id", "kb_name"}
+    _STRIP_KEYS = {META_DOC_ID, META_USER_ID, META_KB_NAME}
 
     try:
         client = QdrantClient(url=settings.qdrant.url)
@@ -201,7 +207,7 @@ def get_chunks_by_doc_id(
             count_filter=Filter(
                 must=[
                     FieldCondition(
-                        key="metadata.doc_id",
+                        key=_QDRANT_DOC_ID_PATH,
                         match=MatchValue(value=doc_id),
                     )
                 ]
@@ -215,7 +221,7 @@ def get_chunks_by_doc_id(
             scroll_filter=Filter(
                 must=[
                     FieldCondition(
-                        key="metadata.doc_id",
+                        key=_QDRANT_DOC_ID_PATH,
                         match=MatchValue(value=doc_id),
                     )
                 ]
@@ -268,7 +274,7 @@ def delete_documents_by_doc_id(kb_name: str, doc_id: str) -> None:
             points_selector=Filter(
                 must=[
                     FieldCondition(
-                        key="metadata.doc_id",
+                        key=_QDRANT_DOC_ID_PATH,
                         match=MatchValue(value=doc_id),
                     )
                 ]

@@ -13,10 +13,10 @@ from typing import Any
 
 import aiosqlite
 
+from docmind.core import logger
 from docmind.db.repositories import (
     DocumentRepository,
     IngestionJobRepository,
-    KBRepository,
 )
 from docmind.vectorstore.qdrant_store import delete_documents_by_doc_id
 
@@ -85,17 +85,29 @@ async def delete_document_and_vectors(
     db: aiosqlite.Connection,
     doc_id: str,
 ) -> None:
-    """Delete a document and its Qdrant vectors using the doc's real kb_id."""
-    doc_repo = DocumentRepository(db)
-    kb_repo = KBRepository(db)
+    """Delete a document and its Qdrant vectors.
 
-    doc = await doc_repo.get_by_id(doc_id)
+    Uses get_by_id_with_display_info (LEFT JOIN with knowledge_bases) so that
+    kb_name is available in a single query, avoiding a separate KBRepository
+    lookup. If the KB row is missing (data inconsistency), the Qdrant collection
+    would have been dropped during KB deletion, so skipping vector deletion is safe.
+    """
+    doc_repo = DocumentRepository(db)
+
+    doc = await doc_repo.get_by_id_with_display_info(doc_id)
     if not doc:
         return
 
-    kb = await kb_repo.get_by_id(doc["kb_id"])
-    if kb:
-        delete_documents_by_doc_id(kb["name"], doc_id)
+    kb_name = doc.get("kb_name")
+    if kb_name:
+        delete_documents_by_doc_id(kb_name, doc_id)
+    else:
+        # KB record is gone — its Qdrant collection was already dropped when
+        # the KB was deleted, so no orphan vectors remain.
+        logger.warning(
+            "vectorstore_skip_delete_no_kb",
+            {"doc_id": doc_id, "kb_id": doc.get("kb_id")},
+        )
 
     # Delete the local file if it exists
     file_path = doc.get("file_path", "")
