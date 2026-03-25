@@ -83,7 +83,7 @@
           </span>
         </div>
         <div class="confluence-stat">
-          <span class="confluence-label">Sync Enabled</span>
+          <span class="confluence-label">Auto Sync</span>
           <span class="confluence-value">
             <el-tag :type="kbDetail.confluence_sync_enabled ? 'success' : 'info'" effect="plain">
               {{ kbDetail.confluence_sync_enabled ? 'Enabled' : 'Disabled' }}
@@ -260,9 +260,15 @@
           </el-radio-group>
         </el-form-item>
 
-        <el-form-item label="Sync Enabled">
-          <el-switch v-model="confluenceForm.sync_enabled" />
-          <div class="form-hint">When enabled, the background worker can pick this KB up for scheduled sync.</div>
+        <el-form-item label="Auto Sync">
+          <div class="switch-field">
+            <el-switch v-model="confluenceForm.sync_enabled" />
+            <div class="switch-field-copy">
+              <div class="form-hint form-hint--spacious">
+                Automatically sync content from the configured Confluence page tree.
+              </div>
+            </div>
+          </div>
         </el-form-item>
       </el-form>
 
@@ -971,6 +977,24 @@ function handleDeleted() {
   font-size: 12px;
   color: #909399;
   margin-top: 4px;
+}
+
+.form-hint--spacious {
+  margin-top: 0;
+}
+
+.switch-field {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.switch-field-copy {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  justify-content: center;
+  min-height: 32px;
 }
 
 .history-toolbar {
