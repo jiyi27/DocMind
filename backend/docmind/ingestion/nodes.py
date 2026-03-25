@@ -241,10 +241,16 @@ def _custom_split_markdown(
     # --- Helpers (restore, breadcrumb, overlap) ---
 
     def _restore_all(s: str) -> str:
-        """Swap all placeholders back to their original content in one pass."""
-        s = _restore_fenced_block_placeholders(s, code_blocks)
-        s = _restore_blockquote_placeholders(s, bq_blocks)
+        """Swap all placeholders back to their original content.
+
+        Must mirror the protection order in reverse: fenced blocks were protected
+        first, so they may be nested inside blockquote/table placeholders. Restore
+        outer containers first so inner placeholders are revealed before their own
+        restore pass runs.
+        """
         s = _restore_table_placeholders(s, table_blocks)
+        s = _restore_blockquote_placeholders(s, bq_blocks)
+        s = _restore_fenced_block_placeholders(s, code_blocks)
         return s
 
     def build_breadcrumb(headers: dict) -> str:
