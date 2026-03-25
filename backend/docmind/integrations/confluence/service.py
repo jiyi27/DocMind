@@ -13,18 +13,20 @@ from pathlib import Path
 from typing import Any
 
 import aiosqlite
-import markdownify
 
 from docmind.core import logger
 from docmind.core.config import settings
+from docmind.core.time import utc_now_iso
 from docmind.db.repositories import (
     DocumentRepository,
     KBRepository,
     SyncJobRepository,
     SyncRecordRepository,
 )
-from docmind.core.time import utc_now_iso
 from docmind.integrations.confluence.client import ConfluenceClient, PageSummary
+from docmind.integrations.confluence.converter import (
+    convert_confluence_html_to_markdown,
+)
 from docmind.integrations.confluence.sync_planner import build_sync_plan
 from docmind.services.document_service import (
     create_pending_document,
@@ -33,11 +35,6 @@ from docmind.services.document_service import (
 )
 
 UPLOAD_DIR = Path("data/uploads")
-
-
-def _html_to_markdown(html: str) -> str:
-    """Convert Confluence HTML body to Markdown text."""
-    return markdownify.markdownify(html, heading_style="ATX", strip=["img"])
 
 
 def _save_markdown(doc_id: str, page_id: str, content: str) -> Path:
@@ -63,7 +60,7 @@ async def _apply_create(
 
     try:
         title, html_body, version, source_url = client.get_page_body_html(page.page_id)
-        md_content = _html_to_markdown(html_body)
+        md_content = convert_confluence_html_to_markdown(html_body, source_url)
 
         # Full-doc size guard
         if retrieval_mode == "full_doc":
@@ -162,7 +159,7 @@ async def _apply_update(
 
     try:
         title, html_body, version, source_url = client.get_page_body_html(page.page_id)
-        md_content = _html_to_markdown(html_body)
+        md_content = convert_confluence_html_to_markdown(html_body, source_url)
 
         # Full-doc size guard — keep old doc if new content is too large
         if retrieval_mode == "full_doc":

@@ -47,6 +47,7 @@ def _make_client() -> QdrantClient:
     """
     return QdrantClient(url=settings.qdrant.url, trust_env=False)
 
+
 # Re-export so external imports of VectorStoreError from this module still work.
 __all__ = [
     "VectorStoreError",

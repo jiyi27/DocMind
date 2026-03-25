@@ -43,7 +43,11 @@ def _qdrant_count(client: QdrantClient, collection: str, doc_id: str) -> int:
         return client.count(
             collection_name=collection,
             count_filter=Filter(
-                must=[FieldCondition(key=_QDRANT_DOC_ID_PATH, match=MatchValue(value=doc_id))]
+                must=[
+                    FieldCondition(
+                        key=_QDRANT_DOC_ID_PATH, match=MatchValue(value=doc_id)
+                    )
+                ]
             ),
             exact=True,
         ).count
@@ -100,7 +104,9 @@ async def check_single(doc_id: str) -> None:
     elif count == 0:
         print("OK  Qdrant is clean — document was deleted or never ingested.")
     else:
-        print(f"WARNING  Mismatch: Qdrant has {count} point(s), SQLite chunk_count={db_count}")
+        print(
+            f"WARNING  Mismatch: Qdrant has {count} point(s), SQLite chunk_count={db_count}"
+        )
 
 
 async def scan_orphans() -> None:
@@ -133,7 +139,9 @@ async def scan_orphans() -> None:
                     break
                 offset = next_offset
 
-            print(f"\nCollection '{col}': {len(seen)} unique doc_id(s), checking SQLite…")
+            print(
+                f"\nCollection '{col}': {len(seen)} unique doc_id(s), checking SQLite…"
+            )
 
             for doc_id, point_count in seen.items():
                 doc = await doc_repo.get_by_id(doc_id)
