@@ -38,11 +38,22 @@
             />
           </el-form-item>
 
-          <el-form-item label="Knowledge Base ID" prop="kb_id">
-            <el-input 
-              v-model="registerForm.kb_id" 
-              placeholder="Enter your KB ID (optional)"
-            />
+          <el-form-item label="Knowledge Base" prop="kb_id">
+            <el-select
+              v-model="registerForm.kb_id"
+              placeholder="Select a knowledge base (optional)"
+              :loading="loadingKbs"
+              :disabled="loadingKbs || kbOptions.length === 0"
+              clearable
+              style="width: 100%"
+            >
+              <el-option
+                v-for="kb in kbOptions"
+                :key="kb.id"
+                :label="kb.display_name"
+                :value="kb.id"
+              />
+            </el-select>
           </el-form-item>
 
           <div class="mt-6">
@@ -63,15 +74,30 @@
 </template>
 
 <script setup>
-import { ref, reactive } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { register } from '../api/auth'
+import { getKbs } from '../api/kb'
 
 const router = useRouter()
 
 const registerFormRef = ref(null)
 const isLoading = ref(false)
+const loadingKbs = ref(false)
+const kbOptions = ref([])
+
+onMounted(async () => {
+  loadingKbs.value = true
+  try {
+    const res = await getKbs()
+    kbOptions.value = Array.isArray(res) ? res : []
+  } catch {
+    ElMessage.error('Failed to load knowledge bases')
+  } finally {
+    loadingKbs.value = false
+  }
+})
 
 const registerForm = reactive({
   username: '',
@@ -102,9 +128,9 @@ const handleRegister = async () => {
           password: registerForm.password
         }
         
-        // Add kb_id if provided
-        if (registerForm.kb_id.trim()) {
-          payload.kb_id = registerForm.kb_id.trim()
+        // Add kb_id if selected
+        if (registerForm.kb_id) {
+          payload.kb_id = registerForm.kb_id
         }
 
         await register(payload)

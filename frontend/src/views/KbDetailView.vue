@@ -450,7 +450,7 @@ const kbStore = useKbStore()
 
 const kbId = computed(() => route.params.id)
 const kbDetail = computed(() => kbStore.currentKb)
-const canEdit = computed(() => authStore.isSuperAdmin)
+const canEdit = computed(() => authStore.canManageKb(kbId.value))
 const docListRef = ref(null)
 const infoDialogVisible = ref(false)
 const connectionDialogVisible = ref(false)
