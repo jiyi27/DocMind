@@ -1,12 +1,22 @@
-"""Verify vector store integrity for documents.
-
-Usage:
-    # Check a specific doc (run before and after deletion to compare):
-    uv run python scripts/verify_vectors.py --doc-id <doc_id>
-
-    # Scan all Qdrant collections for chunks whose doc_id has no SQLite record:
-    uv run python scripts/verify_vectors.py --scan-orphans
-"""
+# -----------------------------------------------------------------------------
+# audit_vector_integrity.py
+#
+# Diagnostic tool for verifying consistency between the Qdrant vector store
+# and SQLite document records. Useful for detecting data drift after document
+# deletions, failed ingestion jobs, or storage migrations.
+#
+# Two modes:
+#   --doc-id      Check a specific document: compare SQLite chunk_count against
+#                 the actual number of points in Qdrant. Also reports orphan
+#                 vectors if the document no longer exists in SQLite.
+#
+#   --scan-orphans  Scroll through every Qdrant collection and flag any
+#                   doc_id that has no corresponding SQLite record.
+#
+# Usage (run from the /backend directory):
+#   uv run python scripts/audit_vector_integrity.py --doc-id <doc_id>
+#   uv run python scripts/audit_vector_integrity.py --scan-orphans
+# -----------------------------------------------------------------------------
 
 from __future__ import annotations
 
