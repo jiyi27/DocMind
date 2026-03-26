@@ -25,6 +25,14 @@ export function updateKb(kbId, data) {
 }
 
 /**
+ * Preview a Confluence sync job for a knowledge base
+ * POST /kb/{kb_id}/sync/preview
+ */
+export function previewKbSync(kbId) {
+    return http.post(`/kb/${kbId}/sync/preview`)
+}
+
+/**
  * Trigger a Confluence sync job for a knowledge base
  * POST /kb/{kb_id}/sync
  */

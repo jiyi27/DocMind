@@ -30,7 +30,7 @@ class ConfluenceClient:
 
     def __init__(self, base_url: str, pat: str, timeout: float = 30.0) -> None:
         self._base_url = base_url.rstrip("/")
-        self._client = httpx.Client(
+        self._client = httpx.AsyncClient(
             base_url=f"{self._base_url}/rest/api",
             headers={
                 "Authorization": f"Bearer {pat}",
@@ -43,15 +43,15 @@ class ConfluenceClient:
     # Low-level API calls
     # ------------------------------------------------------------------
 
-    def get_page(
+    async def get_page(
         self, page_id: str, expand: str = "title,version,body.view,space"
     ) -> dict[str, Any]:
         """Fetch a single page with optional expansions."""
-        resp = self._client.get(f"/content/{page_id}", params={"expand": expand})
+        resp = await self._client.get(f"/content/{page_id}", params={"expand": expand})
         resp.raise_for_status()
         return resp.json()
 
-    def list_child_pages(
+    async def list_child_pages(
         self,
         page_id: str,
         start: int = 0,
@@ -61,7 +61,7 @@ class ConfluenceClient:
         """Return all child pages under *page_id* (handles pagination)."""
         results: list[dict[str, Any]] = []
         while True:
-            resp = self._client.get(
+            resp = await self._client.get(
                 f"/content/{page_id}/child/page",
                 params={"start": start, "limit": limit, "expand": expand},
             )
@@ -94,7 +94,7 @@ class ConfluenceClient:
             source_url=self._build_source_url(page),
         )
 
-    def walk_page_tree(self, root_page_id: str) -> list[PageSummary]:
+    async def walk_page_tree(self, root_page_id: str) -> list[PageSummary]:
         """Recursively discover all pages under *root_page_id*.
 
         Returns a flat list of ``PageSummary`` objects. The root page
@@ -106,7 +106,7 @@ class ConfluenceClient:
         while queue:
             parent_id = queue.pop(0)
             try:
-                children = self.list_child_pages(parent_id)
+                children = await self.list_child_pages(parent_id)
             except httpx.HTTPStatusError as exc:
                 logger.error(
                     "confluence_list_children_failed",
@@ -126,17 +126,17 @@ class ConfluenceClient:
         )
         return all_pages
 
-    def get_page_body_html(self, page_id: str) -> tuple[str, str, int, str]:
+    async def get_page_body_html(self, page_id: str) -> tuple[str, str, int, str]:
         """Fetch a page's HTML body for conversion.
 
         Returns ``(title, html_body, version, source_url)``.
         """
-        page = self.get_page(page_id, expand="title,version,body.view")
+        page = await self.get_page(page_id, expand="title,version,body.view")
         title = page.get("title", "")
         html_body = page.get("body", {}).get("view", {}).get("value", "")
         version = int(page.get("version", {}).get("number", 0))
         source_url = self._build_source_url(page)
         return title, html_body, version, source_url
 
-    def close(self) -> None:
-        self._client.close()
+    async def close(self) -> None:
+        await self._client.aclose()

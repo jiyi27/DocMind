@@ -469,13 +469,13 @@
 </template>
 
 <script setup>
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, h, onMounted, onUnmounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ArrowLeft, Files, Upload } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
 import { useKbStore } from '@/stores/kb'
-import { getKbSyncJobs, getKbSyncRecords, triggerKbSync } from '@/api/kb'
+import { getKbSyncJobs, getKbSyncRecords, previewKbSync, triggerKbSync } from '@/api/kb'
 import UploadZone from '@/components/ingestion/UploadZone.vue'
 import DocumentList from '@/components/ingestion/DocumentList.vue'
 
@@ -751,12 +751,46 @@ async function submitConfluenceForm() {
 async function triggerSyncNow() {
   syncTriggering.value = true
   try {
+    const preview = await previewKbSync(kbId.value)
+    if (preview?.job_in_progress) {
+      if (historyDrawerVisible.value) {
+        await loadSyncJobs()
+      }
+      ElMessage.success('Existing sync job is still running')
+      return
+    }
+
+    if ((preview?.total_operations || 0) === 0) {
+      ElMessage.success(`Scanned ${preview?.scanned || 0} page(s) — all up to date`)
+      return
+    }
+
+    await ElMessageBox.confirm(
+      h('div', { class: 'sync-preview-confirm' }, [
+        h('p', null, `This will scan ${preview?.scanned || 0} page(s).`),
+        h('p', null, `Pending changes: ${preview?.total_operations || 0}`),
+        h('p', null, `Create ${preview?.created || 0} / Update ${preview?.updated || 0} / Delete ${preview?.deleted || 0}`),
+        h('p', { class: 'sync-preview-confirm__muted' }, `Unchanged: ${preview?.unchanged || 0}`),
+      ]),
+      'Confirm Confluence Sync',
+      {
+        type: preview?.deleted ? 'warning' : 'info',
+        confirmButtonText: 'Start Sync',
+        cancelButtonText: 'Cancel',
+      },
+    )
+
     const data = await triggerKbSync(kbId.value)
     await kbStore.fetchKbDetail(kbId.value)
     if (historyDrawerVisible.value) {
       await loadSyncJobs()
     }
     ElMessage.success(data?.status === 'pending' ? 'Confluence sync started' : 'Existing sync job is still running')
+  } catch (error) {
+    if (error === 'cancel' || error === 'close' || error?.message === 'cancel') {
+      return
+    }
+    throw error
   } finally {
     syncTriggering.value = false
   }
@@ -973,6 +1007,19 @@ function handleDeleted() {
 .confluence-value--mono,
 .history-job-id {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace;
+}
+
+.sync-preview-confirm {
+  display: grid;
+  gap: 8px;
+}
+
+.sync-preview-confirm p {
+  margin: 0;
+}
+
+.sync-preview-confirm__muted {
+  color: #909399;
 }
 
 .history-job-error {

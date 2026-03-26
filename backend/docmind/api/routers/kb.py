@@ -5,6 +5,7 @@ POST   /kb              — create a new knowledge base (auto-creates Qdrant col
 GET    /kb              — list all knowledge bases
 GET    /kb/{kb_id}      — get knowledge base detail + document count
 DELETE /kb/{kb_id}      — delete knowledge base (drops Qdrant collection + all doc records)
+POST   /kb/{kb_id}/sync/preview — preview manual Confluence sync impact
 POST   /kb/{kb_id}/sync — trigger manual Confluence sync
 GET    /kb/{kb_id}/sync/jobs — list sync job history
 GET    /kb/{kb_id}/sync/jobs/{job_id}/records — list sync record details
@@ -449,6 +450,62 @@ def _run_sync_in_thread(kb_id: str, job_id: str) -> None:
         loop.run_until_complete(_run())
     finally:
         loop.close()
+
+
+@router.post(
+    "/{kb_id}/sync/preview",
+    summary="Preview Confluence Sync Impact",
+)
+async def preview_confluence_sync(
+    kb_id: str,
+    _: UserContext = Depends(require_super_admin),
+):
+    """Scan the Confluence tree and return the expected sync impact."""
+    if not settings.confluence.enabled:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Confluence integration is not configured",
+        )
+
+    from docmind.integrations.confluence.service import plan_sync
+
+    async with get_db() as db:
+        kb_repo = KBRepository(db)
+        kb = await kb_repo.get_by_id(kb_id)
+        if not kb:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Knowledge base not found"
+            )
+
+        if not kb.get("confluence_root_page_id"):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No Confluence root page configured for this KB",
+            )
+
+        job_repo = SyncJobRepository(db)
+        active_job = await job_repo.get_active_by_kb(kb_id)
+        if active_job:
+            return ok(
+                data={
+                    "job_in_progress": True,
+                    "active_job_id": active_job["id"],
+                    "status": active_job["status"],
+                },
+                message="A Confluence sync job is already in progress",
+            )
+
+        _, _, summary = await plan_sync(db, kb_id)
+        if summary is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No Confluence root page configured for this KB",
+            )
+
+    return ok(
+        data={"job_in_progress": False, **summary.model_dump()},
+        message="Confluence sync preview ready",
+    )
 
 
 @router.post(

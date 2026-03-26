@@ -69,8 +69,6 @@ def _log_dir() -> Path:
     return d
 
 
-
-
 def _write(
     level: str,
     topic: str,
@@ -124,7 +122,9 @@ def _write(
         record["data"]["error_type"] = type(active_exc).__name__
         record["data"]["error"] = str(active_exc)
         record["data"]["traceback"] = "".join(
-            traceback.format_exception(type(active_exc), active_exc, active_exc.__traceback__)
+            traceback.format_exception(
+                type(active_exc), active_exc, active_exc.__traceback__
+            )
         )
         # Walk the chain to surface the root cause when exceptions are wrapped.
         root = active_exc

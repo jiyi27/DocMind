@@ -27,7 +27,11 @@ from docmind.integrations.confluence.client import ConfluenceClient, PageSummary
 from docmind.integrations.confluence.converter import (
     convert_confluence_html_to_markdown,
 )
-from docmind.integrations.confluence.sync_planner import build_sync_plan
+from docmind.integrations.confluence.sync_planner import (
+    SyncJobSummary,
+    SyncPlan,
+    build_sync_plan,
+)
 from docmind.services.document_service import (
     create_pending_document,
     delete_document_and_vectors,
@@ -35,6 +39,50 @@ from docmind.services.document_service import (
 )
 
 UPLOAD_DIR = Path("data/uploads")
+
+
+class SyncPreviewResult(SyncJobSummary):
+    """Summary returned by a dry-run scan before a manual sync."""
+
+    total_operations: int = 0
+
+
+async def plan_sync(
+    db: aiosqlite.Connection,
+    kb_id: str,
+) -> tuple[dict[str, Any] | None, SyncPlan | None, SyncPreviewResult | None]:
+    """Build a side-effect-free sync plan for a KB."""
+    kb_repo = KBRepository(db)
+    doc_repo = DocumentRepository(db)
+
+    kb = await kb_repo.get_by_id(kb_id)
+    if not kb:
+        return None, None, None
+
+    root_page_id = kb.get("confluence_root_page_id", "")
+    if not root_page_id:
+        return kb, None, None
+
+    client = ConfluenceClient(
+        base_url=settings.confluence.base_url,
+        pat=settings.confluence.pat,
+    )
+
+    try:
+        remote_pages = await client.walk_page_tree(root_page_id)
+        local_docs = await doc_repo.list_confluence_docs_by_kb(kb_id)
+        plan = build_sync_plan(remote_pages, local_docs)
+        summary = plan.to_summary()
+        return (
+            kb,
+            plan,
+            SyncPreviewResult(
+                **summary.model_dump(),
+                total_operations=plan.total_operations,
+            ),
+        )
+    finally:
+        await client.close()
 
 
 def _save_markdown(doc_id: str, page_id: str, content: str) -> Path:
@@ -59,7 +107,9 @@ async def _apply_create(
     doc_id = str(uuid.uuid4())
 
     try:
-        title, html_body, version, source_url = client.get_page_body_html(page.page_id)
+        title, html_body, version, source_url = await client.get_page_body_html(
+            page.page_id
+        )
         md_content = convert_confluence_html_to_markdown(html_body, source_url)
 
         # Full-doc size guard
@@ -158,7 +208,9 @@ async def _apply_update(
     new_doc_id = str(uuid.uuid4())
 
     try:
-        title, html_body, version, source_url = client.get_page_body_html(page.page_id)
+        title, html_body, version, source_url = await client.get_page_body_html(
+            page.page_id
+        )
         md_content = convert_confluence_html_to_markdown(html_body, source_url)
 
         # Full-doc size guard — keep old doc if new content is too large
@@ -299,7 +351,6 @@ async def execute_sync(db: aiosqlite.Connection, kb_id: str, job_id: str) -> Non
     Updates the sync job and KB status fields when done.
     """
     kb_repo = KBRepository(db)
-    doc_repo = DocumentRepository(db)
     job_repo = SyncJobRepository(db)
 
     kb = await kb_repo.get_by_id(kb_id)
@@ -319,22 +370,11 @@ async def execute_sync(db: aiosqlite.Connection, kb_id: str, job_id: str) -> Non
 
     await job_repo.update_status(job_id, "running")
 
-    client = ConfluenceClient(
-        base_url=settings.confluence.base_url,
-        pat=settings.confluence.pat,
-    )
-
     try:
-        # 1. Walk remote tree
-        remote_pages = client.walk_page_tree(root_page_id)
+        _, plan, summary = await plan_sync(db, kb_id)
+        if plan is None or summary is None:
+            raise ValueError("No Confluence root page configured")
 
-        # 2. Load local confluence docs
-        local_docs = await doc_repo.list_confluence_docs_by_kb(kb_id)
-
-        # 3. Build plan
-        plan = build_sync_plan(remote_pages, local_docs)
-
-        summary = plan.to_summary()
         await job_repo.update_summary(job_id, summary.model_dump())
 
         logger.info(
@@ -348,7 +388,11 @@ async def execute_sync(db: aiosqlite.Connection, kb_id: str, job_id: str) -> Non
             },
         )
 
-        # 4. Apply operations
+        client = ConfluenceClient(
+            base_url=settings.confluence.base_url,
+            pat=settings.confluence.pat,
+        )
+
         for page in plan.to_create:
             await _apply_create(
                 db, client, page, kb_id, kb_name, retrieval_mode, job_id
@@ -385,4 +429,5 @@ async def execute_sync(db: aiosqlite.Connection, kb_id: str, job_id: str) -> Non
         )
 
     finally:
-        client.close()
+        if "client" in locals():
+            await client.close()
