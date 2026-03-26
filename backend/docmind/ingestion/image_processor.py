@@ -14,10 +14,12 @@ import base64
 import urllib.error
 import urllib.request
 from abc import ABC, abstractmethod
+from urllib.parse import urlparse
 
 from langchain_core.messages import HumanMessage
 
 from docmind.core import logger
+from docmind.core.config import settings
 from docmind.core.llm import get_image_llm
 from docmind.ingestion.prompts import image_summarization_prompt
 
@@ -131,15 +133,20 @@ def _fetch_image_bytes(url: str) -> bytes:
     Raises
     ------
     ImageFetchError
-        If the URL is unreachable, returns an HTTP error status, or times out.
+        If the URL is unreachable, returns an HTTP error status, times out,
+        or responds with non-image content.
     """
     if not url.startswith(("http://", "https://")):
         raise ValueError(f"Only HTTP/HTTPS URLs are supported, got: {url!r}")
-    req = urllib.request.Request(
-        url, headers={"User-Agent": "DocMind-ImageProcessor/1.0"}
-    )
+    req = urllib.request.Request(url, headers=_build_request_headers(url))
     try:
         with urllib.request.urlopen(req, timeout=_FETCH_TIMEOUT) as resp:  # noqa: S310
+            content_type = resp.headers.get("Content-Type", "")
+            if not content_type.lower().startswith("image/"):
+                raise ImageFetchError(
+                    "Expected image content but received "
+                    f"{content_type or 'unknown content type'} from {url}"
+                )
             return resp.read()
     except urllib.error.HTTPError as exc:
         raise ImageFetchError(f"HTTP {exc.code} fetching image: {url}") from exc
@@ -149,6 +156,22 @@ def _fetch_image_bytes(url: str) -> bytes:
         ) from exc
     except TimeoutError as exc:
         raise ImageFetchError(f"Timed out fetching image: {url}") from exc
+
+
+def _build_request_headers(url: str) -> dict[str, str]:
+    headers = {"User-Agent": "DocMind-ImageProcessor/1.0"}
+    if _should_attach_confluence_auth(url):
+        headers["Authorization"] = f"Bearer {settings.confluence.pat}"
+    return headers
+
+
+def _should_attach_confluence_auth(url: str) -> bool:
+    if not settings.confluence.enabled:
+        return False
+
+    request_host = urlparse(url).netloc.lower()
+    confluence_host = urlparse(settings.confluence.base_url).netloc.lower()
+    return bool(request_host and confluence_host and request_host == confluence_host)
 
 
 # ---------------------------------------------------------------------------

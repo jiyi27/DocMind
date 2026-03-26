@@ -99,19 +99,13 @@
           </span>
         </div>
         <div class="confluence-stat">
-          <span class="confluence-label">Sync Interval</span>
-          <span class="confluence-value">
-            {{ formatSyncInterval(kbDetail.confluence_sync_interval_minutes) }}
-          </span>
-        </div>
-        <div class="confluence-stat">
           <span class="confluence-label">Last Sync</span>
           <span class="confluence-value">
             {{ kbDetail.confluence_last_sync_at ? formatDateTime(kbDetail.confluence_last_sync_at) : 'Never synced' }}
           </span>
         </div>
         <div class="confluence-stat">
-          <span class="confluence-label">Last Status</span>
+          <span class="confluence-label">Last Sync Status</span>
           <span class="confluence-value">
             <el-tooltip
               v-if="kbDetail.confluence_last_sync_status === 'failed' && kbDetail.confluence_last_sync_error"
