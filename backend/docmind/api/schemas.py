@@ -65,6 +65,9 @@ class SearchResultItem(BaseModel):
     url: str
     source_label: str = Field(alias="sourceLabel")
     score: float
+    matched_content: str = Field(alias="matchedContent")
+    matched_chunk_type: str = Field(alias="matchedChunkType")
+    retrieval_mode: str = Field(alias="retrievalMode")
 
 
 class SearchResponse(BaseModel):

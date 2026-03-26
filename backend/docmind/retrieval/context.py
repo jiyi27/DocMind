@@ -54,3 +54,16 @@ class ContextItem:
     title: str = ""
     url: str = ""
     source_label: str = field(default="")
+
+
+@dataclass
+class SearchHit:
+    """One document-level search result derived from a matched chunk."""
+
+    title: str
+    url: str
+    source_label: str
+    score: float
+    matched_content: str
+    matched_chunk_type: str
+    retrieval_mode: str

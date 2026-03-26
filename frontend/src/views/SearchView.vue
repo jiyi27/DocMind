@@ -139,6 +139,10 @@
 
                 <div class="result-source-label">{{ item.sourceLabel }}</div>
 
+                <div v-if="item.matchedContent" class="result-snippet">
+                  {{ item.matchedContent }}
+                </div>
+
                 <div v-if="item.url" class="result-url">
                   <el-icon :size="12"><Link /></el-icon>
                   <a :href="item.url" target="_blank" rel="noopener noreferrer" class="url-link">
@@ -531,6 +535,19 @@ onMounted(async () => {
   margin-bottom: 10px;
   font-size: 12px;
   color: #64748b;
+}
+
+.result-snippet {
+  margin-bottom: 12px;
+  font-size: 13px;
+  line-height: 1.7;
+  color: #334155;
+  white-space: pre-wrap;
+  word-break: break-word;
+  display: -webkit-box;
+  -webkit-line-clamp: 5;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .result-url {

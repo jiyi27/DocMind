@@ -12,7 +12,7 @@ from docmind.api.response import ok
 from docmind.api.schemas import SearchRequest, SearchResponse, SearchResultItem
 from docmind.auth.schemas import UserContext
 from docmind.core import logger
-from docmind.retrieval.nodes import retrieve_with_items
+from docmind.retrieval.nodes import retrieve_search_hits
 
 router = APIRouter(prefix="/search", tags=["search"])
 
@@ -25,11 +25,11 @@ async def search(
     """Return the top-k most similar documents for a query without LLM generation.
 
     Runs vector similarity search against the specified knowledge base and returns
-    ranked results with title, url, citation label, and similarity score.
+    ranked document results with the matched chunk content preview.
     """
     try:
-        context_items, scores = await asyncio.to_thread(
-            retrieve_with_items,
+        hits = await asyncio.to_thread(
+            retrieve_search_hits,
             request.query,
             request.kb_name,
             request.top_k,
@@ -51,9 +51,12 @@ async def search(
             title=item.title,
             url=item.url,
             sourceLabel=item.source_label,
-            score=round(score, 4),
+            score=round(item.score, 4),
+            matchedContent=item.matched_content,
+            matchedChunkType=item.matched_chunk_type,
+            retrievalMode=item.retrieval_mode,
         )
-        for item, score in zip(context_items, scores)
+        for item in hits
     ]
 
     return ok(SearchResponse(results=results).model_dump(by_alias=True))

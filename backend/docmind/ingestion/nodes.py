@@ -312,6 +312,14 @@ def _custom_split_markdown(
     _HEADER_RE = re.compile(r"^(#{1,6})\s+(.*)")
     # Captures alt text and URL separately for image blocks.
     _IMAGE_RE = re.compile(r"^!\[(?P<alt>[^\]]*)\]\((?P<url>[^)]+)\)\s*$")
+    # Matches a linked image: [![alt](img_url)](link_url)
+    # Confluence frequently renders attachment thumbnails in this form — a low-resolution
+    # preview image wrapped in a hyperlink to the full file (PDF, large image, etc.).
+    # The thumbnail has no useful text content, and the raw link URL adds no retrieval value
+    # either, so we classify these blocks as "image" and let summarize_image_node drop or
+    # process them consistently with plain images rather than leaking noisy Markdown syntax
+    # into content chunks.
+    _LINKED_IMAGE_RE = re.compile(r"^\[!\[[^\]]*\]\([^)]+\)\]\([^)]+\)\s*$")
 
     def _handle_header(block: str) -> None:
         h_match = _HEADER_RE.match(block)
@@ -361,7 +369,7 @@ def _custom_split_markdown(
     def classify(block: str) -> str:
         if _HEADER_RE.match(block):
             return "header"
-        if _IMAGE_RE.match(block):
+        if _IMAGE_RE.match(block) or _LINKED_IMAGE_RE.match(block):
             return "image"
         return "content"
 
