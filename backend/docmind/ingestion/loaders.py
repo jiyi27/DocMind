@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pymupdf4llm
 from langchain_core.documents import Document
 
 from docmind.core import logger
@@ -37,6 +36,10 @@ def load_pdf(file_path: str | Path) -> list[Document]:
     """
     path = Path(file_path)
     try:
+        # Delay PDF-specific imports so markdown-only code paths and tests do not
+        # pull in heavy native dependencies or emit unrelated import-time warnings.
+        import pymupdf4llm
+
         md_text = pymupdf4llm.to_markdown(str(path))
 
         if len(md_text.replace(" ", "").replace("\n", "")) < _PDF_MIN_TEXT_LENGTH:
