@@ -47,6 +47,20 @@
 2. 找不到换行符则直接在中点硬切
 3. 对每个子片段递归重复, 直到所有片段都 ≤ `CHUNK_SIZE`
 
+## 图片处理
+
+### Q: `IMAGE_PROCESSOR=none` 时, 图片是怎么被处理的, chunk 里还会有图片内容吗
+
+**不会**, 图片 chunk 会在 `summarize_image_node` 阶段被整体丢弃, 不会进入 Qdrant
+
+具体流程: 分块阶段 (`split_text_node`) 遇到图片时会生成一个 `chunk_type=image` 的占位 chunk, `page_content` 为 alt 文本; 之后 `summarize_image_node` 检查 `IMAGE_PROCESSOR` 设置, 为 `none` 时直接过滤掉所有 image chunk, 不做 embedding, 不写入向量库
+
+**注意事项**
+
+- 丢弃的是"独立成块"的图片, 即整个段落只有一张图片的情况 (`![alt](url)` 或 `[![alt](img)](link)`)
+- 行内图片 (图片嵌在文字段落中, 如 `Some text ![img](url) more text`) 不会被识别为 image chunk, 会随周围文字一起进入 content chunk, 图片语法以原始 Markdown 形式保留在 `page_content` 里
+- HTML `<img>` 标签同上, 不会被识别为 image chunk
+
 ## 文档大小限制
 
 ### Q: 系统对上传文档有没有大小限制, 什么情况下会触发
