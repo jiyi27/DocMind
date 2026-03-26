@@ -10,9 +10,9 @@ The goal is to protect key behavior while still allowing internal refactors. We 
 
 ## Covered Flows
 
-The main test file is:
+The main Markdown-processing test file is:
 
-- `test/test_chunking.py`
+- `test/test_markdown_processing.py`
 
 It currently covers these behaviors:
 
@@ -36,7 +36,8 @@ Test entrypoint:
 
 Verifies:
 
-- fenced code blocks stay atomic and are not cut in half
+- language-fenced code blocks become dedicated code chunks
+- plain fenced blocks are restored as regular text without markdown fences
 - blockquotes stay atomic and the `>` prefix is removed in final chunk text
 - Markdown tables are converted to prose and stay atomic
 
@@ -50,7 +51,24 @@ Verifies:
 
 - oversized blocks are recursively split instead of failing the whole ingestion step
 
-### 4. PDF paragraph splitting
+### 4. Code summarization handoff
+
+Test entrypoints:
+
+- `split_text_node(state)`
+- `summarize_code_node(state)`
+
+Verifies:
+
+- language-fenced code is emitted as dedicated `code_block` chunks
+- `summarize_code_node` only summarizes those dedicated code chunks
+- prose chunks remain plain text and are not rescanned for fenced code
+
+### 5. PDF paragraph splitting
+
+Test file:
+
+- `test/test_chunking.py`
 
 Test entrypoint:
 
@@ -61,7 +79,7 @@ Verifies:
 - plain text paragraph splitting for PDF-like content
 - overlap across adjacent PDF chunks
 
-### 5. Metadata inheritance in the ingestion workflow
+### 6. Metadata inheritance in the ingestion workflow
 
 Test entrypoints:
 
@@ -73,7 +91,7 @@ Verifies:
 - metadata stamped during load is preserved after splitting
 - identity fields such as `doc_id`, `user_id`, `kb_name`, and `retrieval_mode` appear on output chunks
 
-### 6. Pure helper functions
+### 7. Pure helper functions
 
 Direct tests are intentionally limited to helpers that are stable, pure, and useful in isolation:
 
@@ -114,7 +132,14 @@ Guideline:
 
 All commands must be run from the `backend/` directory.
 
-Run the chunking test file:
+Run the Markdown-processing test file:
+
+```bash
+cd backend
+uv run pytest test/test_markdown_processing.py
+```
+
+Run the PDF chunking check:
 
 ```bash
 cd backend
@@ -136,8 +161,6 @@ We do not try to test every private helper or every branch in isolation.
 
 We also do not currently cover:
 
-- `summarize_code_node`
-  Reason: it depends on LLM behavior and should be tested separately with mocking or a higher-level integration strategy.
 - visual preview scripts for manual inspection
   Reason: these are easy to let drift away from the real implementation and should not live inside automated test coverage.
 
@@ -149,7 +172,7 @@ When chunking logic changes, update tests based on behavior, not helper names.
 
 Prefer this order when adding coverage:
 
-1. Add or adjust a workflow-level assertion in `test/test_chunking.py`
+1. Add or adjust a workflow-level assertion in `test/test_markdown_processing.py`
 2. Add or adjust a fixture in `test/fixtures/`
 3. Only add a direct unit test for a helper if that helper is pure, stable, and valuable on its own
 
@@ -167,6 +190,7 @@ Relevant files today:
 
 - `docmind/ingestion/nodes.py`
 - `docmind/ingestion/state.py`
+- `test/test_markdown_processing.py`
 - `test/test_chunking.py`
 - `test/fixtures/basic_headers.md`
 - `test/fixtures/atomic_blocks.md`
