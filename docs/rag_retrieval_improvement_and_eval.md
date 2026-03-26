@@ -1,5 +1,7 @@
 # DocMind RAG 检索改进与 Retrieval Eval 方法论
 
+2026-03-26
+
 本文档整理两部分内容
 
 - 针对当前 `DocMind` 系统的 RAG 检索改进建议

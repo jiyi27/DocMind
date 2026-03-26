@@ -1,5 +1,3 @@
-# DocMind SQLite Concurrency Optimizations
-
 ## 决策背景 (Background)
 
 在 DocMind 项目的早期版本中, 我们为每次 API 请求或后端查询都使用 `aiosqlite.connect()` 建立一个全新的数据库连接
