@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS knowledge_bases (
     embedding_api_key           TEXT NOT NULL DEFAULT '',
     vector_dimension            INTEGER NOT NULL DEFAULT 0,
     confluence_root_page_id     TEXT DEFAULT '',
+    confluence_root_page_title  TEXT DEFAULT '',
     confluence_sync_enabled     INTEGER NOT NULL DEFAULT 0,
     confluence_sync_interval_minutes INTEGER NOT NULL DEFAULT 5,
     confluence_retrieval_mode   TEXT NOT NULL DEFAULT 'chunk',
@@ -148,6 +149,10 @@ MIGRATE_KNOWLEDGE_BASES_CONFLUENCE_COLUMNS = [
     "ALTER TABLE knowledge_bases ADD COLUMN confluence_last_sync_error TEXT DEFAULT ''",
 ]
 
+MIGRATE_KNOWLEDGE_BASES_ROOT_PAGE_TITLE_COLUMN = [
+    "ALTER TABLE knowledge_bases ADD COLUMN confluence_root_page_title TEXT DEFAULT ''",
+]
+
 MIGRATE_DOCUMENTS_SOURCE_COLUMNS = [
     "ALTER TABLE documents ADD COLUMN source_type TEXT NOT NULL DEFAULT 'manual'",
     "ALTER TABLE documents ADD COLUMN external_doc_id TEXT DEFAULT ''",
@@ -205,6 +210,7 @@ __all__ = [
     "ALL_INDEXES",
     "MIGRATE_KNOWLEDGE_BASES_EMBEDDING_COLUMNS",
     "MIGRATE_KNOWLEDGE_BASES_CONFLUENCE_COLUMNS",
+    "MIGRATE_KNOWLEDGE_BASES_ROOT_PAGE_TITLE_COLUMN",
     "MIGRATE_DOCUMENTS_SOURCE_COLUMNS",
     "MIGRATE_KB_SYNC_JOBS_SUMMARY_COLUMN",
     "CREATE_CONFLUENCE_UNIQUE_INDEX",

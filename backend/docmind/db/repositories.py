@@ -170,6 +170,7 @@ class KBRepository:
         self,
         kb_id: str,
         root_page_id: str,
+        root_page_title: str,
         sync_enabled: bool,
         sync_interval_minutes: int,
         retrieval_mode: str,
@@ -178,6 +179,7 @@ class KBRepository:
             """
             UPDATE knowledge_bases
             SET confluence_root_page_id = ?,
+                confluence_root_page_title = ?,
                 confluence_sync_enabled = ?,
                 confluence_sync_interval_minutes = ?,
                 confluence_retrieval_mode = ?
@@ -185,6 +187,7 @@ class KBRepository:
             """,
             (
                 root_page_id,
+                root_page_title,
                 int(sync_enabled),
                 sync_interval_minutes,
                 retrieval_mode,

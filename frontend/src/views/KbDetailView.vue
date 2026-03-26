@@ -77,9 +77,9 @@
 
       <div class="confluence-grid">
         <div class="confluence-stat">
-          <span class="confluence-label">Root Page ID</span>
-          <span class="confluence-value confluence-value--mono">
-            {{ kbDetail.confluence_root_page_id || 'Not configured' }}
+          <span class="confluence-label">Root Page</span>
+          <span class="confluence-value">
+            {{ kbDetail.confluence_root_page_title || kbDetail.confluence_root_page_id || 'Not configured' }}
           </span>
         </div>
         <div class="confluence-stat">
@@ -252,13 +252,18 @@
         :rules="confluenceRules"
         label-position="top"
       >
-        <el-form-item label="Root Page ID" prop="root_page_id">
+        <el-form-item label="Root Page URL" prop="root_page_url">
           <el-input
-            v-model="confluenceForm.root_page_id"
-            placeholder="e.g. 39383288"
+            v-model="confluenceForm.root_page_url"
+            placeholder="e.g. https://wiki.example.com/display/SPACE/Page+Title"
             clearable
           />
-          <div class="form-hint">Bind this KB to a Confluence root page so sync can walk its page tree.</div>
+          <div class="form-hint">
+            Paste a Confluence page URL. Both <code>/display/SPACE/Title</code> and <code>?pageId=</code> formats are supported.
+            <template v-if="kbDetail?.confluence_root_page_title || kbDetail?.confluence_root_page_id">
+              Currently bound to: <strong>{{ kbDetail.confluence_root_page_title || kbDetail.confluence_root_page_id }}</strong>
+            </template>
+          </div>
         </el-form-item>
 
         <el-form-item label="Retrieval Mode" prop="retrieval_mode">
@@ -475,7 +480,7 @@ import { ArrowLeft, Files, Upload } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
 import { useKbStore } from '@/stores/kb'
-import { getKbSyncJobs, getKbSyncRecords, previewKbSync, triggerKbSync } from '@/api/kb'
+import { getKbSyncJobs, getKbSyncRecords, previewKbSync, resolveConfluencePage, triggerKbSync } from '@/api/kb'
 import UploadZone from '@/components/ingestion/UploadZone.vue'
 import DocumentList from '@/components/ingestion/DocumentList.vue'
 
@@ -517,7 +522,7 @@ const connectionForm = ref({
 })
 
 const confluenceForm = ref({
-  root_page_id: '',
+  root_page_url: '',
   sync_enabled: false,
   sync_interval_minutes: 5,
   retrieval_mode: 'chunk',
@@ -531,15 +536,16 @@ const infoRules = {
 }
 
 const confluenceRules = {
-  root_page_id: [
+  root_page_url: [
     {
       validator: (_, value, callback) => {
         if (!value || !value.trim()) {
           callback()
           return
         }
-        if (!/^\d+$/.test(value.trim())) {
-          callback(new Error('Root page ID must be numeric'))
+        const v = value.trim()
+        if (!v.includes('/display/') && !v.includes('pageId=')) {
+          callback(new Error('Must be a Confluence page URL containing /display/ or pageId='))
           return
         }
         callback()
@@ -575,7 +581,7 @@ function syncFormsFromKb() {
   infoForm.value.description = kbDetail.value?.description || ''
   connectionForm.value.base_url = kbDetail.value?.embedding_base_url || ''
   connectionForm.value.api_key = ''
-  confluenceForm.value.root_page_id = kbDetail.value?.confluence_root_page_id || ''
+  confluenceForm.value.root_page_url = ''
   confluenceForm.value.sync_enabled = Boolean(kbDetail.value?.confluence_sync_enabled)
   confluenceForm.value.sync_interval_minutes = Number(kbDetail.value?.confluence_sync_interval_minutes || 5)
   confluenceForm.value.retrieval_mode = kbDetail.value?.confluence_retrieval_mode || 'chunk'
@@ -728,13 +734,54 @@ async function submitConfluenceForm() {
   const valid = await confluenceFormRef.value?.validate().catch(() => false)
   if (!valid) return
 
+  const url = confluenceForm.value.root_page_url.trim()
   confluenceSaving.value = true
+
   try {
+    // If URL is provided, resolve it first and confirm with the user.
+    let root_page_id = kbDetail.value?.confluence_root_page_id || ''
+    let root_page_title = kbDetail.value?.confluence_root_page_title || ''
+
+    if (url) {
+      let resolved
+      try {
+        resolved = await resolveConfluencePage(kbId.value, url)
+      } catch {
+        // Error notification is handled by the global http interceptor.
+        return
+      }
+
+      try {
+        await ElMessageBox.confirm(
+          h('div', { style: 'line-height: 1.8' }, [
+            h('p', null, [h('b', null, 'Page: '), resolved.title]),
+            h('p', null, [h('b', null, 'Page ID: '), resolved.page_id]),
+            h('p', null, [
+              h('b', null, 'URL: '),
+              h('a', { href: resolved.source_url, target: '_blank', rel: 'noreferrer' }, resolved.source_url),
+            ]),
+          ]),
+          'Confirm Root Page Binding',
+          {
+            type: 'info',
+            confirmButtonText: 'Confirm & Save',
+            cancelButtonText: 'Cancel',
+          },
+        )
+      } catch {
+        return
+      }
+
+      root_page_id = resolved.page_id
+      root_page_title = resolved.title
+    }
+
     await kbStore.updateKbInfo(kbId.value, {
       display_name: kbDetail.value.display_name,
       description: kbDetail.value.description || '',
       confluence: {
-        root_page_id: confluenceForm.value.root_page_id.trim(),
+        root_page_id,
+        root_page_title,
         sync_enabled: confluenceForm.value.sync_enabled,
         sync_interval_minutes: confluenceForm.value.sync_interval_minutes,
         retrieval_mode: confluenceForm.value.retrieval_mode,

@@ -52,9 +52,14 @@ class ConfluenceSettings(BaseModel):
 
 class ConfluenceSettingsPatch(BaseModel):
     root_page_id: str | None = None
+    root_page_title: str | None = None
     sync_enabled: bool | None = None
     sync_interval_minutes: int | None = None
     retrieval_mode: Literal["chunk", "full_doc"] | None = None
+
+
+class ConfluenceResolveRequest(BaseModel):
+    url: str
 
 
 class KBCreate(BaseModel):
@@ -152,6 +157,11 @@ def _merge_confluence_settings(
             if patch.root_page_id is not None
             else kb.get("confluence_root_page_id", "")
         ),
+        "root_page_title": (
+            patch.root_page_title
+            if patch.root_page_title is not None
+            else kb.get("confluence_root_page_title", "")
+        ),
         "sync_enabled": (
             patch.sync_enabled
             if patch.sync_enabled is not None
@@ -245,6 +255,7 @@ async def create_knowledge_base(
                 await repo.update_confluence_settings(
                     kb_id=kb_dict["id"],
                     root_page_id=body.confluence.root_page_id,
+                    root_page_title=body.confluence.root_page_title or "",
                     sync_enabled=body.confluence.sync_enabled,
                     sync_interval_minutes=body.confluence.sync_interval_minutes,
                     retrieval_mode=body.confluence.retrieval_mode,
@@ -343,6 +354,7 @@ async def update_knowledge_base(
                 await repo.update_confluence_settings(
                     kb_id=kb_id,
                     root_page_id=str(merged["root_page_id"]),
+                    root_page_title=str(merged["root_page_title"]),
                     sync_enabled=bool(merged["sync_enabled"]),
                     sync_interval_minutes=int(merged["sync_interval_minutes"]),
                     retrieval_mode=str(merged["retrieval_mode"]),
@@ -611,3 +623,63 @@ async def list_sync_records(
         records = await record_repo.list_by_job(job_id)
 
     return ok(data={"total": len(records), "records": records})
+
+
+# ---------------------------------------------------------------------------
+# POST /kb/{kb_id}/confluence/resolve-page — resolve a Confluence URL to page metadata
+# ---------------------------------------------------------------------------
+
+
+@router.post(
+    "/{kb_id}/confluence/resolve-page",
+    summary="Resolve Confluence Page URL",
+)
+async def resolve_confluence_page(
+    kb_id: str,
+    body: ConfluenceResolveRequest,
+    _: UserContext = Depends(require_super_admin),
+):
+    """Parse a Confluence page URL and return its page ID and title."""
+    if not settings.confluence.enabled:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Confluence integration is not configured",
+        )
+
+    url = body.url.strip()
+    if not url:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="url is required",
+        )
+
+    async with get_db() as db:
+        repo = KBRepository(db)
+        kb = await repo.get_by_id(kb_id)
+        if not kb:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Knowledge base not found"
+            )
+
+    from docmind.integrations.confluence.client import ConfluenceClient
+
+    client = ConfluenceClient(
+        base_url=settings.confluence.base_url,
+        pat=settings.confluence.pat,
+    )
+    try:
+        page_id, title, source_url = await client.resolve_page_url(url)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Failed to reach Confluence: {exc}",
+        )
+    finally:
+        await client.close()
+
+    return ok(
+        data={"page_id": page_id, "title": title, "source_url": source_url},
+        message="Page resolved successfully",
+    )

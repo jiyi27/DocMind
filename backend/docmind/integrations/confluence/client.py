@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any
+from urllib.parse import parse_qs, unquote_plus, urlparse
 
 import httpx
 
@@ -137,6 +138,53 @@ class ConfluenceClient:
         version = int(page.get("version", {}).get("number", 0))
         source_url = self._build_source_url(page)
         return title, html_body, version, source_url
+
+    @staticmethod
+    def _parse_confluence_url(url: str) -> tuple[str, dict[str, str]]:
+        """Identify URL type and extract lookup params.
+
+        Returns ``('page_id', {'id': '...'})`` for ``?pageId=`` URLs, or
+        ``('friendly', {'space': '...', 'title': '...'})`` for ``/display/`` URLs.
+        Raises ``ValueError`` for unrecognised formats.
+        """
+        parsed = urlparse(url)
+        qs = parse_qs(parsed.query)
+        if "pageId" in qs:
+            return "page_id", {"id": qs["pageId"][0]}
+        parts = [p for p in parsed.path.split("/") if p]
+        if len(parts) >= 3 and parts[0] == "display":
+            return "friendly", {"space": parts[1], "title": unquote_plus(parts[2])}
+        raise ValueError(f"Unrecognised Confluence URL format: {url}")
+
+    async def resolve_page_url(self, url: str) -> tuple[str, str, str]:
+        """Resolve any Confluence page URL to ``(page_id, title, source_url)``.
+
+        Accepts both ``/display/SPACE/Title`` and ``?pageId=XXX`` formats.
+        Raises ``ValueError`` for bad URLs or pages not found.
+        """
+        url_type, params = self._parse_confluence_url(url)
+        if url_type == "page_id":
+            page = await self.get_page(params["id"], expand="title,version")
+        else:
+            resp = await self._client.get(
+                "/content",
+                params={
+                    "spaceKey": params["space"],
+                    "title": params["title"],
+                    "expand": "version",
+                },
+            )
+            resp.raise_for_status()
+            results = resp.json().get("results", [])
+            if not results:
+                raise ValueError(
+                    f"Page not found: space={params['space']!r}, title={params['title']!r}"
+                )
+            page = results[0]
+        page_id = str(page["id"])
+        title = page.get("title", "")
+        source_url = self._build_source_url(page)
+        return page_id, title, source_url
 
     async def close(self) -> None:
         await self._client.aclose()

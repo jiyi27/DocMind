@@ -59,6 +59,14 @@ export function getKbSyncRecords(kbId, jobId) {
 }
 
 /**
+ * Resolve a Confluence page URL to page metadata (page_id, title, source_url)
+ * POST /kb/{kb_id}/confluence/resolve-page
+ */
+export function resolveConfluencePage(kbId, url) {
+    return http.post(`/kb/${kbId}/confluence/resolve-page`, { url })
+}
+
+/**
  * Update Knowledge Base embedding connection settings
  * PATCH /kb/{kb_id}/embedding-connection
  */
