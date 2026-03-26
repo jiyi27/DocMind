@@ -307,6 +307,69 @@
       </template>
     </el-dialog>
 
+    <el-dialog
+      v-model="syncPreviewDialogVisible"
+      title="Confirm Confluence Sync"
+      width="640px"
+      :close-on-click-modal="false"
+      @closed="syncPreview = null"
+    >
+      <div v-if="syncPreview" class="sync-preview-dialog">
+        <div class="sync-preview-header">
+          <div class="sync-preview-title">Preview Result</div>
+          <p class="sync-preview-copy">
+            We scanned the current Confluence page tree and estimated the changes below before starting the sync job.
+          </p>
+        </div>
+
+        <div class="sync-preview-overview">
+          <div class="sync-preview-card">
+            <span class="sync-preview-card__label">Scanned Pages</span>
+            <strong class="sync-preview-card__value">{{ syncPreview.scanned || 0 }}</strong>
+          </div>
+          <div class="sync-preview-card sync-preview-card--accent">
+            <span class="sync-preview-card__label">Pending Changes</span>
+            <strong class="sync-preview-card__value">{{ syncPreview.total_operations || 0 }}</strong>
+          </div>
+        </div>
+
+        <div class="sync-preview-breakdown">
+          <div class="sync-preview-stat sync-preview-stat--create">
+            <span class="sync-preview-stat__label">Create</span>
+            <strong class="sync-preview-stat__value">{{ syncPreview.created || 0 }}</strong>
+          </div>
+          <div class="sync-preview-stat sync-preview-stat--update">
+            <span class="sync-preview-stat__label">Update</span>
+            <strong class="sync-preview-stat__value">{{ syncPreview.updated || 0 }}</strong>
+          </div>
+          <div class="sync-preview-stat sync-preview-stat--delete">
+            <span class="sync-preview-stat__label">Delete</span>
+            <strong class="sync-preview-stat__value">{{ syncPreview.deleted || 0 }}</strong>
+          </div>
+          <div class="sync-preview-stat sync-preview-stat--neutral">
+            <span class="sync-preview-stat__label">Unchanged</span>
+            <strong class="sync-preview-stat__value">{{ syncPreview.unchanged || 0 }}</strong>
+          </div>
+        </div>
+
+        <el-alert
+          v-if="syncPreview.deleted > 0"
+          :title="`${syncPreview.deleted} document(s) will be removed from this KB because they no longer exist in the scanned page tree.`"
+          type="warning"
+          :closable="false"
+          show-icon
+          class="sync-preview-alert"
+        />
+      </div>
+
+      <template #footer>
+        <el-button @click="syncPreviewDialogVisible = false">Cancel</el-button>
+        <el-button type="primary" :loading="syncTriggering" @click="confirmTriggerSync">
+          Start Sync
+        </el-button>
+      </template>
+    </el-dialog>
+
     <el-drawer
       v-model="historyDrawerVisible"
       title="Confluence Sync History"
@@ -500,6 +563,7 @@ const docListRef = ref(null)
 const infoDialogVisible = ref(false)
 const connectionDialogVisible = ref(false)
 const confluenceDialogVisible = ref(false)
+const syncPreviewDialogVisible = ref(false)
 const historyDrawerVisible = ref(false)
 const infoSaving = ref(false)
 const connectionSaving = ref(false)
@@ -513,6 +577,7 @@ const expandedJobId = ref('')
 const infoFormRef = ref(null)
 const connectionFormRef = ref(null)
 const confluenceFormRef = ref(null)
+const syncPreview = ref(null)
 let historyPollingTimer = null
 
 const infoForm = ref({
@@ -816,32 +881,31 @@ async function triggerSyncNow() {
       return
     }
 
-    await ElMessageBox.confirm(
-      h('div', { class: 'sync-preview-confirm' }, [
-        h('p', null, `This will scan ${preview?.scanned || 0} page(s).`),
-        h('p', null, `Pending changes: ${preview?.total_operations || 0}`),
-        h('p', null, `Create ${preview?.created || 0} / Update ${preview?.updated || 0} / Delete ${preview?.deleted || 0}`),
-        h('p', { class: 'sync-preview-confirm__muted' }, `Unchanged: ${preview?.unchanged || 0}`),
-      ]),
-      'Confirm Confluence Sync',
-      {
-        type: preview?.deleted ? 'warning' : 'info',
-        confirmButtonText: 'Start Sync',
-        cancelButtonText: 'Cancel',
-      },
-    )
-
-    const data = await triggerKbSync(kbId.value)
-    await kbStore.fetchKbDetail(kbId.value)
-    if (historyDrawerVisible.value) {
-      await loadSyncJobs()
-    }
-    ElMessage.success(data?.status === 'pending' ? 'Confluence sync started' : 'Existing sync job is still running')
+    syncPreview.value = preview
+    syncPreviewDialogVisible.value = true
   } catch (error) {
     if (error === 'cancel' || error === 'close' || error?.message === 'cancel') {
       return
     }
     throw error
+  } finally {
+    syncTriggering.value = false
+  }
+}
+
+async function confirmTriggerSync() {
+  if (!syncPreview.value) return
+
+  syncTriggering.value = true
+  try {
+    const data = await triggerKbSync(kbId.value)
+    syncPreviewDialogVisible.value = false
+    syncPreview.value = null
+    await kbStore.fetchKbDetail(kbId.value)
+    if (historyDrawerVisible.value) {
+      await loadSyncJobs()
+    }
+    ElMessage.success(data?.status === 'pending' ? 'Confluence sync started' : 'Existing sync job is still running')
   } finally {
     syncTriggering.value = false
   }
@@ -1060,17 +1124,102 @@ function handleDeleted() {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace;
 }
 
-.sync-preview-confirm {
+.sync-preview-dialog {
+  display: grid;
+  gap: 18px;
+}
+
+.sync-preview-header {
+  display: grid;
+  gap: 6px;
+}
+
+.sync-preview-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #303133;
+}
+
+.sync-preview-copy {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: #606266;
+}
+
+.sync-preview-overview {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.sync-preview-card,
+.sync-preview-stat {
+  border-radius: 10px;
+  padding: 16px;
   display: grid;
   gap: 8px;
+  border: 1px solid #ebeef5;
+  background: #fafafa;
 }
 
-.sync-preview-confirm p {
-  margin: 0;
+.sync-preview-card--accent {
+  background: #f4f8ff;
+  border-color: #c6d8ff;
 }
 
-.sync-preview-confirm__muted {
+.sync-preview-card__label,
+.sync-preview-stat__label {
+  font-size: 12px;
   color: #909399;
+}
+
+.sync-preview-card__value,
+.sync-preview-stat__value {
+  font-size: 28px;
+  line-height: 1;
+  color: #303133;
+}
+
+.sync-preview-breakdown {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.sync-preview-stat--create {
+  background: #f3fbf6;
+  border-color: #ccebd6;
+}
+
+.sync-preview-stat--create .sync-preview-stat__value {
+  color: #1f8f4e;
+}
+
+.sync-preview-stat--update {
+  background: #fff8ee;
+  border-color: #f4ddba;
+}
+
+.sync-preview-stat--update .sync-preview-stat__value {
+  color: #b76a00;
+}
+
+.sync-preview-stat--delete {
+  background: #fff2f0;
+  border-color: #f3c6c3;
+}
+
+.sync-preview-stat--delete .sync-preview-stat__value {
+  color: #cf3f36;
+}
+
+.sync-preview-stat--neutral {
+  background: #f7f8fa;
+}
+
+.sync-preview-alert {
+  margin-top: 4px;
 }
 
 .history-job-error {
@@ -1246,6 +1395,10 @@ function handleDeleted() {
   .confluence-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .sync-preview-breakdown {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 960px) {
@@ -1266,6 +1419,11 @@ function handleDeleted() {
 
   .connection-readonly,
   .confluence-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .sync-preview-overview,
+  .sync-preview-breakdown {
     grid-template-columns: 1fr;
   }
 }
