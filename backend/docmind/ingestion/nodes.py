@@ -289,13 +289,13 @@ def _custom_split_markdown(
         docs.append(Document(page_content=merged, metadata=meta))
         current_texts, current_len = _collect_overlap_blocks(current_texts, overlap)
 
-    def _pack(text: str) -> None:
+    def _pack(seg: str) -> None:
         """Append a single already-validated/restored text block into the current chunk."""
         nonlocal current_len
-        n = len(text)
+        n = len(seg)
         if current_len > 0 and current_len + n + 2 > target_size:
             flush_chunk()
-        current_texts.append(text)
+        current_texts.append(seg)
         current_len += n + (2 if len(current_texts) > 1 else 0)
 
     def append_content_block(block: str) -> None:
@@ -373,19 +373,19 @@ def _custom_split_markdown(
             return "image"
         return "content"
 
-    HANDLERS: dict[str, Callable[[str], None]] = {
+    handlers: dict[str, Callable[[str], None]] = {
         "header": _handle_header,
         "image": _handle_image,
         "content": _handle_content,
     }
 
     def dispatch_block(block: str) -> None:
-        HANDLERS[classify(block)](block)
+        handlers[classify(block)](block)
 
     # --- 5. Dispatch each paragraph-level block to its handler ---
     raw_blocks = [b.strip() for b in text.split("\n\n") if b.strip()]
-    for block in raw_blocks:
-        dispatch_block(block)
+    for raw_block in raw_blocks:
+        dispatch_block(raw_block)
 
     # --- 6. Seal the final in-progress chunk ---
     flush_chunk()
@@ -415,17 +415,17 @@ def _split_pdf(doc: Document, target_size: int, overlap: int) -> list[Document]:
         )
         current_chunks, current_len = _collect_overlap_blocks(current_chunks, overlap)
 
-    def _pack(chunk: str) -> None:
+    def _pack(seg: str) -> None:
         nonlocal current_len
-        n = len(chunk)
+        n = len(seg)
         if current_len > 0 and current_len + n + 2 > target_size:
             flush()
-        current_chunks.append(chunk)
+        current_chunks.append(seg)
         current_len += n + (2 if len(current_chunks) > 1 else 0)
 
-    for chunk in raw_chunks:
-        block_len = len(chunk)
-        pieces = _halve_text(chunk, target_size) if block_len > target_size else [chunk]
+    for raw_chunk in raw_chunks:
+        block_len = len(raw_chunk)
+        pieces = _halve_text(raw_chunk, target_size) if block_len > target_size else [raw_chunk]
         for piece in pieces:
             _pack(piece)
 
