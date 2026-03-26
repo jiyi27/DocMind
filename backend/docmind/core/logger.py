@@ -60,12 +60,16 @@ def get_request_id() -> str:
 # Level ordering — entries below the configured minimum are silently dropped
 _LEVELS = {"debug": 0, "info": 1, "warning": 2, "error": 3}
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+# Exclude the active virtual environment so third-party packages installed
+# inside the project directory are not mistaken for application code.
+_VENV_ROOT = Path(sys.prefix).resolve()
 
 
 def _is_app_frame(filename: str) -> bool:
     """Return whether a traceback frame belongs to this backend project."""
     try:
-        return Path(filename).resolve().is_relative_to(_PROJECT_ROOT)
+        p = Path(filename).resolve()
+        return p.is_relative_to(_PROJECT_ROOT) and not p.is_relative_to(_VENV_ROOT)
     except OSError:
         return False
 
@@ -137,7 +141,7 @@ def _serialize_traceback(
         "code": trigger_frame["code"],
     }
     result["call_chain"] = [frame["entry"] for frame in preferred_frames]
-    if ext_frames:
+    if app_frames and ext_frames:
         result["ext_frames"] = [frame["entry"] for frame in ext_frames]
 
     return result
@@ -155,7 +159,9 @@ def _exception_chain(
 
     while current is not None and id(current) not in seen:
         seen.add(id(current))
-        chain.append(_serialize_traceback(current, caller=caller))
+        entry = _serialize_traceback(current, caller=caller)
+        entry.pop("traceback", None)
+        chain.append(entry)
         current = current.__cause__ or current.__context__
 
     return chain
