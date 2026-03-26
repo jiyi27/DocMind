@@ -1,4 +1,4 @@
-## 1. 重要的写在前面 (Token 就是金钱)
+## 重要的写在前面 (Token 就是金钱)
 
 - 图片的多模态处理由 IMAGE_PROCESSOR 控制, 支持 "multimodal" | "ocr" | "none", 定义在 backend/docmind/core/
   config.py:196 和使用处 backend/docmind/ingestion/nodes.py
@@ -91,14 +91,14 @@
 行为可以直接理解为三档
 
 - `IMAGE_PROCESSOR=none`
-  系统跳过图片处理, 图片 chunk 不会额外调用图像能力, 
+  系统直接丢弃图片 chunk, 图片不会进入向量库, 也不会调用任何图像处理能力
 - `IMAGE_PROCESSOR=ocr`
   系统抓取图片后, 使用 OCR 提取文本, 适合"图片里主要是字"的场景, 
 - `IMAGE_PROCESSOR=multimodal`
   系统抓取图片后, 调用视觉模型生成图像摘要, 适合图表, 截图, 流程图, 表格等不只是纯文本提取的场景
 
-如果你启用 `ocr`, 还要额外满足一个系统级前提: 机器上必须装有 Tesseract 可执行文件, 并且能在 `PATH` 里直接找到。
-当前实现通过 `pytesseract` 调系统 `tesseract`, 不是只装 Python 包就够了。另外代码里固定使用 `eng+chi_sim`, 所以至少要确保英文和简体中文语言包可用。
+如果你启用 `ocr`, 还要额外满足一个系统级前提: 机器上必须装有 Tesseract 可执行文件, 并且能在 `PATH` 里直接找到, 
+当前实现通过 `pytesseract` 调系统 `tesseract`, 不是只装 Python 包就够了, 另外代码里固定使用 `eng+chi_sim`, 所以至少要确保英文和简体中文语言包可用
 
 这几个模式的差异, 不只是"效果不同", 而是"底层处理方式完全不同"
 
@@ -162,15 +162,16 @@ DocMind 不是只有 chunk 检索, 还支持按整篇文档参与上下文
   `MAX_FULL_DOCS`, `MAX_FULL_DOC_CHARS`
 - 行为
   - `MAX_FULL_DOCS` 限制单次检索最多允许多少篇整文进入上下文
-  - `MAX_FULL_DOC_CHARS` 限制每篇整文最多能带多少字符
+  - `MAX_FULL_DOC_CHARS` 在三处地方生效: 手动上传时超限直接拒绝 (HTTP 422); Confluence 同步时超限跳过该页面并记录失败; 检索时读取文件注入上下文前按此截断
 
-这两个参数在行为上保护的是"大文档把上下文挤爆"的问题
+`MAX_FULL_DOC_CHARS` 的限制**只在 `full_doc` 检索模式下触发**, `chunk` 模式的文档没有大小限制
 
 具体来说
 
-- 命中了全文模式文档后, 不会无限装载整篇内容
-- 达到全文数量上限后, 系统会停止继续往后扫描更低排名结果
-- 单篇文档过长时会被截断
+- 手动上传 full_doc 文档: 超限 → HTTP 422, 文件不入队
+- Confluence 同步 full_doc 页面: 超限 → 同步记录标记 failed, 新建跳过, 更新时保留旧版
+- 检索时: 即使文档已入库, 注入上下文前也会在此处截断, 防止单篇挤满上下文窗口
+- full_doc 文档数量上限 (`MAX_FULL_DOCS`): 达到后停止继续扫描更低排名结果
 
 所以它们控制的不是"能否全文检索", 而是"全文检索的上下文预算上限"
 
@@ -255,11 +256,11 @@ Confluence 不是前端点个开关就能生效, 它首先受后端能力是否�
 这是认证体验和安全性之间的平衡项
 
 - 控制项
-  `JWT_SECRET_KEY`, `JWT_ALGORITHM`, `JWT_EXPIRE_MINUTES`
+  `JWT_SECRET_KEY`, `JWT_EXPIRE_MINUTES` (必填), `JWT_ALGORITHM` (可选, 默认 `HS256`)
 - 行为
   - `JWT_SECRET_KEY` 控制签名密钥
-  - `JWT_ALGORITHM` 控制签名算法
   - `JWT_EXPIRE_MINUTES` 控制 token 的有效期
+  - `JWT_ALGORITHM` 控制签名算法, 不填时默认使用 `HS256`, 不需要出现在 `.env` 里
 
 系统行为上最重要的是最后一个
 

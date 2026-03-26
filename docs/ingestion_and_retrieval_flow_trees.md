@@ -19,13 +19,13 @@ load_document
 - `summarize_image`: 只处理其中的 image chunk
 - `embed_and_store`: 把最终 chunk 写入向量库
 
-这意味着一个重要事实:
+这意味着一个重要事实
 
 - 不是所有内容都在每个 node 里被处理
 - 不同实体会在这条链路上的不同阶段被识别和改写
 - 有些内容在 `split_text` 之后还会继续变形, 有些不会
 
-所以后面这份文档, 不按 node 逐个展开, 而是按“实体在整条链路里如何流动”来讲
+所以后面这份文档, 不按 node 逐个展开, 而是按"实体在整条链路里如何流动"来讲
 
 ## 2. ingestion 阶段, 文档先变成什么
 
@@ -42,7 +42,7 @@ load_document
 - `file_name`
 - `retrieval_mode`
 
-这些字段的作用很简单:
+这些字段的作用很简单
 
 - 后面切出多少个 chunk 都还能知道自己属于哪篇文档
 - retrieval 命中后可以回源, 也可以生成来源标签
@@ -53,7 +53,7 @@ load_document
 
 ### 先说结论
 
-当前 chunking 不是“纯字符硬切”, 也不是“简单按换行逐行切”
+当前 chunking 不是"纯字符硬切", 也不是"简单按换行逐行切"
 
 它更接近下面这个过程
 
@@ -103,13 +103,13 @@ text splitting
 
 `chunk_overlap` 也不是纯字符滑窗
 
-它会在 flush 一个 chunk 之后, 把尾部若干个“完整 block”保留下来作为下一块的开头, 前提是这些 block 的总长度不超过 overlap budget
+它会在 flush 一个 chunk 之后, 把尾部若干个"完整 block"保留下来作为下一块的开头, 前提是这些 block 的总长度不超过 overlap budget
 
 所以 overlap 也是 block 级继承, 不是任意位置截取
 
 ## 4. header / 普通文本 在链路里怎么流动
 
-这类内容最接近“标准 chunk”
+这类内容最接近"标准 chunk"
 
 ```text
 text entity lifecycle
@@ -133,10 +133,10 @@ embed_and_store
 └── 以最终 page_content 做 embedding 并写入 Qdrant
 ```
 
-这里有一个容易忽略的点:
+这里有一个容易忽略的点
 
 - header 自己通常不会单独成为一个只含标题的 chunk
-- header 更像是在 `split_text` 里维护“当前章节上下文”
+- header 更像是在 `split_text` 里维护"当前章节上下文"
 - 真正 flush 出 chunk 时, 标题路径会作为 breadcrumb 被拼到 chunk 正文前面
 
 所以一个普通文本 chunk 往往既包含正文, 也包含标题路径信息, 这样 retrieval 命中后上下文更完整
@@ -167,13 +167,13 @@ summarize_image
 └── code chunk 不处理
 
 embed_and_store
-└── 用“带代码摘要的 page_content”做 embedding
+└── 用"带代码摘要的 page_content"做 embedding
 ```
 
 这套处理的含义是
 
 - 切 chunk 时, 代码块被当作原子结构保护起来, 不会因为内部空行而被拆散
-- 入库前, 长代码块可能会被摘要化, 让向量检索更容易命中“这段代码是干什么的”
+- 入库前, 长代码块可能会被摘要化, 让向量检索更容易命中"这段代码是干什么的"
 - 但原始代码不会丢, 会保存在 `metadata.original_content`
 
 所以 retrieval 命中代码块时, 实际存在两份语义
@@ -211,7 +211,7 @@ embed_and_store
 
 ### 为什么会出现一个 image chunk 很长
 
-根因就在这里:
+根因就在这里
 
 - image chunk 是在 `split_text` 阶段先被创建出来的
 - 当时它还只有占位内容
@@ -249,13 +249,13 @@ split_text
 └── 这样它们不会因为空行切分而碎掉
 ```
 
-所以它们的关键不是“后面怎么特殊处理”, 而是“在 chunking 之前先避免结构被破坏”
+所以它们的关键不是"后面怎么特殊处理", 而是"在 chunking 之前先避免结构被破坏"
 
 ## 8. full_doc 模式在 ingestion 里是什么表现
 
-`full_doc` 最容易被误解成“根本不切 chunk”, 但当前实现不是这样
+`full_doc` 最容易被误解成"根本不切 chunk", 但当前实现不是这样
 
-在 ingestion 阶段:
+在 ingestion 阶段
 
 - 文档仍然会经过 `split_text`
 - 仍然会生成 chunk 并写入 Qdrant
@@ -268,7 +268,7 @@ split_text
 
 ## 9. retrieval 阶段: 命中后不是直接把 chunk 原样喂给模型
 
-检索阶段的核心不是“再切一次”, 而是“解释命中的记录”
+检索阶段的核心不是"再切一次", 而是"解释命中的记录"
 
 ```text
 retrieval lifecycle
@@ -282,7 +282,7 @@ retrieval lifecycle
 └── 把 ContextItem 拼成最终 context
 ```
 
-所以向量库里命中的对象只是“候选记录”
+所以向量库里命中的对象只是"候选记录"
 
 系统还要再决定
 
@@ -325,7 +325,7 @@ resolver decision
 - 再按 `doc_id` 去重
 - 再受 `MAX_FULL_DOCS` 和 `MAX_FULL_DOC_CHARS` 限制
 
-所以 `full_doc` 不是“向量库里存整篇正文”, 而是
+所以 `full_doc` 不是"向量库里存整篇正文", 而是
 
 ```text
 full_doc retrieval
@@ -378,13 +378,13 @@ final context
 
 ## 13. 关于 CHUNK_SIZE, 最后再补一个容易误判的点
 
-如果你看到实际 chunk 表现和 `.env` 里的 `CHUNK_SIZE` 不一致, 先不要直接判断“配置没生效”
+如果你看到实际 chunk 表现和 `.env` 里的 `CHUNK_SIZE` 不一致, 先不要直接判断"配置没生效"
 
 要先区分三件事
 
 - 后端默认值是否已经在进程启动时读取
 - 实际上传请求有没有显式传 `chunk_size`
-- 命中的是不是 image chunk 这种“文本生成晚于切分”的特殊实体
+- 命中的是不是 image chunk 这种"文本生成晚于切分"的特殊实体
 
 当前实现里
 
@@ -393,4 +393,4 @@ final context
 - 前端上传表单也可能主动提交 `chunk_size`
 - image chunk 的 OCR / 多模态文本是在切分后才写回, 不会自动二次切分
 
-所以“看到一个超长 chunk”并不能单独证明 `CHUNK_SIZE` 没生效
+所以"看到一个超长 chunk"并不能单独证明 `CHUNK_SIZE` 没生效

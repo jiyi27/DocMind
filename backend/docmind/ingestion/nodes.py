@@ -568,7 +568,8 @@ def summarize_image_node(state: IngestionState) -> dict:
 
     mode = settings.ingestion.image_processor
     if mode == "none":
-        return {"chunks": chunks}
+        # Drop image chunks entirely — no image processing means no useful content to embed.
+        return {"chunks": [c for c in chunks if c.metadata.get(META_CHUNK_TYPE) != CHUNK_TYPE_IMAGE]}
 
     from docmind.ingestion.image_processor import ImageFetchError, get_image_processor
 

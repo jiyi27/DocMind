@@ -55,6 +55,8 @@ DocMind features a highly optimized, LangGraph-orchestrated document ingestion p
 * **Pain Point**: Traditional character-based splitters often slice through code blocks or separate paragraphs from their parent headers, causing context loss during retrieval.
 * **Solution**: Custom state-machine-based Markdown splitter that slices by physical paragraphs (`\n\n`), dynamically tracks heading hierarchy and injects it into chunk metadata, and protects code blocks from being broken apart.
 
+For detailed chunking behavior — including how `CHUNK_SIZE` and `CHUNK_OVERLAP` interact, which block types are protected from splitting, and how oversized paragraphs are handled — see [docs/FAQ.md](docs/FAQ.md).
+
 ### 2. LLM-Powered Code Summarization (Multi-Vector Retrieval)
 * **Pain Point**: Raw code lacks natural language characteristics, causing semantic dilution when vectorized — users querying in natural language often miss the right code snippets.
 * **Solution**: A dedicated LangGraph node intercepts chunks containing code, generates a keyword-dense natural language summary via LLM, and uses the summary for embedding while storing the original code in Qdrant metadata payload. Retrieval matches the summary vector but returns the intact original code to the LLM.
