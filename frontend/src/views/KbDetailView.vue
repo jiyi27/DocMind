@@ -255,11 +255,10 @@
         <el-form-item label="Root Page URL" prop="root_page_url">
           <el-input
             v-model="confluenceForm.root_page_url"
-            placeholder="e.g. https://wiki.example.com/display/SPACE/Page+Title"
+            placeholder="Confluence page URL"
             clearable
           />
           <div class="form-hint">
-            Paste a Confluence page URL. Both <code>/display/SPACE/Title</code> and <code>?pageId=</code> formats are supported.
             <template v-if="kbDetail?.confluence_root_page_title || kbDetail?.confluence_root_page_id">
               Currently bound to: <strong>{{ kbDetail.confluence_root_page_title || kbDetail.confluence_root_page_id }}</strong>
             </template>
@@ -297,7 +296,12 @@
 
       <template #footer>
         <el-button @click="confluenceDialogVisible = false">Cancel</el-button>
-        <el-button type="primary" :loading="confluenceSaving" @click="submitConfluenceForm">
+        <el-button
+          type="primary"
+          :loading="confluenceSaving"
+          :disabled="!confluenceForm.root_page_url.trim()"
+          @click="submitConfluenceForm"
+        >
           Save
         </el-button>
       </template>
