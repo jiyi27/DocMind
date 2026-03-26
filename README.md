@@ -104,6 +104,18 @@ Exception logs keep both the raw Python `traceback` and a structured summary (`o
 - [uv](https://github.com/astral-sh/uv) — Python package manager
 - [pnpm](https://pnpm.io/) — frontend package manager
 
+If you plan to set `IMAGE_PROCESSOR=ocr`, install the Tesseract OCR binary as well. DocMind's OCR path uses `pytesseract`, which shells out to the system `tesseract` executable, and the current OCR configuration expects the `eng` and `chi_sim` language packs to be available.
+
+Common installation examples:
+
+```bash
+# macOS (Homebrew)
+brew install tesseract tesseract-lang
+
+# Ubuntu / Debian
+sudo apt install tesseract-ocr tesseract-ocr-chi-sim
+```
+
 ### 2. Start Infrastructure
 
 All backend commands should be run from the `backend/` directory:
@@ -158,6 +170,8 @@ Optional backend capabilities you may also want to configure:
 - `IMAGE_PROCESSOR` plus `IMAGE_VISION_*` if you want OCR or multimodal image summarization
 - `CORS_ORIGINS` if the frontend is served from a non-default origin
 - `DOCMIND_DB_PATH` if you want to override the default SQLite location
+
+When `IMAGE_PROCESSOR=ocr`, `IMAGE_VISION_*` is not used, but Tesseract must be installed and available on `PATH`.
 
 See `backend/.env.example` for the full set of supported options.
 
