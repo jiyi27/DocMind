@@ -2,6 +2,17 @@
 
 ## Chunking Behavior
 
+### Q: `chunk` 和 `full_doc` 模式的 ingest 流程有什么区别, chunk 内容会进向量库吗
+
+会, **两种模式当前都会先切 chunk, 并把 chunk 内容写入向量数据库**
+
+- `chunk` 模式: 文档解析后切成多个 chunk, chunk 文本做 embedding 并写入 Qdrant, 原文件随后删除; 检索和生成阶段主要直接使用命中的 chunk 内容
+- `full_doc` 模式: 文档同样会先切 chunk, chunk 文本也会做 embedding 并写入 Qdrant, 但原文件会保留; 检索命中某个 chunk 后, 系统会回读整篇原文, 将整篇内容作为上下文提供给生成阶段
+
+可以把它简化理解成:
+- `chunk`: chunk 检索, chunk 使用
+- `full_doc`: chunk 检索, 整文使用
+
 ### Q: `CHUNK_OVERLAP` 会被算进 `CHUNK_SIZE` 吗
 
 不会, 两者是独立的机制

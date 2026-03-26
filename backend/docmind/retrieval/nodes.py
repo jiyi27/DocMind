@@ -30,7 +30,7 @@ from docmind.retrieval.state import RAGState
 from docmind.core.embedding import get_embedding_for_kb
 from docmind.vectorstore.qdrant_store import get_vector_store_for_kb
 
-_SEARCH_OVERSAMPLE_FACTOR = 5
+_SEARCH_OVERSAMPLE_FACTOR = 2
 _SEARCH_MAX_RAW_HITS = 250
 
 

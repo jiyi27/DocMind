@@ -132,38 +132,49 @@
               <div class="result-content">
                 <div class="result-head">
                   <div class="result-title">{{ item.title || item.sourceLabel }}</div>
-                  <el-tag size="small" effect="plain" class="result-type-tag">
-                    {{ item.url ? 'Web source' : 'Local document' }}
-                  </el-tag>
+                  <div class="result-head-side">
+                    <el-tag size="small" effect="plain" class="result-type-tag">
+                      {{ item.url ? 'Web source' : 'Local document' }}
+                    </el-tag>
+                    <div class="result-score-inline">
+                      <span class="score-inline-label">Match</span>
+                      <span class="score-inline-value" :style="{ color: scoreColor(item.score) }">
+                        {{ toPercent(item.score) }}
+                      </span>
+                      <span class="score-inline-dot" :style="{ backgroundColor: scoreColor(item.score) }" />
+                    </div>
+                  </div>
                 </div>
 
-                <div class="result-source-label">{{ item.sourceLabel }}</div>
+                <div class="result-meta-row">
+                  <div v-if="item.matchedContent" class="result-snippet-trigger-wrap">
+                    <el-popover
+                      placement="top-start"
+                      trigger="hover"
+                      :width="420"
+                      popper-class="matched-content-popover"
+                    >
+                      <template #reference>
+                        <button type="button" class="result-snippet-trigger">
+                          <el-icon :size="14"><InfoFilled /></el-icon>
+                          <span>View matched excerpt</span>
+                        </button>
+                      </template>
+                      <div class="matched-content-popover-body">
+                        {{ item.matchedContent }}
+                      </div>
+                    </el-popover>
+                  </div>
 
-                <div v-if="item.matchedContent" class="result-snippet">
-                  {{ item.matchedContent }}
-                </div>
-
-                <div v-if="item.url" class="result-url">
-                  <el-icon :size="12"><Link /></el-icon>
-                  <a :href="item.url" target="_blank" rel="noopener noreferrer" class="url-link">
-                    {{ item.url }}
-                  </a>
-                </div>
-                <div v-else class="result-local">
-                  Stored inside your current knowledge base.
-                </div>
-              </div>
-
-              <div class="result-score-wrap">
-                <div class="score-label">Match Score</div>
-                <div class="score-value" :style="{ color: scoreColor(item.score) }">
-                  {{ toPercent(item.score) }}
-                </div>
-                <div class="score-bar-track">
-                  <div
-                    class="score-bar-fill"
-                    :style="{ width: toPercent(item.score), backgroundColor: scoreColor(item.score) }"
-                  />
+                  <div v-if="item.url" class="result-url">
+                    <el-icon :size="12"><Link /></el-icon>
+                    <a :href="item.url" target="_blank" rel="noopener noreferrer" class="url-link">
+                      {{ item.url }}
+                    </a>
+                  </div>
+                  <div v-else class="result-local">
+                    Stored in this knowledge base
+                  </div>
                 </div>
               </div>
             </div>
@@ -176,7 +187,7 @@
 
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
-import { DocumentCopy, Link, Search } from '@element-plus/icons-vue'
+import { DocumentCopy, InfoFilled, Link, Search } from '@element-plus/icons-vue'
 import { useKbStore } from '@/stores/kb'
 import { useAuthStore } from '@/stores/auth'
 import { searchDocuments } from '@/api/search'
@@ -517,6 +528,13 @@ onMounted(async () => {
   margin-bottom: 8px;
 }
 
+.result-head-side {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
 .result-title {
   min-width: 0;
   font-size: 17px;
@@ -531,35 +549,94 @@ onMounted(async () => {
   flex-shrink: 0;
 }
 
-.result-source-label {
-  margin-bottom: 10px;
-  font-size: 12px;
+.result-score-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  white-space: nowrap;
+}
+
+.score-inline-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
   color: #64748b;
 }
 
-.result-snippet {
-  margin-bottom: 12px;
+.score-inline-value {
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.score-inline-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+
+.result-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.result-snippet-trigger-wrap {
+  flex-shrink: 0;
+}
+
+.result-snippet-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: none;
+  padding: 0;
+  background: transparent;
+  font-size: 13px;
+  font-weight: 600;
+  color: #2563eb;
+  cursor: pointer;
+  transition: color 0.18s ease, transform 0.18s ease;
+}
+
+.result-snippet-trigger:hover {
+  color: #1d4ed8;
+  transform: translateY(-1px);
+}
+
+.matched-content-popover-body {
+  max-height: 260px;
+  overflow-y: auto;
+  padding-right: 4px;
   font-size: 13px;
   line-height: 1.7;
   color: #334155;
   white-space: pre-wrap;
   word-break: break-word;
-  display: -webkit-box;
-  -webkit-line-clamp: 5;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
 }
 
 .result-url {
   display: flex;
   align-items: center;
   gap: 6px;
+  min-width: 0;
+  flex: 1;
   font-size: 13px;
   color: #64748b;
-  overflow: hidden;
 }
 
 .url-link {
+  display: block;
+  min-width: 0;
+  max-width: 100%;
   color: #2563eb;
   text-decoration: none;
   overflow: hidden;
@@ -574,44 +651,7 @@ onMounted(async () => {
 .result-local {
   font-size: 13px;
   color: #64748b;
-}
-
-.result-score-wrap {
-  width: 116px;
-  padding: 14px 14px 12px;
-  border-radius: 16px;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  flex-shrink: 0;
-}
-
-.score-label {
-  margin-bottom: 4px;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: #64748b;
-}
-
-.score-value {
-  margin-bottom: 8px;
-  font-size: 24px;
-  font-weight: 800;
-  line-height: 1;
-}
-
-.score-bar-track {
-  height: 6px;
-  background: #e2e8f0;
-  border-radius: 999px;
-  overflow: hidden;
-}
-
-.score-bar-fill {
-  height: 100%;
-  border-radius: 999px;
-  transition: width 0.35s ease;
+  white-space: nowrap;
 }
 
 @media (max-width: 960px) {
@@ -631,10 +671,6 @@ onMounted(async () => {
 
   .result-card-body {
     flex-direction: column;
-  }
-
-  .result-score-wrap {
-    width: 100%;
   }
 }
 
@@ -667,6 +703,11 @@ onMounted(async () => {
   .result-head {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .result-head-side,
+  .result-meta-row {
+    width: 100%;
   }
 }
 </style>
