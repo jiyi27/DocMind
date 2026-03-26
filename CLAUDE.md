@@ -40,7 +40,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ### Document Retrieval Modes
 Each document has a `retrieval_mode` of either `chunk` or `full_doc`. This affects the entire pipeline:
 - **`chunk`** (default): Document is split into chunks during ingestion, stored as vectors in Qdrant, and the source file is deleted. Retrieval uses vector search.
-- **`full_doc`**: Document is NOT chunked; the source file is kept on disk after ingestion. At retrieval time, the entire file is read and injected into context (up to `MAX_FULL_DOC_CHARS`). Only the title/metadata is embedded in Qdrant.
+- **`full_doc`**: Document still goes through chunking and chunk embeddings during ingestion, but the source file is kept on disk. At retrieval time, a matching chunk acts as a pointer to the original file, and the retrieval layer reads the entire file into context (up to `MAX_FULL_DOC_CHARS`). In other words, Qdrant stores searchable chunk vectors, while generation uses bounded full-document expansion.
 
 ### Qdrant Collections
 Each knowledge base gets its own Qdrant collection named `docmind_{kb_name}` (e.g., KB named `"india"` → collection `"docmind_india"`). The `settings.qdrant.collection` value is the base prefix only.
