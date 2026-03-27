@@ -157,56 +157,47 @@ cd backend
 cp .env.example .env
 ```
 
-Edit `.env` and set the required values — at minimum:
+Edit `.env` and set the two required values:
 
 | Variable                | Description                                                                                                |
 | ----------------------- | ---------------------------------------------------------------------------------------------------------- |
 | `JWT_SECRET_KEY`        | Random secret for signing JWTs — generate with: `python -c "import secrets; print(secrets.token_hex(32))"` |
 | `SUPER_ADMIN_USERNAMES` | Comma-separated usernames that get super-admin privileges                                                  |
 
-Optional bootstrap values you will usually want to configure before first boot:
+All other `.env` values have safe defaults. See `backend/.env.example` for the full list.
 
-- `LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL`
-- `TOP_K`, `MAX_MESSAGES`
-
-Those values are used to seed SQLite-backed runtime settings when the keys are missing. After bootstrap, the active runtime settings are managed via the super-admin settings page or `/admin/settings/*`.
-
-Optional backend capabilities you may also want to configure:
-
-- `CONFLUENCE_BASE_URL` and `CONFLUENCE_PAT` to enable Confluence sync
-- `IMAGE_PROCESSOR` plus `IMAGE_VISION_*` if you want OCR or multimodal image summarization
-- `CORS_ORIGINS` if the frontend is served from a non-default origin
-- `DOCMIND_DB_PATH` if you want to override the default SQLite location
-
-When `IMAGE_PROCESSOR=ocr`, `IMAGE_VISION_*` is not used, but Tesseract must be installed and available on `PATH`.
-
-See `backend/.env.example` for the full set of supported options.
+LLM endpoints, retrieval parameters, Confluence integration, and image processing are configured at runtime via the super-admin settings page — not through `.env`.
 
 ### Runtime System Settings
 
-DocMind now splits configuration into three layers:
+DocMind splits configuration into two layers: `.env` for startup concerns, and `system_settings` (SQLite) for runtime-editable settings managed via the super-admin UI or `PUT /admin/settings/*`.
 
-- `env`: infrastructure, auth, security, and optional third-party integration wiring
-- `system_settings`: runtime-editable LLM/chat/retrieval settings stored in SQLite
-- business tables: domain-specific configuration such as per-KB embedding identity
+**Runtime-required** — must be set via the admin UI before the related feature can be used:
 
-Current runtime-managed system settings:
+| Setting                           | Required    | Behavior if missing                     |
+| --------------------------------- | ----------- | --------------------------------------- |
+| `qdrant_url`                      | yes         | vector features fail when used          |
+| `llm_base_url`                    | yes         | chat / generation fail when used        |
+| `llm_api_key`                     | yes         | chat / generation fail when used        |
+| `llm_model`                       | yes         | chat / generation fail when used        |
+| `confluence_base_url`             | conditional | Confluence disabled / unavailable       |
+| `confluence_pat`                  | conditional | Confluence disabled / unavailable       |
+| `ingestion_image_vision_api_key`  | conditional | multimodal image processing unavailable |
+| `ingestion_image_vision_model`    | conditional | multimodal image processing unavailable |
+| `ingestion_image_vision_base_url` | conditional | multimodal image processing unavailable |
 
-- `llm_base_url`
-- `llm_api_key`
-- `llm_model`
-- `chat_max_messages`
-- `retrieval_top_k`
+**Runtime-defaulted** — usable immediately after boot; defaults are written to SQLite on first startup and can be changed via the admin UI:
 
-Super-admins can manage them in either of these ways:
-
-- Frontend settings page at `/settings`
-- `GET /admin/settings`
-- `PUT /admin/settings/llm`
-- `PUT /admin/settings/chat`
-- `PUT /admin/settings/retrieval`
-
-If runtime LLM settings are incomplete, chat endpoints return a clear configuration error instead of failing at startup.
+| Setting                               | Default |
+| ------------------------------------- | ------- |
+| `ingestion_chunk_size`                | `500`   |
+| `ingestion_chunk_overlap`             | `50`    |
+| `ingestion_enable_code_summarization` | `false` |
+| `ingestion_image_processor`           | `none`  |
+| `retrieval_top_k`                     | `3`     |
+| `retrieval_max_full_docs`             | `2`     |
+| `retrieval_max_full_doc_chars`        | `8000`  |
+| `chat_max_messages`                   | `20`    |
 
 ### Knowledge Base Embedding Configuration
 

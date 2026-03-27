@@ -47,8 +47,8 @@ Each knowledge base gets its own Qdrant collection named `docmind_{kb_name}` (e.
 
 ### Background Workers
 Two background threads are started in `docmind/api/lifespan.py` at startup and stopped on shutdown:
-- **`IngestionQueueWorker`** (always): Polls `ingestion_jobs` in SQLite every 5 seconds and runs the `ingestion_graph` LangGraph pipeline for each pending job.
-- **`ConfluenceSyncWorker`** (optional): Started only when `CONFLUENCE_BASE_URL` and `CONFLUENCE_PAT` are both set. Polls KBs with `confluence_sync_enabled=true` and syncs pages according to their configured interval.
+- **`IngestionQueueWorker`**: Polls `ingestion_jobs` in SQLite every 5 seconds and runs the `ingestion_graph` LangGraph pipeline for each pending job.
+- **`ConfluenceSyncWorker`**: Always started unconditionally. Polls KBs with `confluence_sync_enabled=true` every 60 seconds and syncs pages according to their configured interval. Confluence config is validated at sync time, not at startup.
 
 Both graph instances (`ingestion_graph`, `rag_graph`) are module-level singletons — safe to reuse across requests.
 
