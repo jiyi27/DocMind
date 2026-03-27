@@ -14,26 +14,50 @@
       <el-skeleton :rows="6" animated />
     </div>
 
-    <div v-else class="settings-grid">
-      <section class="settings-card">
-        <div class="card-head">
+    <section v-else class="settings-shell">
+      <div class="settings-intro">
+        <div class="intro-copy">
+          <span class="intro-eyebrow">Runtime Configuration</span>
+          <h2 class="shell-title">One control surface for the system runtime</h2>
+          <p class="shell-desc">
+            Keep the page in one large module, then separate concerns with clear section titles instead of
+            multiple competing cards.
+          </p>
+        </div>
+        <div class="settings-status">
+          <span class="status-item">
+            <span class="status-label">LLM Key</span>
+            <el-tag :type="settings.llm.api_key_configured ? 'success' : 'warning'" effect="plain">
+              {{ settings.llm.api_key_configured ? 'Configured' : 'Incomplete' }}
+            </el-tag>
+          </span>
+          <span class="status-item">
+            <span class="status-label">Chat History</span>
+            <strong>{{ chatForm.max_messages }}</strong>
+          </span>
+          <span class="status-item">
+            <span class="status-label">Retrieval Top K</span>
+            <strong>{{ retrievalForm.top_k }}</strong>
+          </span>
+        </div>
+      </div>
+
+      <section class="settings-section">
+        <div class="section-head">
           <div>
-            <h2 class="card-title">LLM</h2>
-            <p class="card-desc">Update the shared chat model connection used by the backend.</p>
+            <h3 class="section-title">LLM Settings</h3>
+            <p class="section-desc">Update the shared chat model connection used by the backend.</p>
           </div>
-          <el-tag :type="settings.llm.api_key_configured ? 'success' : 'warning'" effect="plain">
-            {{ settings.llm.api_key_configured ? 'Configured' : 'Incomplete' }}
-          </el-tag>
         </div>
 
-        <el-form label-position="top" @submit.prevent>
+        <el-form class="settings-form-grid" label-position="top" @submit.prevent>
           <el-form-item label="Base URL">
             <el-input v-model="llmForm.base_url" placeholder="https://api.openai.com/v1" />
           </el-form-item>
           <el-form-item label="Model">
             <el-input v-model="llmForm.model" placeholder="gpt-4.1-mini" />
           </el-form-item>
-          <el-form-item label="API Key">
+          <el-form-item class="full-span" label="API Key">
             <el-input
               v-model="llmForm.api_key"
               type="password"
@@ -42,17 +66,20 @@
             />
             <div class="field-hint">Current key: {{ settings.llm.api_key_masked || 'Not configured' }}</div>
           </el-form-item>
+        </el-form>
+
+        <div class="section-actions">
           <el-button type="primary" :loading="savingLlm" @click="saveLlmSettings">
             Save LLM Settings
           </el-button>
-        </el-form>
+        </div>
       </section>
 
-      <section class="settings-card">
-        <div class="card-head">
+      <section class="settings-section">
+        <div class="section-head">
           <div>
-            <h2 class="card-title">Chat</h2>
-            <p class="card-desc">Cap how many prior messages are kept in conversation history.</p>
+            <h3 class="section-title">Chat Settings</h3>
+            <p class="section-desc">Cap how many prior messages are kept in conversation history.</p>
           </div>
         </div>
 
@@ -60,17 +87,20 @@
           <el-form-item label="Max Messages">
             <el-input-number v-model="chatForm.max_messages" :min="0" :max="200" />
           </el-form-item>
+        </el-form>
+
+        <div class="section-actions">
           <el-button type="primary" :loading="savingChat" @click="saveChatSettings">
             Save Chat Settings
           </el-button>
-        </el-form>
+        </div>
       </section>
 
-      <section class="settings-card">
-        <div class="card-head">
+      <section class="settings-section">
+        <div class="section-head">
           <div>
-            <h2 class="card-title">Retrieval</h2>
-            <p class="card-desc">Adjust how many vector hits the retrieval layer uses per request.</p>
+            <h3 class="section-title">Retrieval Settings</h3>
+            <p class="section-desc">Adjust how many vector hits the retrieval layer uses per request.</p>
           </div>
         </div>
 
@@ -78,12 +108,15 @@
           <el-form-item label="Top K">
             <el-input-number v-model="retrievalForm.top_k" :min="1" :max="100" />
           </el-form-item>
+        </el-form>
+
+        <div class="section-actions">
           <el-button type="primary" :loading="savingRetrieval" @click="saveRetrievalSettings">
             Save Retrieval Settings
           </el-button>
-        </el-form>
+        </div>
       </section>
-    </div>
+    </section>
   </div>
 </template>
 
@@ -229,7 +262,7 @@ onMounted(loadSettings)
 }
 
 .loading-panel,
-.settings-card {
+.settings-shell {
   padding: 24px;
   border-radius: 28px;
   background: rgba(255, 255, 255, 0.84);
@@ -237,17 +270,81 @@ onMounted(loadSettings)
   box-shadow: var(--dm-shadow-md);
 }
 
-.settings-grid {
+.settings-shell {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+.settings-intro {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.22);
+}
+
+.intro-copy {
+  max-width: 700px;
+}
+
+.intro-eyebrow {
+  display: inline-flex;
+  margin-bottom: 10px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--dm-primary);
+}
+
+.shell-title {
+  margin: 0;
+  font-size: 28px;
+  line-height: 1.1;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: var(--dm-text);
+}
+
+.shell-desc {
+  margin: 12px 0 0;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--dm-text-soft);
+}
+
+.settings-status {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 20px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  min-width: min(100%, 360px);
 }
 
-.settings-card:last-child {
-  grid-column: 1 / -1;
+.status-item {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  padding: 14px 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  background: rgba(248, 250, 252, 0.88);
 }
 
-.card-head {
+.status-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--dm-text-soft);
+}
+
+.settings-section + .settings-section {
+  padding-top: 28px;
+  border-top: 1px solid rgba(148, 163, 184, 0.22);
+}
+
+.section-head {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
@@ -255,17 +352,27 @@ onMounted(loadSettings)
   margin-bottom: 18px;
 }
 
-.card-title {
+.section-title {
   margin: 0 0 6px;
   font-size: 22px;
   font-weight: 800;
   color: var(--dm-text);
 }
 
-.card-desc {
+.section-desc {
   margin: 0;
   font-size: 13px;
   color: var(--dm-text-soft);
+}
+
+.settings-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 18px;
+}
+
+.full-span {
+  grid-column: 1 / -1;
 }
 
 .field-hint {
@@ -274,13 +381,40 @@ onMounted(loadSettings)
   color: var(--dm-text-soft);
 }
 
+.section-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 8px;
+}
+
 @media (max-width: 960px) {
-  .settings-grid {
+  .settings-intro {
+    flex-direction: column;
+  }
+
+  .settings-status {
+    grid-template-columns: 1fr;
+    width: 100%;
+  }
+}
+
+@media (max-width: 720px) {
+  .settings-view {
+    max-width: 100%;
+  }
+
+  .loading-panel,
+  .settings-shell {
+    padding: 18px;
+    border-radius: 22px;
+  }
+
+  .settings-form-grid {
     grid-template-columns: 1fr;
   }
 
-  .settings-card:last-child {
-    grid-column: auto;
+  .section-actions {
+    justify-content: flex-start;
   }
 }
 </style>

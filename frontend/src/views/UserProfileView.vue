@@ -29,71 +29,97 @@
       </div>
     </section>
 
-    <section class="documents-panel">
-      <div class="section-head">
-        <div>
-          <h2 class="section-title">API Keys</h2>
-          <p class="section-desc">Create personal API keys for external clients. Raw keys are shown only once.</p>
+    <div class="profile-grid">
+      <section class="profile-panel profile-panel-overview">
+        <div class="section-head">
+          <div>
+            <h2 class="section-title">Account Overview</h2>
+            <p class="section-desc">Use profile for account context, then move document management to its own page.</p>
+          </div>
+          <el-button plain @click="goToMyDocuments">Open My Documents</el-button>
         </div>
-        <el-button type="primary" @click="openCreateKeyDialog">Create API Key</el-button>
-      </div>
 
-      <div class="api-key-list">
+        <div class="overview-grid">
+          <article class="overview-card">
+            <span class="overview-label">Workspace Scope</span>
+            <strong class="overview-value">{{ kbLabel }}</strong>
+            <p class="overview-copy">Documents you upload follow your current workspace permissions.</p>
+          </article>
+          <article class="overview-card">
+            <span class="overview-label">Role</span>
+            <strong class="overview-value">{{ isSuperAdmin ? 'Super Admin' : 'User' }}</strong>
+            <p class="overview-copy">Super admins can access global settings and all workspaces.</p>
+          </article>
+          <article class="overview-card overview-card-action">
+            <div>
+              <span class="overview-label">Documents</span>
+              <strong class="overview-value">My Documents</strong>
+              <p class="overview-copy">Manage uploaded files on a dedicated page instead of mixing them into profile.</p>
+            </div>
+            <el-button type="primary" plain @click="goToMyDocuments">View Documents</el-button>
+          </article>
+        </div>
+      </section>
+
+      <section class="profile-panel">
+        <div class="section-head">
+          <div>
+            <h2 class="section-title">API Keys</h2>
+            <p class="section-desc">Create personal API keys for external clients. Raw keys are shown only once.</p>
+          </div>
+          <el-button type="primary" @click="openCreateKeyDialog">Create API Key</el-button>
+        </div>
+
         <div v-if="apiKeysLoading" class="api-key-loading">
-          <el-skeleton :rows="3" animated />
+          <el-skeleton :rows="4" animated />
         </div>
         <el-empty v-else-if="apiKeys.length === 0" description="No API keys yet" :image-size="88" />
-        <div v-else class="api-key-cards">
-          <article v-for="item in apiKeys" :key="item.id" class="api-key-card">
-            <div class="api-key-card-head">
-              <div>
-                <h3 class="api-key-name">{{ item.name }}</h3>
-                <p class="api-key-prefix">{{ item.key_prefix }}...</p>
+        <el-table v-else :data="apiKeys" class="api-key-table" empty-text="No API keys yet">
+          <el-table-column label="Name" min-width="220">
+            <template #default="{ row }">
+              <div class="table-primary-cell">
+                <strong>{{ row.name }}</strong>
+                <span class="table-secondary">{{ row.key_prefix }}...</span>
               </div>
-              <el-tag :type="item.is_active ? 'success' : 'info'" effect="plain">
-                {{ item.is_active ? 'Active' : 'Revoked' }}
+            </template>
+          </el-table-column>
+          <el-table-column label="Status" width="120">
+            <template #default="{ row }">
+              <el-tag :type="row.is_active ? 'success' : 'info'" effect="plain">
+                {{ row.is_active ? 'Active' : 'Revoked' }}
               </el-tag>
-            </div>
-            <div class="api-key-meta">
-              <span class="meta-pill">
-                <span class="meta-label">Daily limit</span>
-                <strong>{{ item.daily_limit }}</strong>
-              </span>
-              <span class="meta-pill">
-                <span class="meta-label">Created</span>
-                <strong>{{ formatDate(item.created_at) }}</strong>
-              </span>
-              <span class="meta-pill">
-                <span class="meta-label">Last used</span>
-                <strong>{{ item.last_used_at ? formatDate(item.last_used_at) : 'Never' }}</strong>
-              </span>
-            </div>
-            <div class="api-key-actions">
+            </template>
+          </el-table-column>
+          <el-table-column label="Daily Limit" width="140">
+            <template #default="{ row }">
+              {{ row.daily_limit }}
+            </template>
+          </el-table-column>
+          <el-table-column label="Created" min-width="180">
+            <template #default="{ row }">
+              {{ formatDate(row.created_at) }}
+            </template>
+          </el-table-column>
+          <el-table-column label="Last Used" min-width="180">
+            <template #default="{ row }">
+              {{ row.last_used_at ? formatDate(row.last_used_at) : 'Never' }}
+            </template>
+          </el-table-column>
+          <el-table-column label="Actions" width="120" align="right">
+            <template #default="{ row }">
               <el-button
                 type="danger"
-                plain
-                :disabled="!item.is_active || deletingKeyId === item.id"
-                @click="revokeApiKey(item)"
+                text
+                :disabled="!row.is_active || deletingKeyId === row.id"
+                @click="revokeApiKey(row)"
               >
                 Revoke
               </el-button>
-            </div>
-          </article>
-        </div>
-      </div>
-    </section>
-
-    <section class="documents-panel">
-      <div class="section-head">
-        <div>
-          <h2 class="section-title">My Uploaded Documents</h2>
-          <p class="section-desc">Everything you uploaded across accessible workspaces.</p>
-        </div>
-      </div>
-      <div class="doc-list-wrap">
-        <DocumentList mode="profile" />
-      </div>
-    </section>
+            </template>
+          </el-table-column>
+        </el-table>
+      </section>
+    </div>
 
     <el-dialog v-model="createKeyDialogVisible" title="Create API Key" width="460px">
       <el-form label-position="top" @submit.prevent>
@@ -127,13 +153,14 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref, reactive } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
 import { useKbStore } from '@/stores/kb'
 import { createApiKey, deleteApiKey, listApiKeys } from '@/api/apiKeys'
-import DocumentList from '@/components/ingestion/DocumentList.vue'
 
+const router = useRouter()
 const authStore = useAuthStore()
 const kbStore = useKbStore()
 
@@ -161,6 +188,10 @@ const kbLabel = computed(() => {
 
 function formatDate(value) {
   return new Date(value).toLocaleString()
+}
+
+function goToMyDocuments() {
+  router.push({ name: 'MyDocuments' })
 }
 
 async function loadApiKeys() {
@@ -239,10 +270,12 @@ onMounted(() => {
   max-width: 1240px;
   width: 100%;
   margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
 }
 
 .profile-toolbar {
-  margin-bottom: 20px;
   padding: 4px 2px;
 }
 
@@ -305,12 +338,24 @@ onMounted(() => {
   color: var(--dm-text-soft);
 }
 
-.documents-panel {
+.profile-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 20px;
+}
+
+.profile-panel {
   padding: 22px;
   border-radius: 28px;
   background: rgba(255, 255, 255, 0.82);
   border: 1px solid var(--dm-border);
   box-shadow: var(--dm-shadow-md);
+}
+
+.profile-panel-overview {
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.9), rgba(239, 246, 255, 0.9)),
+    rgba(255, 255, 255, 0.82);
 }
 
 .section-head {
@@ -334,67 +379,65 @@ onMounted(() => {
   color: var(--dm-text-soft);
 }
 
-.doc-list-wrap {
-  max-height: calc(100vh - 320px);
-  min-height: 320px;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-}
-
-.api-key-list {
-  min-height: 120px;
-}
-
-.api-key-loading {
-  padding: 8px 0;
-}
-
-.api-key-cards {
+.overview-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 14px;
 }
 
-.api-key-card {
+.overview-card {
   padding: 18px;
-  border-radius: 20px;
-  border: 1px solid var(--dm-border);
-  background: linear-gradient(180deg, rgba(248, 250, 252, 0.96), rgba(255, 255, 255, 0.9));
-}
-
-.api-key-card-head {
+  border-radius: 22px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  background: rgba(255, 255, 255, 0.78);
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
+  flex-direction: column;
+  gap: 10px;
 }
 
-.api-key-name {
-  margin: 0 0 6px;
-  font-size: 17px;
+.overview-card-action {
+  justify-content: space-between;
+}
+
+.overview-label {
+  font-size: 12px;
   font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--dm-text-soft);
+}
+
+.overview-value {
+  font-size: 22px;
+  line-height: 1.2;
   color: var(--dm-text);
 }
 
-.api-key-prefix {
+.overview-copy {
   margin: 0;
   font-size: 13px;
+  line-height: 1.6;
+  color: var(--dm-text-soft);
+}
+
+.api-key-table {
+  width: 100%;
+}
+
+.table-primary-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.table-secondary {
+  font-size: 12px;
   color: var(--dm-text-soft);
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
-.api-key-meta {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-  margin-top: 14px;
-}
-
-.api-key-actions {
-  margin-top: 16px;
-  display: flex;
-  justify-content: flex-end;
+.api-key-loading {
+  padding: 8px 0;
 }
 
 @media (max-width: 960px) {
@@ -402,14 +445,15 @@ onMounted(() => {
     align-items: flex-start;
   }
 
-  .api-key-cards {
+  .overview-grid {
     grid-template-columns: 1fr;
   }
 }
 
 @media (max-width: 720px) {
-  .documents-panel {
+  .profile-panel {
     padding: 18px;
+    border-radius: 22px;
   }
 
   .profile-header {

@@ -45,6 +45,7 @@ import {
   ArrowDown,
   Setting,
   ChatRound,
+  Files,
   House,
   Search,
   SwitchButton,
@@ -62,6 +63,7 @@ const navItems = computed(() => [
   { name: 'Chat', label: 'Chat', to: '/chat', icon: ChatRound },
   { name: 'Dashboard', label: 'Knowledge Base', to: '/', icon: House },
   { name: 'Search', label: 'Search', to: '/search', icon: Search },
+  { name: 'MyDocuments', label: 'My Documents', to: '/my-documents', icon: Files },
   { name: 'UserProfile', label: 'Profile', to: '/profile', icon: User },
   ...(isSuperAdmin.value
     ? [{ name: 'SystemSettings', label: 'Settings', to: '/settings', icon: Setting }]
