@@ -24,8 +24,9 @@ A robust, multi-tenant RAG (Retrieval-Augmented Generation) Knowledge Base syste
 - **Hybrid Retrieval Modes**: Confluence-backed KBs can retrieve either classic chunks or bounded full-document context (`full_doc`) depending on the use case.
 - **Confluence Sync**: Optional Confluence integration supports KB-level root page binding, manual sync, scheduled sync, and sync job history inspection.
 - **Image-Aware Ingestion**: Markdown image blocks can be skipped, OCR'd, or summarized with a multimodal model, depending on `IMAGE_PROCESSOR`.
-- **Streaming Chat and Standalone Search**: The app supports SSE chat responses with citations plus a separate pure vector-search experience.
+- **Streaming Chat, API Keys, and OpenAI Compatibility**: The app supports SSE chat responses with citations, user-managed API keys, and a stateless `/v1/chat/completions` endpoint for OpenAI-compatible clients.
 - **Operational Simplicity**: SQLite stores app metadata, Qdrant stores vectors, and collections are created dynamically per KB as `docmind_{kb_name}`.
+- **Runtime-Editable System Settings**: Super-admins can update the active chat/retrieval/LLM settings at runtime without restarting the backend.
 
 ## Architecture & Tech Stack
 
@@ -35,7 +36,7 @@ A robust, multi-tenant RAG (Retrieval-Augmented Generation) Knowledge Base syste
 - **Workflow Orchestration**: LangGraph, LangChain
 - **Vector Database**: Qdrant (Docker)
 - **Embedding Model**: Per-knowledge-base embedding configuration (supports OpenAI-compatible endpoints and HuggingFace models)
-- **LLM**: Any OpenAI-compatible endpoint (default in `.env.example`: OpenRouter `google/gemini-3.1-flash-lite-preview`)
+- **LLM**: Any OpenAI-compatible endpoint, configured via runtime `system_settings` (with `.env` bootstrap defaults)
 - **Relational DB**: SQLite
 
 ### Frontend
@@ -160,11 +161,15 @@ Edit `.env` and set the required values — at minimum:
 
 | Variable                | Description                                                                                                |
 | ----------------------- | ---------------------------------------------------------------------------------------------------------- |
-| `LLM_API_KEY`           | API key for your LLM provider (e.g. OpenRouter key)                                                        |
-| `LLM_MODEL`             | Model name (example default: `google/gemini-3.1-flash-lite-preview`)                                       |
-| `LLM_BASE_URL`          | OpenAI-compatible endpoint (default: `https://openrouter.ai/api/v1`)                                       |
 | `JWT_SECRET_KEY`        | Random secret for signing JWTs — generate with: `python -c "import secrets; print(secrets.token_hex(32))"` |
 | `SUPER_ADMIN_USERNAMES` | Comma-separated usernames that get super-admin privileges                                                  |
+
+Optional bootstrap values you will usually want to configure before first boot:
+
+- `LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL`
+- `TOP_K`, `MAX_MESSAGES`
+
+Those values are used to seed SQLite-backed runtime settings when the keys are missing. After bootstrap, the active runtime settings are managed via the super-admin settings page or `/admin/settings/*`.
 
 Optional backend capabilities you may also want to configure:
 
@@ -176,6 +181,32 @@ Optional backend capabilities you may also want to configure:
 When `IMAGE_PROCESSOR=ocr`, `IMAGE_VISION_*` is not used, but Tesseract must be installed and available on `PATH`.
 
 See `backend/.env.example` for the full set of supported options.
+
+### Runtime System Settings
+
+DocMind now splits configuration into three layers:
+
+- `env`: infrastructure, auth, security, and optional third-party integration wiring
+- `system_settings`: runtime-editable LLM/chat/retrieval settings stored in SQLite
+- business tables: domain-specific configuration such as per-KB embedding identity
+
+Current runtime-managed system settings:
+
+- `llm_base_url`
+- `llm_api_key`
+- `llm_model`
+- `chat_max_messages`
+- `retrieval_top_k`
+
+Super-admins can manage them in either of these ways:
+
+- Frontend settings page at `/settings`
+- `GET /admin/settings`
+- `PUT /admin/settings/llm`
+- `PUT /admin/settings/chat`
+- `PUT /admin/settings/retrieval`
+
+If runtime LLM settings are incomplete, chat endpoints return a clear configuration error instead of failing at startup.
 
 ### Knowledge Base Embedding Configuration
 
@@ -232,12 +263,30 @@ DocMind exposes a complete RESTful API. Key endpoints:
 | `DELETE` | `/ingest/{doc_id}`                       | Delete a document                                        |
 | `POST`   | `/chat`                                  | Query a knowledge base (non-streaming)                   |
 | `POST`   | `/chat/stream`                           | Query a knowledge base (SSE streaming)                   |
+| `GET`    | `/admin/settings`                        | Read runtime system settings (super-admin only)          |
+| `PUT`    | `/admin/settings/llm`                    | Update runtime LLM settings (super-admin only)           |
+| `PUT`    | `/admin/settings/chat`                   | Update runtime chat settings (super-admin only)          |
+| `PUT`    | `/admin/settings/retrieval`              | Update runtime retrieval settings (super-admin only)     |
+| `GET`    | `/api-keys`                              | List the current user's API keys                         |
+| `POST`   | `/api-keys`                              | Create a new API key for the current user                |
+| `DELETE` | `/api-keys/{key_id}`                     | Revoke an API key                                        |
+| `POST`   | `/v1/chat/completions`                   | Stateless OpenAI-compatible chat completions             |
 | `POST`   | `/search`                                | Run pure vector search without LLM generation            |
 | `GET`    | `/chats`                                 | List chat sessions                                       |
 | `POST`   | `/chats`                                 | Create a chat session                                    |
 | `GET`    | `/chats/{session_id}`                    | Get chat session with message history                    |
 | `DELETE` | `/chats/{session_id}`                    | Delete a chat session                                    |
 | `GET`    | `/health`                                | Health check (Qdrant + LLM connectivity)                 |
+
+### OpenAI-Compatible Endpoint
+
+DocMind exposes a minimal OpenAI-compatible `POST /v1/chat/completions` endpoint intended for API-key-based integrations.
+
+- Authentication uses `Authorization: Bearer <api_key>`
+- The endpoint is stateless and does not create or reuse DocMind chat sessions
+- Both non-stream and SSE stream modes are supported
+- The response includes a non-standard top-level `sources` field so callers can retain citation metadata
+- The current implementation supports text chat completions only; it does not implement tools or function calling
 
 ## Utility Commands
 
