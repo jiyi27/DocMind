@@ -43,6 +43,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import {
   ArrowDown,
+  Setting,
   ChatRound,
   House,
   Search,
@@ -56,13 +57,16 @@ const authStore = useAuthStore()
 
 const username = computed(() => authStore.user?.username || 'User')
 const userInitial = computed(() => username.value.charAt(0).toUpperCase())
-const isSuperAdmin = computed(() => authStore.user?.role === 'super_admin')
-const navItems = [
+const isSuperAdmin = computed(() => authStore.isSuperAdmin)
+const navItems = computed(() => [
   { name: 'Chat', label: 'Chat', to: '/chat', icon: ChatRound },
   { name: 'Dashboard', label: 'Knowledge Base', to: '/', icon: House },
   { name: 'Search', label: 'Search', to: '/search', icon: Search },
   { name: 'UserProfile', label: 'Profile', to: '/profile', icon: User },
-]
+  ...(isSuperAdmin.value
+    ? [{ name: 'SystemSettings', label: 'Settings', to: '/settings', icon: Setting }]
+    : []),
+])
 
 function handleCommand(command) {
   if (command === 'logout') {

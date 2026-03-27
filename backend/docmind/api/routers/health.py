@@ -6,8 +6,8 @@ import asyncio
 
 from fastapi import APIRouter
 
-from docmind.core.config import settings
 from docmind.api.response import ok, err
+from docmind.services.system_settings import get_llm_runtime_settings
 
 router = APIRouter(tags=["health"])
 
@@ -26,11 +26,11 @@ async def health_check():
     except Exception as exc:
         checks["qdrant"] = f"error: {type(exc).__name__}"
 
-    # Check LLM API Key presence
-    if settings.llm.api_key:
-        checks["llm_api_key"] = "configured"
-    else:
-        checks["llm_api_key"] = "missing"
+    try:
+        get_llm_runtime_settings()
+        checks["llm"] = "configured"
+    except Exception:
+        checks["llm"] = "missing"
 
     overall = (
         "ok" if all(v in ("ok", "configured") for v in checks.values()) else "degraded"

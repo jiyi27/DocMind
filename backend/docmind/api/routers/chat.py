@@ -14,12 +14,12 @@ from docmind.api.schemas import ChatRequest
 from docmind.api.response import err_message, ok
 from docmind.auth.schemas import UserContext
 from docmind.core import logger
-from docmind.core.config import settings
 from docmind.db.database import get_db
 from docmind.db.repositories import ChatMessageRepository, ChatSessionRepository
 from docmind.retrieval.graph import rag_graph
 from docmind.retrieval.nodes import retrieve, stream_generate
 from docmind.retrieval.title import generate_session_title
+from docmind.services.system_settings import get_chat_max_messages
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
@@ -80,7 +80,7 @@ async def chat(
         is_first_turn = session.get("message_count", 0) == 0
 
         # 1. Load prior messages from DB, keep only the most recent MAX_MESSAGES
-        max_msg = settings.retrieval.max_messages
+        max_msg = get_chat_max_messages()
         all_rows = await message_repo.list_by_session(request.session_id)
         prior_rows = all_rows[-max_msg:] if max_msg > 0 else all_rows
 
@@ -185,7 +185,7 @@ async def chat_stream(
 
                 is_first_turn = session.get("message_count", 0) == 0
 
-                max_msg = settings.retrieval.max_messages
+                max_msg = get_chat_max_messages()
                 all_rows = await message_repo.list_by_session(request.session_id)
                 prior_rows = all_rows[-max_msg:] if max_msg > 0 else all_rows
 

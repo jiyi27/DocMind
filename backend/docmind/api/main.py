@@ -8,7 +8,18 @@ from fastapi.middleware.cors import CORSMiddleware
 from docmind.api.lifespan import lifespan
 from docmind.api.middleware.request_id import RequestIdMiddleware
 from docmind.api.response import register_exception_handlers
-from docmind.api.routers import auth, chat, chats, ingest, kb, health, search
+from docmind.api.routers import (
+    admin,
+    api_keys,
+    auth,
+    chat,
+    chats,
+    health,
+    ingest,
+    kb,
+    openai_compat,
+    search,
+)
 from docmind.core.config import settings
 
 app = FastAPI(
@@ -35,9 +46,12 @@ register_exception_handlers(app)
 
 # ── Routers ──
 app.include_router(auth.router)
+app.include_router(admin.router)
+app.include_router(api_keys.router)
 app.include_router(kb.router)
 app.include_router(ingest.router)
 app.include_router(chat.router)
 app.include_router(chats.router)
+app.include_router(openai_compat.router)
 app.include_router(search.router)
 app.include_router(health.router)

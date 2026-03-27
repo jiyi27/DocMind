@@ -39,6 +39,11 @@ def _require_int(env_var: str) -> int:
         return 0
 
 
+def _optional_str(env_var: str) -> str:
+    """Return the value of *env_var* or an empty string when unset."""
+    return os.getenv(env_var, "").strip()
+
+
 def _require_bool(env_var: str) -> bool:
     """Return *env_var* parsed as bool, recording it as missing/invalid if needed."""
     raw = os.getenv(env_var, "").strip().lower()
@@ -253,9 +258,9 @@ def _build_settings() -> Settings:
             expire_minutes=_require_int("JWT_EXPIRE_MINUTES"),
         ),
         llm=LLMConfig(
-            api_key=_require_str("LLM_API_KEY"),
-            model=_require_str("LLM_MODEL"),
-            base_url=_require_str("LLM_BASE_URL"),
+            api_key=_optional_str("LLM_API_KEY"),
+            model=_optional_str("LLM_MODEL"),
+            base_url=_optional_str("LLM_BASE_URL"),
         ),
         ingestion=IngestionConfig(
             chunk_size=_require_int("CHUNK_SIZE"),

@@ -28,6 +28,7 @@ from docmind.retrieval.resolvers import (
 )
 from docmind.retrieval.state import RAGState
 from docmind.core.embedding import get_embedding_for_kb
+from docmind.services.system_settings import get_retrieval_top_k
 from docmind.vectorstore.qdrant_store import get_vector_store_for_kb
 
 _SEARCH_OVERSAMPLE_FACTOR = 2
@@ -181,9 +182,7 @@ def retrieve_node(state: RAGState) -> dict:
       the capped entry are less relevant, so continuing would substitute a
       lower-quality result in its place.
     """
-    results = retrieve_raw_hits(
-        state["query"], state["kb_name"], settings.retrieval.top_k
-    )
+    results = retrieve_raw_hits(state["query"], state["kb_name"], get_retrieval_top_k())
     return _resolve_chat_hits(results, state["kb_name"])
 
 

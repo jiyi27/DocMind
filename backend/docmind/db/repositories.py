@@ -276,6 +276,180 @@ class UserRepository:
 
 
 # ---------------------------------------------------------------------------
+# System Settings Repository
+# ---------------------------------------------------------------------------
+
+
+class SystemSettingsRepository:
+    def __init__(self, db: aiosqlite.Connection) -> None:
+        self.db = db
+
+    async def get_many(self, keys: list[str]) -> dict[str, str]:
+        if not keys:
+            return {}
+
+        placeholders = ",".join("?" for _ in keys)
+        query = f"SELECT key, value FROM system_settings WHERE key IN ({placeholders})"
+        async with self.db.execute(query, tuple(keys)) as cur:
+            rows = await cur.fetchall()
+            return {str(row["key"]): str(row["value"]) for row in rows}
+
+    async def get_by_key(self, key: str) -> str | None:
+        async with self.db.execute(
+            "SELECT value FROM system_settings WHERE key = ?",
+            (key,),
+        ) as cur:
+            row = await cur.fetchone()
+            if row is None:
+                return None
+            return str(row["value"])
+
+    async def upsert_many(self, values: dict[str, str]) -> None:
+        if not values:
+            return
+
+        now = utc_now_iso()
+        await self.db.executemany(
+            """
+            INSERT INTO system_settings (key, value, updated_at)
+            VALUES (?, ?, ?)
+            ON CONFLICT(key)
+            DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at
+            """,
+            [(key, value, now) for key, value in values.items()],
+        )
+        await self.db.commit()
+
+
+# ---------------------------------------------------------------------------
+# API Key Repository
+# ---------------------------------------------------------------------------
+
+
+class ApiKeyRepository:
+    def __init__(self, db: aiosqlite.Connection) -> None:
+        self.db = db
+
+    async def create(
+        self,
+        *,
+        user_id: str,
+        key_hash: str,
+        key_prefix: str,
+        name: str,
+        daily_limit: int,
+    ) -> dict[str, Any]:
+        key_id = str(uuid.uuid4())
+        now = utc_now_iso()
+        await self.db.execute(
+            """
+            INSERT INTO api_keys (
+                id, user_id, key_hash, key_prefix, name, daily_limit,
+                is_active, created_at, last_used_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)
+            """,
+            (key_id, user_id, key_hash, key_prefix, name, daily_limit, now, ""),
+        )
+        await self.db.commit()
+        return {
+            "id": key_id,
+            "user_id": user_id,
+            "key_prefix": key_prefix,
+            "name": name,
+            "daily_limit": daily_limit,
+            "is_active": True,
+            "created_at": now,
+            "last_used_at": "",
+        }
+
+    async def list_by_user(self, user_id: str) -> list[dict[str, Any]]:
+        async with self.db.execute(
+            """
+            SELECT id, user_id, key_prefix, name, daily_limit, is_active, created_at, last_used_at
+            FROM api_keys
+            WHERE user_id = ?
+            ORDER BY created_at DESC
+            """,
+            (user_id,),
+        ) as cur:
+            rows = await cur.fetchall()
+            return [dict(row) for row in rows]
+
+    async def get_by_id_for_user(
+        self, key_id: str, user_id: str
+    ) -> dict[str, Any] | None:
+        async with self.db.execute(
+            """
+            SELECT *
+            FROM api_keys
+            WHERE id = ? AND user_id = ?
+            """,
+            (key_id, user_id),
+        ) as cur:
+            return _row_to_dict(await cur.fetchone())
+
+    async def deactivate(self, key_id: str, user_id: str) -> bool:
+        cur = await self.db.execute(
+            """
+            UPDATE api_keys
+            SET is_active = 0
+            WHERE id = ? AND user_id = ?
+            """,
+            (key_id, user_id),
+        )
+        await self.db.commit()
+        return cur.rowcount > 0
+
+    async def get_by_hash_with_user(self, key_hash: str) -> dict[str, Any] | None:
+        async with self.db.execute(
+            """
+            SELECT
+                ak.*,
+                u.username,
+                u.kb_id,
+                u.role,
+                kb.name AS kb_name
+            FROM api_keys ak
+            JOIN users u ON ak.user_id = u.id
+            JOIN knowledge_bases kb ON u.kb_id = kb.id
+            WHERE ak.key_hash = ?
+            """,
+            (key_hash,),
+        ) as cur:
+            return _row_to_dict(await cur.fetchone())
+
+    async def touch_last_used(self, key_id: str, used_at: str) -> None:
+        await self.db.execute(
+            "UPDATE api_keys SET last_used_at = ? WHERE id = ?",
+            (used_at, key_id),
+        )
+        await self.db.commit()
+
+    async def increment_daily_usage(self, key_id: str, used_date: str) -> int:
+        await self.db.execute(
+            """
+            INSERT INTO api_key_usage (key_id, used_date, count)
+            VALUES (?, ?, 1)
+            ON CONFLICT(key_id, used_date)
+            DO UPDATE SET count = count + 1
+            """,
+            (key_id, used_date),
+        )
+        async with self.db.execute(
+            """
+            SELECT count
+            FROM api_key_usage
+            WHERE key_id = ? AND used_date = ?
+            """,
+            (key_id, used_date),
+        ) as cur:
+            row = await cur.fetchone()
+        await self.db.commit()
+        return int(row["count"]) if row is not None else 0
+
+
+# ---------------------------------------------------------------------------
 # Document Repository
 # ---------------------------------------------------------------------------
 

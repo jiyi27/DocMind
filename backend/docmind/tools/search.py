@@ -8,8 +8,8 @@ from __future__ import annotations
 
 from langchain_core.tools import tool
 
-from docmind.core.config import settings
 from docmind.core.embedding import get_embedding_for_kb
+from docmind.services.system_settings import get_retrieval_top_k
 from docmind.vectorstore.qdrant_store import get_vector_store_for_kb
 
 
@@ -24,7 +24,7 @@ def search_knowledge_base(query: str, kb_name: str) -> str:
     try:
         emb = get_embedding_for_kb(kb_name)
         store = get_vector_store_for_kb(kb_name, embeddings=emb)
-        docs = store.similarity_search(query, k=settings.retrieval.top_k)
+        docs = store.similarity_search(query, k=get_retrieval_top_k())
     except Exception as exc:
         logger.error(
             "tool_search_failed",

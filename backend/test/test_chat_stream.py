@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import os
 import sys
 import uuid
+from datetime import UTC, datetime
 from pathlib import Path
+from sqlite3 import connect
 
 from fastapi.testclient import TestClient
 
@@ -24,7 +27,48 @@ def _override_current_user() -> UserContext:
     )
 
 
+def _seed_chat_owner(db_path: Path) -> None:
+    now = datetime.now(UTC).isoformat()
+    with connect(db_path) as conn:
+        conn.execute("PRAGMA foreign_keys = ON;")
+        conn.execute(
+            """
+            INSERT INTO knowledge_bases (
+                id, name, display_name, description, created_at,
+                embedding_provider, embedding_model, embedding_base_url, embedding_api_key, vector_dimension
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                "kb-test",
+                "india",
+                "India KB",
+                "",
+                now,
+                "openai_compatible",
+                "",
+                "",
+                "",
+                0,
+            ),
+        )
+        conn.execute(
+            """
+            INSERT INTO users (id, username, hashed_password, kb_id, role, created_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            ("test-user", "tester", "hashed", "kb-test", "user", now),
+        )
+        conn.commit()
+
+
 def test_chat_stream_returns_sse_error_when_retrieval_fails(monkeypatch) -> None:
+    db_path = Path(__file__).resolve().parents[1] / "data" / "test-chat-stream-error.db"
+    if db_path.exists():
+        db_path.unlink()
+
+    os.environ["DOCMIND_DB_PATH"] = str(db_path)
+
     def fake_retrieve(query: str, kb_name: str) -> tuple[str, list[str]]:
         return ("retrieved context", ["[1] Test Source"])
 
@@ -40,6 +84,7 @@ def test_chat_stream_returns_sse_error_when_retrieval_fails(monkeypatch) -> None
 
     try:
         with TestClient(app, raise_server_exceptions=False) as client:
+            _seed_chat_owner(db_path)
             session_id = f"session-stream-error-{uuid.uuid4()}"
             with client.stream(
                 "POST",
@@ -56,3 +101,6 @@ def test_chat_stream_returns_sse_error_when_retrieval_fails(monkeypatch) -> None
         assert "response already started" not in body
     finally:
         app.dependency_overrides.clear()
+        os.environ.pop("DOCMIND_DB_PATH", None)
+        if db_path.exists():
+            db_path.unlink()

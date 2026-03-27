@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import { ElMessage } from 'element-plus'
 import { useAuthStore } from '../stores/auth'
 
 const routes = [
@@ -49,6 +50,12 @@ const routes = [
         path: 'search',
         name: 'Search',
         component: () => import('../views/SearchView.vue'),
+      },
+      {
+        path: 'settings',
+        name: 'SystemSettings',
+        component: () => import('../views/SystemSettingsView.vue'),
+        meta: { requiresSuperAdmin: true },
       }
     ]
   }
@@ -66,15 +73,16 @@ router.beforeEach((to, from, next) => {
   const isAuthRequired = to.matched.some(record => record.meta.requiresAuth)
 
   const isGuestOnly = to.matched.some(record => record.meta.requiresGuest)
+  const requiresSuperAdmin = to.matched.some(record => record.meta.requiresSuperAdmin)
 
   if (isAuthRequired && !authStore.isAuthenticated) {
-    // Redirect unauthenticated users to login page
     next({ name: 'Login' })
+  } else if (requiresSuperAdmin && !authStore.isSuperAdmin) {
+    ElMessage.error('Super-admin privileges required')
+    next({ name: 'Dashboard' })
   } else if (isGuestOnly && authStore.isAuthenticated) {
-    // Redirect authenticated users away from guest pages (login/register) to the dashboard
     next({ name: 'Dashboard' })
   } else {
-    // Proceed as normal
     next()
   }
 })
