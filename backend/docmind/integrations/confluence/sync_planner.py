@@ -43,10 +43,7 @@ class SyncPlan:
 
     def to_summary(self) -> SyncJobSummary:
         return SyncJobSummary(
-            scanned=len(self.to_create)
-            + len(self.to_update)
-            + len(self.to_delete)
-            + len(self.unchanged),
+            scanned=len(self.to_create) + len(self.to_update) + len(self.unchanged),
             unchanged=len(self.unchanged),
             created=len(self.to_create),
             updated=len(self.to_update),

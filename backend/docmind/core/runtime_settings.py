@@ -429,9 +429,15 @@ def get_runtime_settings_statuses(
     image_vision_missing_fields = [
         key
         for key, value in (
-            (INGESTION_IMAGE_VISION_BASE_URL_KEY, settings.ingestion.image_vision.base_url),
+            (
+                INGESTION_IMAGE_VISION_BASE_URL_KEY,
+                settings.ingestion.image_vision.base_url,
+            ),
             (INGESTION_IMAGE_VISION_MODEL_KEY, settings.ingestion.image_vision.model),
-            (INGESTION_IMAGE_VISION_API_KEY_KEY, settings.ingestion.image_vision.api_key),
+            (
+                INGESTION_IMAGE_VISION_API_KEY_KEY,
+                settings.ingestion.image_vision.api_key,
+            ),
         )
         if not value.strip()
     ]

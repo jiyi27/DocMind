@@ -118,7 +118,9 @@ def _require_image_vision_settings(runtime: RuntimeSettings) -> RuntimeSettings:
 def _validate_runtime_dependencies(runtime: RuntimeSettings) -> None:
     if runtime.ingestion.image_processor == "multimodal":
         _require_image_vision_settings(runtime)
-    if bool(runtime.confluence.base_url.strip()) != bool(runtime.confluence.pat.strip()):
+    if bool(runtime.confluence.base_url.strip()) != bool(
+        runtime.confluence.pat.strip()
+    ):
         raise ConfigError(
             "Confluence is not fully configured. Missing system settings: "
             + ", ".join(

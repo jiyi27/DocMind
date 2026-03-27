@@ -491,6 +491,7 @@ async def preview_confluence_sync(
             detail="Confluence integration is not configured",
         )
 
+    from docmind.integrations.confluence.client import ConfluenceTraversalError
     from docmind.integrations.confluence.service import plan_sync
 
     async with get_db() as db:
@@ -519,7 +520,19 @@ async def preview_confluence_sync(
                 message="A Confluence sync job is already in progress",
             )
 
-        _, _, summary = await plan_sync(db, kb_id)
+        try:
+            _, _, summary = await plan_sync(db, kb_id)
+        except ConfluenceTraversalError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=exc.message,
+            ) from exc
+        except Exception as exc:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=f"Failed to reach Confluence: {exc}",
+            ) from exc
+
         if summary is None:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -673,7 +686,10 @@ async def resolve_confluence_page(
                 status_code=status.HTTP_404_NOT_FOUND, detail="Knowledge base not found"
             )
 
-    from docmind.integrations.confluence.client import ConfluenceClient
+    from docmind.integrations.confluence.client import (
+        ConfluenceClient,
+        ConfluenceTraversalError,
+    )
 
     try:
         confluence = get_confluence_runtime_settings()
@@ -685,6 +701,8 @@ async def resolve_confluence_page(
         page_id, title, source_url = await client.resolve_page_url(url)
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+    except ConfluenceTraversalError as exc:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=exc.message)
     except Exception as exc:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,

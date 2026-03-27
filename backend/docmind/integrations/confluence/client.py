@@ -16,6 +16,14 @@ import httpx
 from docmind.core import logger
 
 
+class ConfluenceTraversalError(Exception):
+    """Raised when the Confluence page tree cannot be traversed safely."""
+
+    def __init__(self, message: str) -> None:
+        super().__init__(message)
+        self.message = message
+
+
 @dataclass(frozen=True)
 class PageSummary:
     """Lightweight representation of a Confluence page for sync planning."""
@@ -114,7 +122,24 @@ class ConfluenceClient:
                     {"parent_id": parent_id, "status": exc.response.status_code},
                     exc=exc,
                 )
-                continue
+                status_code = exc.response.status_code
+                if status_code == 403:
+                    raise ConfluenceTraversalError(
+                        f"Confluence access was denied while reading child pages under page {parent_id}. "
+                        "Check the configured PAT and page permissions."
+                    ) from exc
+                raise ConfluenceTraversalError(
+                    f"Failed to read child pages under Confluence page {parent_id} (HTTP {status_code})."
+                ) from exc
+            except httpx.RequestError as exc:
+                logger.error(
+                    "confluence_list_children_failed",
+                    {"parent_id": parent_id},
+                    exc=exc,
+                )
+                raise ConfluenceTraversalError(
+                    f"Failed to reach Confluence while reading child pages under page {parent_id}."
+                ) from exc
 
             for child in children:
                 summary = self._to_page_summary(child)
