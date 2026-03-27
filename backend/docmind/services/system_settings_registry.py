@@ -23,12 +23,8 @@ class RuntimeSettingSpec:
     sensitive: bool = False
 
     def default_value(self) -> str:
-        if self.key == LLM_BASE_URL_KEY:
-            return settings.llm.base_url
-        if self.key == LLM_API_KEY_KEY:
-            return settings.llm.api_key
-        if self.key == LLM_MODEL_KEY:
-            return settings.llm.model
+        if self.key in (LLM_BASE_URL_KEY, LLM_API_KEY_KEY, LLM_MODEL_KEY):
+            return ""
         if self.key == CHAT_MAX_MESSAGES_KEY:
             return str(settings.retrieval.max_messages)
         if self.key == RETRIEVAL_TOP_K_KEY:
