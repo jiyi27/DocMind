@@ -3,20 +3,12 @@ import { ElMessage } from 'element-plus'
 import router from '@/router'
 import { useAuthStore } from '@/stores/auth'
 import { getAuthToken } from '@/utils/auth/storage'
+import { getErrorDetail, isAuthExpiredMessage, unwrapApiResponse } from '@/utils/http/errors'
 
 const http = axios.create({
   baseURL: import.meta.env.VITE_API_URL || 'http://localhost:8000',
   timeout: 120000,
 })
-
-function isAuthExpiredMessage(message) {
-  if (!message) return false
-
-  const normalizedMessage = String(message).toLowerCase()
-  return normalizedMessage.includes('token has expired')
-    || normalizedMessage.includes('invalid token')
-    || normalizedMessage.includes('session expired')
-}
 
 async function redirectToLogin(message = 'Session expired, please login again') {
   const authStore = useAuthStore()
@@ -48,38 +40,29 @@ http.interceptors.request.use(
 // Response Interceptor: Handle DocMind Global Envelope and Errors
 http.interceptors.response.use(
   (response) => {
-    const res = response.data
+    const result = unwrapApiResponse(response)
 
-    // DocMind Success Envelope
-    if (res.code === 0) {
-      return res.data
+    if (result.ok) {
+      return result.data
     }
 
-    // DocMind Handled Business Error Envelope
-    if (res.code === -1) {
-      if (isAuthExpiredMessage(res.message)) {
-        return redirectToLogin(res.message).then(() => Promise.reject(new Error(res.message || 'Unauthorized')))
-      }
-
-      ElMessage.error(res.message || 'Business Error')
-      return Promise.reject(new Error(res.message || 'Error'))
+    if (isAuthExpiredMessage(result.message)) {
+      return redirectToLogin(result.message).then(() => Promise.reject(new Error(result.message || 'Unauthorized')))
     }
 
-    // Pass through if not standard envelope (e.g. direct files/binary)
-    return res
+    ElMessage.error(result.message || 'Business Error')
+    return Promise.reject(new Error(result.message || 'Error'))
   },
   (error) => {
-    // Handle specific HTTP Status Codes (e.g., 401 Unauthorized)
     if (error.response) {
       if (error.response.status === 401) {
-        const detail = error.response.data?.detail || 'Session expired, please login again'
+        const detail = getErrorDetail(error) || 'Session expired, please login again'
         return redirectToLogin(detail).then(() => Promise.reject(error))
-      } else {
-        const detail = error.response.data?.detail || error.message
-        ElMessage.error(`Request Failed: ${detail}`)
       }
+
+      ElMessage.error(`Request Failed: ${getErrorDetail(error)}`)
     } else {
-      ElMessage.error(error.message || 'Network Error')
+      ElMessage.error(getErrorDetail(error))
     }
 
     return Promise.reject(error)

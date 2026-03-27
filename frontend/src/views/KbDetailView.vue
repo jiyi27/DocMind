@@ -550,15 +550,15 @@
 </template>
 
 <script setup>
-import { computed, h, onMounted, onUnmounted, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ArrowLeft, Files, Upload } from '@element-plus/icons-vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
 import { useKbStore } from '@/stores/kb'
-import { getKbSyncJobs, getKbSyncRecords, previewKbSync, resolveConfluencePage, triggerKbSync } from '@/api/kb'
 import UploadZone from '@/components/ingestion/UploadZone.vue'
 import DocumentList from '@/components/ingestion/DocumentList.vue'
+import { useKbDetail } from '@/composables/kb/useKbDetail'
+import { useKbConfluenceSync } from '@/composables/kb/useKbConfluenceSync'
 import { formatDateTime } from '@/utils/format/date'
 
 const route = useRoute()
@@ -570,392 +570,65 @@ const kbId = computed(() => route.params.id)
 const kbDetail = computed(() => kbStore.currentKb)
 const canEdit = computed(() => authStore.canManageKb(kbId.value))
 const docListRef = ref(null)
-const infoDialogVisible = ref(false)
-const connectionDialogVisible = ref(false)
-const confluenceDialogVisible = ref(false)
-const syncPreviewDialogVisible = ref(false)
-const historyDrawerVisible = ref(false)
-const infoSaving = ref(false)
-const connectionSaving = ref(false)
-const confluenceSaving = ref(false)
-const syncTriggering = ref(false)
-const historyLoading = ref(false)
-const recordsLoading = ref(false)
-const syncJobs = ref([])
-const jobRecords = ref([])
-const expandedJobId = ref('')
-const infoFormRef = ref(null)
-const connectionFormRef = ref(null)
-const confluenceFormRef = ref(null)
-const syncPreview = ref(null)
-let historyPollingTimer = null
+const {
+  infoDialogVisible,
+  connectionDialogVisible,
+  infoSaving,
+  connectionSaving,
+  infoFormRef,
+  connectionFormRef,
+  infoForm,
+  connectionForm,
+  infoRules,
+  syncFormsFromKb,
+  openInfoDialog,
+  openConnectionDialog,
+  resetInfoForm,
+  resetConnectionForm,
+  submitInfoForm,
+  submitConnectionForm,
+} = useKbDetail({ kbId, kbDetail, kbStore })
 
-const infoForm = ref({
-  display_name: '',
-  description: '',
-})
+const {
+  confluenceDialogVisible,
+  syncPreviewDialogVisible,
+  historyDrawerVisible,
+  confluenceSaving,
+  syncTriggering,
+  historyLoading,
+  recordsLoading,
+  syncJobs,
+  jobRecords,
+  expandedJobId,
+  confluenceFormRef,
+  syncPreview,
+  confluenceForm,
+  confluenceRules,
+  syncFormFromKb,
+  formatRetrievalMode,
+  formatSyncInterval,
+  formatSyncStatus,
+  syncStatusTagType,
+  operationTagType,
+  openConfluenceDialog,
+  openHistoryDrawer,
+  handleHistoryDrawerClosed,
+  resetConfluenceForm,
+  submitConfluenceForm,
+  triggerSyncNow,
+  confirmTriggerSync,
+  toggleJobDetails,
+} = useKbConfluenceSync({ kbId, kbDetail, kbStore })
 
-const connectionForm = ref({
-  base_url: '',
-  api_key: '',
-})
-
-const confluenceForm = ref({
-  root_page_url: '',
-  sync_enabled: false,
-  sync_interval_minutes: 5,
-  retrieval_mode: 'chunk',
-})
-
-const infoRules = {
-  display_name: [
-    { required: true, message: 'Please enter a display name', trigger: 'blur' },
-    { min: 1, max: 128, message: 'Length must be between 1 and 128 characters', trigger: 'blur' },
-  ],
-}
-
-const confluenceRules = {
-  root_page_url: [
-    {
-      validator: (_, value, callback) => {
-        if (!value || !value.trim()) {
-          callback()
-          return
-        }
-        const v = value.trim()
-        if (!v.includes('/display/') && !v.includes('pageId=')) {
-          callback(new Error('Must be a Confluence page URL containing /display/ or pageId='))
-          return
-        }
-        callback()
-      },
-      trigger: 'blur',
-    },
-  ],
-  sync_interval_minutes: [
-    {
-      validator: (_, value, callback) => {
-        if (!Number.isInteger(value) || value < 5) {
-          callback(new Error('Sync interval must be at least 5 minutes'))
-          return
-        }
-        callback()
-      },
-      trigger: 'change',
-    },
-  ],
-}
-
-onMounted(async () => {
-  await kbStore.fetchKbDetail(kbId.value)
-  syncFormsFromKb()
-})
-
-onUnmounted(() => {
-  clearHistoryPolling()
-})
-
-function syncFormsFromKb() {
-  infoForm.value.display_name = kbDetail.value?.display_name || ''
-  infoForm.value.description = kbDetail.value?.description || ''
-  connectionForm.value.base_url = kbDetail.value?.embedding_base_url || ''
-  connectionForm.value.api_key = ''
-  confluenceForm.value.root_page_url = ''
-  confluenceForm.value.sync_enabled = Boolean(kbDetail.value?.confluence_sync_enabled)
-  confluenceForm.value.sync_interval_minutes = Number(kbDetail.value?.confluence_sync_interval_minutes || 5)
-  confluenceForm.value.retrieval_mode = kbDetail.value?.confluence_retrieval_mode || 'chunk'
-}
-
-function clearHistoryPolling() {
-  if (historyPollingTimer) {
-    clearTimeout(historyPollingTimer)
-    historyPollingTimer = null
-  }
-}
-
-function hasActiveSyncJobs() {
-  return syncJobs.value.some((job) => job.status === 'pending' || job.status === 'running')
-}
-
-function scheduleHistoryPolling() {
-  clearHistoryPolling()
-
-  if (!historyDrawerVisible.value || !hasActiveSyncJobs()) {
-    return
-  }
-
-  historyPollingTimer = setTimeout(async () => {
-    await loadSyncJobs({ silent: true })
-    if (expandedJobId.value) {
-      await loadJobRecords(expandedJobId.value, { silent: true })
-    }
-    scheduleHistoryPolling()
-  }, 3000)
-}
-
-function formatRetrievalMode(mode) {
-  return mode === 'full_doc' ? 'Full Article' : 'Fragment'
-}
-
-function formatSyncInterval(minutes) {
-  const value = Number(minutes || 0)
-  return `${value} minute${value === 1 ? '' : 's'}`
-}
-
-function formatSyncStatus(status) {
-  if (!status) return 'Never synced'
-  if (status === 'completed') return 'Completed'
-  if (status === 'failed') return 'Failed'
-  if (status === 'running') return 'Running'
-  if (status === 'pending') return 'Pending'
-  return status
-}
-
-function syncStatusTagType(status) {
-  if (status === 'completed' || status === 'success') return 'success'
-  if (status === 'failed') return 'danger'
-  if (status === 'running' || status === 'processing') return 'warning'
-  return 'info'
-}
-
-function operationTagType(operation) {
-  if (operation === 'create') return 'success'
-  if (operation === 'update') return 'warning'
-  if (operation === 'delete') return 'danger'
-  return 'info'
-}
-
-function openInfoDialog() {
-  syncFormsFromKb()
-  infoDialogVisible.value = true
-}
-
-function openConnectionDialog() {
-  syncFormsFromKb()
-  connectionDialogVisible.value = true
-}
-
-function openConfluenceDialog() {
-  syncFormsFromKb()
-  confluenceDialogVisible.value = true
-}
-
-async function openHistoryDrawer() {
-  historyDrawerVisible.value = true
-  await loadSyncJobs()
-}
-
-function handleHistoryDrawerClosed() {
-  clearHistoryPolling()
-  expandedJobId.value = ''
-  jobRecords.value = []
-}
-
-function resetInfoForm() {
-  syncFormsFromKb()
-  infoFormRef.value?.clearValidate()
-}
-
-function resetConnectionForm() {
-  syncFormsFromKb()
-  connectionFormRef.value?.clearValidate?.()
-}
-
-function resetConfluenceForm() {
-  syncFormsFromKb()
-  confluenceFormRef.value?.clearValidate?.()
-}
-
-async function submitInfoForm() {
-  const valid = await infoFormRef.value?.validate().catch(() => false)
-  if (!valid) return
-
-  infoSaving.value = true
-  try {
-    await kbStore.updateKbInfo(kbId.value, {
-      display_name: infoForm.value.display_name.trim(),
-      description: infoForm.value.description.trim(),
-    })
-    infoDialogVisible.value = false
-    ElMessage.success('Knowledge base updated')
-  } finally {
-    infoSaving.value = false
-  }
-}
-
-async function submitConnectionForm() {
-  connectionSaving.value = true
-  try {
-    await kbStore.updateKbConnection(kbId.value, {
-      base_url: connectionForm.value.base_url.trim(),
-      api_key: connectionForm.value.api_key.trim(),
-    })
-    connectionDialogVisible.value = false
-    ElMessage.success('Embedding connection updated')
-  } finally {
-    connectionSaving.value = false
-  }
-}
-
-async function submitConfluenceForm() {
-  const valid = await confluenceFormRef.value?.validate().catch(() => false)
-  if (!valid) return
-
-  const url = confluenceForm.value.root_page_url.trim()
-
-  if (confluenceForm.value.sync_enabled && !kbDetail.value?.confluence_capability_enabled) {
-    ElMessage.error('Configure Confluence Base URL and PAT in System Settings before enabling auto sync')
-    return
-  }
-
-  confluenceSaving.value = true
-
-  try {
-    // If URL is provided, resolve it first and confirm with the user.
-    let root_page_id = kbDetail.value?.confluence_root_page_id || ''
-    let root_page_title = kbDetail.value?.confluence_root_page_title || ''
-
-    if (url) {
-      let resolved
-      try {
-        resolved = await resolveConfluencePage(kbId.value, url)
-      } catch {
-        // Error notification is handled by the global http interceptor.
-        return
-      }
-
-      try {
-        await ElMessageBox.confirm(
-          h('div', { style: 'line-height: 1.8' }, [
-            h('p', null, [h('b', null, 'Page: '), resolved.title]),
-            h('p', null, [h('b', null, 'Page ID: '), resolved.page_id]),
-            h('p', null, [
-              h('b', null, 'URL: '),
-              h('a', { href: resolved.source_url, target: '_blank', rel: 'noreferrer' }, resolved.source_url),
-            ]),
-          ]),
-          'Confirm Root Page Binding',
-          {
-            type: 'info',
-            confirmButtonText: 'Confirm & Save',
-            cancelButtonText: 'Cancel',
-          },
-        )
-      } catch {
-        return
-      }
-
-      root_page_id = resolved.page_id
-      root_page_title = resolved.title
-    }
-
-    await kbStore.updateKbInfo(kbId.value, {
-      display_name: kbDetail.value.display_name,
-      description: kbDetail.value.description || '',
-      confluence: {
-        root_page_id,
-        root_page_title,
-        sync_enabled: confluenceForm.value.sync_enabled,
-        sync_interval_minutes: confluenceForm.value.sync_interval_minutes,
-        retrieval_mode: confluenceForm.value.retrieval_mode,
-      },
-    })
-    confluenceDialogVisible.value = false
-    syncFormsFromKb()
-    ElMessage.success('Confluence settings updated')
-  } finally {
-    confluenceSaving.value = false
-  }
-}
-
-async function triggerSyncNow() {
-  syncTriggering.value = true
-  try {
-    const preview = await previewKbSync(kbId.value)
-    if (preview?.job_in_progress) {
-      if (historyDrawerVisible.value) {
-        await loadSyncJobs()
-      }
-      ElMessage.success('Existing sync job is still running')
-      return
-    }
-
-    if ((preview?.total_operations || 0) === 0) {
-      ElMessage.success(`Scanned ${preview?.scanned || 0} page(s) — all up to date`)
-      return
-    }
-
-    syncPreview.value = preview
-    syncPreviewDialogVisible.value = true
-  } catch (error) {
-    if (error === 'cancel' || error === 'close' || error?.message === 'cancel') {
-      return
-    }
-    throw error
-  } finally {
-    syncTriggering.value = false
-  }
-}
-
-async function confirmTriggerSync() {
-  if (!syncPreview.value) return
-
-  syncTriggering.value = true
-  try {
-    const data = await triggerKbSync(kbId.value)
-    syncPreviewDialogVisible.value = false
-    syncPreview.value = null
+watch(
+  kbId,
+  async () => {
     await kbStore.fetchKbDetail(kbId.value)
-    if (historyDrawerVisible.value) {
-      await loadSyncJobs()
-    }
-    ElMessage.success(data?.status === 'pending' ? 'Confluence sync started' : 'Existing sync job is still running')
-  } finally {
-    syncTriggering.value = false
-  }
-}
-
-async function loadSyncJobs({ silent = false } = {}) {
-  if (!silent) {
-    historyLoading.value = true
-  }
-  try {
-    const data = await getKbSyncJobs(kbId.value, 20)
-    syncJobs.value = data?.jobs || []
-    scheduleHistoryPolling()
-  } finally {
-    if (!silent) {
-      historyLoading.value = false
-    }
-  }
-}
-
-async function toggleJobDetails(job) {
-  if (expandedJobId.value === job.id) {
-    expandedJobId.value = ''
-    jobRecords.value = []
-    return
-  }
-
-  expandedJobId.value = job.id
-  await loadJobRecords(job.id)
-}
-
-async function loadJobRecords(jobId, { silent = false } = {}) {
-  if (!silent) {
-    recordsLoading.value = true
-  }
-  try {
-    const data = await getKbSyncRecords(kbId.value, jobId)
-    if (expandedJobId.value === jobId) {
-      jobRecords.value = data?.records || []
-    }
-  } finally {
-    if (!silent) {
-      recordsLoading.value = false
-    }
-  }
-}
+    syncFormsFromKb()
+    syncFormFromKb()
+  },
+  { immediate: true },
+)
 
 function handleUploaded() {
   docListRef.value?.refresh()
