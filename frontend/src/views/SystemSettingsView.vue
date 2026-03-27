@@ -1,45 +1,25 @@
 <template>
   <div class="settings-view">
-    <section class="settings-toolbar">
-      <div>
-        <div class="toolbar-title-row">
-          <h1 class="page-title">System Settings</h1>
-          <el-tag type="danger" effect="plain" round>Super Admin</el-tag>
-        </div>
-        <p class="page-desc">Runtime LLM, chat, and retrieval settings apply immediately after saving.</p>
-      </div>
-    </section>
-
     <div v-if="loading" class="loading-panel">
       <el-skeleton :rows="6" animated />
     </div>
 
     <section v-else class="settings-shell">
-      <div class="settings-intro">
-        <div class="intro-copy">
-          <span class="intro-eyebrow">Runtime Configuration</span>
-          <h2 class="shell-title">One control surface for the system runtime</h2>
-          <p class="shell-desc">
-            Keep the page in one large module, then separate concerns with clear section titles instead of
-            multiple competing cards.
-          </p>
-        </div>
-        <div class="settings-status">
-          <span class="status-item">
-            <span class="status-label">LLM Key</span>
-            <el-tag :type="settings.llm.api_key_configured ? 'success' : 'warning'" effect="plain">
-              {{ settings.llm.api_key_configured ? 'Configured' : 'Incomplete' }}
-            </el-tag>
-          </span>
-          <span class="status-item">
-            <span class="status-label">Chat History</span>
-            <strong>{{ chatForm.max_messages }}</strong>
-          </span>
-          <span class="status-item">
-            <span class="status-label">Retrieval Top K</span>
-            <strong>{{ retrievalForm.top_k }}</strong>
-          </span>
-        </div>
+      <div class="settings-status">
+        <span class="status-item">
+          <span class="status-label">LLM Key</span>
+          <el-tag :type="settings.llm.api_key_configured ? 'success' : 'warning'" effect="plain">
+            {{ settings.llm.api_key_configured ? 'Configured' : 'Incomplete' }}
+          </el-tag>
+        </span>
+        <span class="status-item">
+          <span class="status-label">Chat History</span>
+          <strong>{{ chatForm.max_messages }}</strong>
+        </span>
+        <span class="status-item">
+          <span class="status-label">Retrieval Top K</span>
+          <strong>{{ retrievalForm.top_k }}</strong>
+        </span>
       </div>
 
       <section class="settings-section">
@@ -234,33 +214,6 @@ onMounted(loadSettings)
   margin: 0 auto;
 }
 
-.settings-toolbar {
-  margin-bottom: 20px;
-  padding: 4px 2px;
-}
-
-.toolbar-title-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.page-title {
-  margin: 0;
-  font-size: 30px;
-  line-height: 1.1;
-  font-weight: 800;
-  letter-spacing: -0.03em;
-  color: var(--dm-text);
-}
-
-.page-desc {
-  margin: 10px 0 0;
-  font-size: 14px;
-  color: var(--dm-text-soft);
-}
-
 .loading-panel,
 .settings-shell {
   padding: 24px;
@@ -276,50 +229,10 @@ onMounted(loadSettings)
   gap: 28px;
 }
 
-.settings-intro {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 24px;
-  padding-bottom: 24px;
-  border-bottom: 1px solid rgba(148, 163, 184, 0.22);
-}
-
-.intro-copy {
-  max-width: 700px;
-}
-
-.intro-eyebrow {
-  display: inline-flex;
-  margin-bottom: 10px;
-  font-size: 12px;
-  font-weight: 800;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--dm-primary);
-}
-
-.shell-title {
-  margin: 0;
-  font-size: 28px;
-  line-height: 1.1;
-  font-weight: 800;
-  letter-spacing: -0.03em;
-  color: var(--dm-text);
-}
-
-.shell-desc {
-  margin: 12px 0 0;
-  font-size: 14px;
-  line-height: 1.6;
-  color: var(--dm-text-soft);
-}
-
 .settings-status {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
-  min-width: min(100%, 360px);
 }
 
 .status-item {
@@ -387,17 +300,6 @@ onMounted(loadSettings)
   margin-top: 8px;
 }
 
-@media (max-width: 960px) {
-  .settings-intro {
-    flex-direction: column;
-  }
-
-  .settings-status {
-    grid-template-columns: 1fr;
-    width: 100%;
-  }
-}
-
 @media (max-width: 720px) {
   .settings-view {
     max-width: 100%;
@@ -407,6 +309,10 @@ onMounted(loadSettings)
   .settings-shell {
     padding: 18px;
     border-radius: 22px;
+  }
+
+  .settings-status {
+    grid-template-columns: 1fr;
   }
 
   .settings-form-grid {

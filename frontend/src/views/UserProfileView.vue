@@ -51,9 +51,9 @@
             <p class="overview-copy">Super admins can access global settings and all workspaces.</p>
           </article>
           <article class="overview-card overview-card-action">
-            <div>
+            <div class="overview-stack">
               <span class="overview-label">Documents</span>
-              <strong class="overview-value">My Documents</strong>
+              <strong class="overview-subvalue">My Documents</strong>
               <p class="overview-copy">Manage uploaded files on a dedicated page instead of mixing them into profile.</p>
             </div>
             <el-button type="primary" plain @click="goToMyDocuments">View Documents</el-button>
@@ -399,6 +399,13 @@ onMounted(() => {
   justify-content: space-between;
 }
 
+.overview-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
 .overview-label {
   font-size: 12px;
   font-weight: 800;
@@ -410,6 +417,13 @@ onMounted(() => {
 .overview-value {
   font-size: 22px;
   line-height: 1.2;
+  color: var(--dm-text);
+}
+
+.overview-subvalue {
+  font-size: 15px;
+  line-height: 1.4;
+  font-weight: 700;
   color: var(--dm-text);
 }
 
