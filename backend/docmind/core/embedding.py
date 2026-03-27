@@ -2,16 +2,16 @@
 
 from __future__ import annotations
 
-import sqlite3
 import threading
 from dataclasses import dataclass
 
 from langchain_core.embeddings import Embeddings
 from langchain_openai import OpenAIEmbeddings
+from langchain_huggingface import HuggingFaceEmbeddings
 
 from docmind.core import logger
 from docmind.core.exceptions import ConfigError
-from docmind.db.database import get_db_path
+from docmind.db.database import create_sync_connection
 
 # Legacy alias kept for any existing catch sites.
 EmbeddingConfigError = ConfigError
@@ -41,8 +41,6 @@ def _build_embedding(params: EmbeddingParams) -> Embeddings:
             tiktoken_enabled=False,
         )
     elif params.provider == "huggingface":
-        from langchain_huggingface import HuggingFaceEmbeddings  # lazy import
-
         return HuggingFaceEmbeddings(model_name=params.model)
     else:
         raise ConfigError(f"Unknown embedding provider: {params.provider!r}")
@@ -74,15 +72,13 @@ def get_embedding_for_kb(kb_name: str) -> Embeddings:
     silently falling back to global defaults, which would risk vector drift.
     """
     try:
-        conn = sqlite3.connect(get_db_path())
-        conn.row_factory = sqlite3.Row
-        cur = conn.execute(
-            "SELECT embedding_provider, embedding_model, embedding_base_url, embedding_api_key "
-            "FROM knowledge_bases WHERE name = ?",
-            (kb_name,),
-        )
-        row = cur.fetchone()
-        conn.close()
+        with create_sync_connection() as conn:
+            cur = conn.execute(
+                "SELECT embedding_provider, embedding_model, embedding_base_url, embedding_api_key "
+                "FROM knowledge_bases WHERE name = ?",
+                (kb_name,),
+            )
+            row = cur.fetchone()
     except Exception as exc:
         logger.error(
             "embedding_kb_lookup_failed",
