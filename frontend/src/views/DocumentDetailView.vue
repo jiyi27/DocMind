@@ -86,134 +86,27 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { useRouter } from 'vue-router'
 import { ArrowLeft, Folder, List } from '@element-plus/icons-vue'
-import { getDocumentById, getDocumentChunks } from '@/api/ingest'
+import { useDocumentDetail } from '@/composables/documents/useDocumentDetail'
+import { formatDate } from '@/utils/format/date'
 
-const route = useRoute()
 const router = useRouter()
-
-const docId = computed(() => route.params.id)
-
-const preset = {
-  title: typeof route.query.title === 'string' ? route.query.title : '',
-  fileName: typeof route.query.fileName === 'string' ? route.query.fileName : '',
-  kbName: typeof route.query.kbName === 'string' ? route.query.kbName : '',
-  chunkCount: typeof route.query.chunkCount === 'string'
-    ? Number(route.query.chunkCount)
-    : null,
-  kbId: typeof route.query.kbId === 'string' ? route.query.kbId : null,
-}
-
-const docMeta = ref({
-  title: preset.title || null,
-  file_name: preset.fileName || null,
-  chunk_count: Number.isFinite(preset.chunkCount) ? preset.chunkCount : null,
-  created_at: null,
-  kb_id: preset.kbId || null,
-  kb_display_name: preset.kbName || null,
-})
-
-const kbDetail = ref(null)
-const chunks = ref([])
-const chunkTotal = ref(0)
-const loadingMeta = ref(true)
-const loadingChunks = ref(false)
-const loadingMore = ref(false)
-const limit = 20
-const offset = ref(0)
-
-const docTitle = computed(() => {
-  return docMeta.value.title || docMeta.value.file_name || 'Document'
-})
-
-const kbDisplayName = computed(() => {
-  return (
-    kbDetail.value?.display_name ||
-    docMeta.value.kb_display_name ||
-    preset.kbName ||
-    'Unknown KB'
-  )
-})
-
-const kbSlug = computed(() => kbDetail.value?.name || null)
-
-const displayedChunkCount = computed(() => {
-  return docMeta.value.chunk_count ?? chunkTotal.value ?? 0
-})
-
-const hasMore = computed(() => chunks.value.length < chunkTotal.value)
-
-function formatDate(dateStr) {
-  if (!dateStr) return '-'
-  const d = new Date(dateStr)
-  return d.toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  })
-}
-
-async function fetchMeta() {
-  loadingMeta.value = true
-  try {
-    if (!docId.value) {
-      return
-    }
-    const doc = await getDocumentById(docId.value)
-    if (doc) {
-      docMeta.value = { ...docMeta.value, ...doc }
-      // kb info is already included in the response (kb_display_name, kb_name)
-      kbDetail.value = doc.kb_name ? { name: doc.kb_name, display_name: doc.kb_display_name } : null
-    }
-  } catch {
-    // Errors handled by interceptor
-  } finally {
-    loadingMeta.value = false
-  }
-}
-
-async function fetchChunks(reset = false) {
-  if (!docId.value) return
-  if (reset) {
-    offset.value = 0
-    chunks.value = []
-  }
-
-  if (reset) {
-    loadingChunks.value = true
-  } else {
-    loadingMore.value = true
-  }
-
-  try {
-    const res = await getDocumentChunks(docId.value, offset.value, limit)
-    const items = res?.items ?? []
-    chunkTotal.value = res?.total ?? 0
-    if (reset) {
-      chunks.value = items
-    } else {
-      chunks.value = [...chunks.value, ...items]
-    }
-    offset.value = chunks.value.length
-  } catch {
-    // Errors handled by interceptor
-  } finally {
-    loadingChunks.value = false
-    loadingMore.value = false
-  }
-}
-
-function loadMore() {
-  if (loadingMore.value || !hasMore.value) return
-  fetchChunks(false)
-}
-
-onMounted(async () => {
-  await fetchMeta()
-  fetchChunks(true)
-})
+const {
+  docId,
+  docMeta,
+  chunks,
+  chunkTotal,
+  loadingMeta,
+  loadingChunks,
+  loadingMore,
+  docTitle,
+  kbDisplayName,
+  kbSlug,
+  displayedChunkCount,
+  hasMore,
+  loadMore,
+} = useDocumentDetail()
 </script>
 
 <style scoped>

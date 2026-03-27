@@ -1,33 +1,33 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
+import {
+  clearStoredAuthState,
+  getStoredAuthState,
+  setAuthToken,
+  setStoredIsSuperAdmin,
+  setStoredKbId,
+  setStoredRole,
+  setStoredUser,
+} from '@/utils/auth/storage'
 
 export const useAuthStore = defineStore('auth', () => {
-  let initialUser = null
-  const storedUser = localStorage.getItem('user')
-
-  if (storedUser) {
-    try {
-      initialUser = JSON.parse(storedUser)
-    } catch {
-      localStorage.removeItem('user')
-    }
-  }
+  const storedAuthState = getStoredAuthState()
 
   // State
-  // Initialize token from localStorage to maintain session on reload
-  const token = ref(localStorage.getItem('token') || null)
+  // Initialize token from persisted auth storage to maintain session on reload
+  const token = ref(storedAuthState.token)
 
-  // Initialize user info from localStorage if available
-  const user = ref(initialUser)
+  // Initialize user info from persisted auth storage if available
+  const user = ref(storedAuthState.user)
 
-  // Initialize isSuperAdmin from localStorage
-  const isSuperAdmin = ref(localStorage.getItem('isSuperAdmin') === 'true')
+  // Initialize isSuperAdmin from persisted auth storage
+  const isSuperAdmin = ref(storedAuthState.isSuperAdmin)
 
-  // Initialize kbId from localStorage (stored as string, always compare via String())
-  const kbId = ref(localStorage.getItem('kbId') || null)
+  // Initialize kbId from persisted auth storage (stored as string, always compare via String())
+  const kbId = ref(storedAuthState.kbId)
 
-  // Initialize role from localStorage ('admin' | 'user' | null)
-  const role = ref(localStorage.getItem('role') || null)
+  // Initialize role from persisted auth storage ('admin' | 'user' | null)
+  const role = ref(storedAuthState.role)
 
   // Getters
   const isAuthenticated = computed(() => !!token.value)
@@ -70,24 +70,24 @@ export const useAuthStore = defineStore('auth', () => {
    */
   function setAuth(newToken, superAdmin = false, userInfo = null, userKbId = null, userRole = null) {
     token.value = newToken
-    localStorage.setItem('token', newToken)
+    setAuthToken(newToken)
 
     isSuperAdmin.value = superAdmin
-    localStorage.setItem('isSuperAdmin', String(superAdmin))
+    setStoredIsSuperAdmin(superAdmin)
 
     if (userKbId != null) {
       kbId.value = String(userKbId)
-      localStorage.setItem('kbId', String(userKbId))
+      setStoredKbId(userKbId)
     }
 
     if (userRole) {
       role.value = userRole
-      localStorage.setItem('role', userRole)
+      setStoredRole(userRole)
     }
 
     if (userInfo) {
       user.value = userInfo
-      localStorage.setItem('user', JSON.stringify(userInfo))
+      setStoredUser(userInfo)
     }
   }
 
@@ -100,11 +100,7 @@ export const useAuthStore = defineStore('auth', () => {
     isSuperAdmin.value = false
     kbId.value = null
     role.value = null
-    localStorage.removeItem('token')
-    localStorage.removeItem('user')
-    localStorage.removeItem('isSuperAdmin')
-    localStorage.removeItem('kbId')
-    localStorage.removeItem('role')
+    clearStoredAuthState()
   }
 
   return {

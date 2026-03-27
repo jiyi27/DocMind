@@ -53,7 +53,7 @@
     <div class="kb-card-footer">
       <span class="footer-item">
         <el-icon><Calendar /></el-icon>
-        {{ formatDate(kb.created_at) }}
+        {{ formatDate(kb.created_at, { month: 'short', day: 'numeric' }) }}
       </span>
       <span class="footer-item footer-item--link">
         {{ canAccess ? 'Open workspace' : 'Restricted' }}
@@ -68,6 +68,7 @@ import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { Calendar, Collection, Delete, Lock, MoreFilled } from '@element-plus/icons-vue'
 import { ElMessageBox } from 'element-plus'
+import { formatDate } from '@/utils/format/date'
 
 const props = defineProps({
   kb: {
@@ -120,15 +121,6 @@ async function handleCommand(command) {
   }
 }
 
-function formatDate(dateStr) {
-  if (!dateStr) return ''
-  const date = new Date(dateStr)
-  return date.toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  })
-}
 </script>
 
 <style scoped>

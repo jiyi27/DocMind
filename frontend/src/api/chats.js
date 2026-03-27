@@ -1,4 +1,5 @@
 import http from './http'
+import { getAuthToken } from '@/utils/auth/storage'
 
 export function getChatSessions(params = {}) {
   return http.get('/chats', { params })
@@ -51,7 +52,7 @@ export function sendChatMessage(sessionId, chatInput) {
  */
 export async function sendChatMessageStream(sessionId, chatInput, { onSources, onChunk, onDone, onError, signal } = {}) {
   const baseURL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
-  const token = localStorage.getItem('token')
+  const token = getAuthToken()
 
   const response = await fetch(`${baseURL}/chat/stream`, {
     method: 'POST',

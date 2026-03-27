@@ -559,6 +559,7 @@ import { useKbStore } from '@/stores/kb'
 import { getKbSyncJobs, getKbSyncRecords, previewKbSync, resolveConfluencePage, triggerKbSync } from '@/api/kb'
 import UploadZone from '@/components/ingestion/UploadZone.vue'
 import DocumentList from '@/components/ingestion/DocumentList.vue'
+import { formatDateTime } from '@/utils/format/date'
 
 const route = useRoute()
 const router = useRouter()
@@ -663,18 +664,6 @@ function syncFormsFromKb() {
   confluenceForm.value.sync_enabled = Boolean(kbDetail.value?.confluence_sync_enabled)
   confluenceForm.value.sync_interval_minutes = Number(kbDetail.value?.confluence_sync_interval_minutes || 5)
   confluenceForm.value.retrieval_mode = kbDetail.value?.confluence_retrieval_mode || 'chunk'
-}
-
-function formatDateTime(dateStr) {
-  if (!dateStr) return '-'
-  const date = new Date(dateStr)
-  return date.toLocaleString('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
 }
 
 function clearHistoryPolling() {

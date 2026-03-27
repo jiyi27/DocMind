@@ -97,12 +97,12 @@
           </el-table-column>
           <el-table-column label="Created" min-width="180">
             <template #default="{ row }">
-              {{ formatDate(row.created_at) }}
+              {{ formatDateTime(row.created_at) }}
             </template>
           </el-table-column>
           <el-table-column label="Last Used" min-width="180">
             <template #default="{ row }">
-              {{ row.last_used_at ? formatDate(row.last_used_at) : 'Never' }}
+              {{ row.last_used_at ? formatDateTime(row.last_used_at) : 'Never' }}
             </template>
           </el-table-column>
           <el-table-column label="Actions" width="120" align="right">
@@ -159,6 +159,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
 import { useKbStore } from '@/stores/kb'
 import { createApiKey, deleteApiKey, listApiKeys } from '@/api/apiKeys'
+import { formatDateTime } from '@/utils/format/date'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -185,10 +186,6 @@ const kbLabel = computed(() => {
   if (isSuperAdmin.value) return 'All workspaces'
   return scopedKb.value?.display_name || scopedKb.value?.name || 'Assigned workspace'
 })
-
-function formatDate(value) {
-  return new Date(value).toLocaleString()
-}
 
 function goToMyDocuments() {
   router.push({ name: 'MyDocuments' })

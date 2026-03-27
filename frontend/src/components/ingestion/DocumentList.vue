@@ -82,11 +82,10 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
-import { useRouter } from 'vue-router'
-import { Delete, Coin, Document, Memo, User, Folder, Loading, Warning } from '@element-plus/icons-vue'
-import { ElMessageBox, ElMessage } from 'element-plus'
-import { getDocuments, getDocumentsByKb, deleteDocument } from '@/api/ingest'
+import { Delete, Coin, User, Folder, Loading, Warning } from '@element-plus/icons-vue'
+import { useDocumentList } from '@/composables/documents/useDocumentList'
+import { getFileIcon } from '@/utils/documents/file'
+import { formatDate } from '@/utils/format/date'
 
 const props = defineProps({
   // Pass kbId if needed for future filtering; currently API returns user's docs
@@ -105,133 +104,10 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['deleted'])
-
-const documents = ref([])
-const loading = ref(false)
-const deletingId = ref(null)
-const router = useRouter()
-let pollingTimer = null
-let fetchGeneration = 0
-
-function clearPollingTimer() {
-  if (pollingTimer) {
-    clearTimeout(pollingTimer)
-    pollingTimer = null
-  }
-}
-
-function getFileIcon(fileName) {
-  if (!fileName) return Document
-  const ext = fileName.split('.').pop().toLowerCase()
-  if (ext === 'md' || ext === 'markdown') return Memo
-  return Document
-}
-
-function formatDate(dateStr) {
-  if (!dateStr) return '-'
-  const d = new Date(dateStr)
-  return d.toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  })
-}
-
-function goToDetail(doc) {
-  if (!doc?.id || doc.status === 'pending' || doc.status === 'processing') return
-  const kbId = props.kbId || doc.kb_id || null
-  const kbName = props.kbName || doc.kb_display_name || null
-  router.push({
-    name: 'DocumentDetail',
-    params: { id: doc.id },
-    query: {
-      kbId: kbId || undefined,
-      kbName: kbName || undefined,
-      title: doc.title || undefined,
-      fileName: doc.file_name || undefined,
-      chunkCount: doc.chunk_count ?? undefined,
-    },
-  })
-}
-
-async function fetchDocuments(showLoading = true) {
-  const generation = ++fetchGeneration
-  clearPollingTimer()
-
-  if (showLoading) {
-    loading.value = true
-  }
-  try {
-    const res = props.kbId
-      ? await getDocumentsByKb(props.kbId)
-      : await getDocuments()
-    // API returns { total, documents } envelope
-    documents.value = res?.documents ?? res ?? []
-
-    // Check if we need to poll
-    const needsPolling = documents.value.some(
-      doc => doc.status === 'pending' || doc.status === 'processing'
-    )
-
-    if (generation !== fetchGeneration) {
-      return
-    }
-
-    if (needsPolling) {
-      pollingTimer = setTimeout(() => fetchDocuments(false), 3000)
-    }
-  } catch (err) {
-    // Error handled by interceptor
-  } finally {
-    if (showLoading) {
-      loading.value = false
-    }
-  }
-}
-
-async function handleDelete(doc) {
-  try {
-    await ElMessageBox.confirm(
-      `Are you sure you want to delete "${doc.title || doc.file_name}" and all its vector data? This cannot be undone.`,
-      'Confirm Deletion',
-      {
-        confirmButtonText: 'Delete',
-        cancelButtonText: 'Cancel',
-        type: 'warning',
-        confirmButtonClass: 'el-button--danger',
-      }
-    )
-  } catch {
-    return // User cancelled
-  }
-
-  deletingId.value = doc.id
-  try {
-    await deleteDocument(doc.id)
-    documents.value = documents.value.filter((d) => d.id !== doc.id)
-    ElMessage.success('Document deleted')
-    emit('deleted', doc.id)
-  } catch (err) {
-    // Error handled by interceptor
-  } finally {
-    deletingId.value = null
-  }
-}
+const { documents, loading, deletingId, goToDetail, handleDelete, refresh } = useDocumentList(props, emit)
 
 // Expose refresh method so parent can call it after upload
-function refresh() {
-  fetchDocuments(false)
-}
-
 defineExpose({ refresh })
-
-onMounted(() => {
-  fetchDocuments()
-})
-
-onUnmounted(() => {
-  clearPollingTimer()
-})
 </script>
 
 <style scoped>

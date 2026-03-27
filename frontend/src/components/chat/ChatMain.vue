@@ -32,7 +32,7 @@
             <div class="sources-label">Sources</div>
             <div class="sources-list">
               <a
-                v-for="(src, i) in parseSources(message.sources)"
+                v-for="(src, i) in parseChatSources(message.sources)"
                 :key="i"
                 :href="src.url || undefined"
                 :target="src.url ? '_blank' : undefined"
@@ -73,6 +73,7 @@
 
 <script setup>
 import { computed, nextTick, ref, watch } from 'vue'
+import { parseChatSources } from '@/utils/chat/sources'
 
 const props = defineProps({
   conversation: {
@@ -92,20 +93,6 @@ const props = defineProps({
 const streamingContent = computed(() =>
   props.conversation?.messages?.find((m) => m.streaming)?.content,
 )
-
-function parseSources(sources) {
-  return sources.map((src) => {
-    const mdMatch = src.match(/^\[(\d+)\]\s+\[(.+?)\]\((.+?)\)$/)
-    if (mdMatch) {
-      return { index: mdMatch[1], title: mdMatch[2], url: mdMatch[3] }
-    }
-    const plainMatch = src.match(/^\[(\d+)\]\s+(.+)$/)
-    if (plainMatch) {
-      return { index: plainMatch[1], title: plainMatch[2], url: '' }
-    }
-    return { index: '', title: src, url: '' }
-  })
-}
 
 const emit = defineEmits(['send'])
 

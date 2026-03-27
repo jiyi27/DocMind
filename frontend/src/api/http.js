@@ -2,6 +2,7 @@ import axios from 'axios'
 import { ElMessage } from 'element-plus'
 import router from '@/router'
 import { useAuthStore } from '@/stores/auth'
+import { getAuthToken } from '@/utils/auth/storage'
 
 const http = axios.create({
   baseURL: import.meta.env.VITE_API_URL || 'http://localhost:8000',
@@ -33,8 +34,7 @@ async function redirectToLogin(message = 'Session expired, please login again') 
 // Request Interceptor: Inject JWT Token
 http.interceptors.request.use(
   (config) => {
-    // We will retrieve the token from localStorage or Pinia here in Phase 2
-    const token = localStorage.getItem('token')
+    const token = getAuthToken()
     if (token) {
       config.headers['Authorization'] = `Bearer ${token}`
     }
