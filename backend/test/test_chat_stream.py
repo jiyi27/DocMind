@@ -69,17 +69,27 @@ def test_chat_stream_returns_sse_error_when_retrieval_fails(monkeypatch) -> None
 
     os.environ["DOCMIND_DB_PATH"] = str(db_path)
 
-    def fake_retrieve(query: str, kb_name: str) -> tuple[str, list[str]]:
-        return ("retrieved context", ["[1] Test Source"])
+    async def fake_prepare_rag_stream(**kwargs):
+        return type(
+            "Prepared",
+            (),
+            {
+                "context": "retrieved context",
+                "sources": ["[1] Test Source"],
+            },
+        )()
 
-    async def fake_stream_generate(**kwargs):
+    async def fake_stream_rag_completion(**kwargs):
         yield "partial chunk"
         raise VectorStoreError("Embedding model is unavailable.")
 
     app.dependency_overrides[get_current_user] = _override_current_user
-    monkeypatch.setattr("docmind.api.routers.chat.retrieve", fake_retrieve)
     monkeypatch.setattr(
-        "docmind.api.routers.chat.stream_generate", fake_stream_generate
+        "docmind.api.routers.chat.prepare_rag_stream", fake_prepare_rag_stream
+    )
+    monkeypatch.setattr(
+        "docmind.api.routers.chat.stream_rag_completion",
+        fake_stream_rag_completion,
     )
 
     try:

@@ -7,7 +7,6 @@ import json
 
 from fastapi import APIRouter, BackgroundTasks, Depends
 from fastapi.responses import JSONResponse, StreamingResponse
-from langchain_core.messages import AIMessage, HumanMessage
 
 from docmind.api.dependencies import get_current_user
 from docmind.api.schemas import ChatRequest
@@ -16,23 +15,16 @@ from docmind.auth.schemas import UserContext
 from docmind.core import logger
 from docmind.db.database import get_db
 from docmind.db.repositories import ChatMessageRepository, ChatSessionRepository
-from docmind.retrieval.graph import rag_graph
-from docmind.retrieval.nodes import retrieve, stream_generate
 from docmind.retrieval.title import generate_session_title
+from docmind.services.chat_execution import (
+    db_messages_to_langchain,
+    prepare_rag_stream,
+    run_rag_completion,
+    stream_rag_completion,
+)
 from docmind.services.system_settings import get_chat_max_messages
 
 router = APIRouter(prefix="/chat", tags=["chat"])
-
-
-def _db_messages_to_lc(rows: list[dict]) -> list:
-    """Convert DB message rows (dicts with role/content) to LangChain message objects."""
-    result = []
-    for row in rows:
-        if row["role"] == "user":
-            result.append(HumanMessage(content=row["content"]))
-        else:
-            result.append(AIMessage(content=row["content"]))
-    return result
 
 
 def _sse_event(payload: dict) -> str:
@@ -85,19 +77,15 @@ async def chat(
         prior_rows = all_rows[-max_msg:] if max_msg > 0 else all_rows
 
     # 2. Convert to LangChain messages and invoke RAG graph (outside DB context)
-    # Use asyncio.to_thread to avoid blocking the event loop with sync Qdrant IO.
-    lc_history = _db_messages_to_lc(prior_rows)
-    result = await asyncio.to_thread(
-        rag_graph.invoke,
-        {
-            "query": request.chat_input,
-            "kb_name": current_user.kb_name,
-            "messages": lc_history,
-        },
+    lc_history = db_messages_to_langchain(prior_rows)
+    result = await run_rag_completion(
+        query=request.chat_input,
+        kb_name=current_user.kb_name,
+        history=lc_history,
     )
 
-    answer = result.get("answer", "")
-    sources: list[str] = result.get("sources", [])
+    answer = result.answer
+    sources = result.sources
 
     # 3. Persist both turns and update session metadata
     async with get_db() as db:
@@ -189,11 +177,12 @@ async def chat_stream(
                 all_rows = await message_repo.list_by_session(request.session_id)
                 prior_rows = all_rows[-max_msg:] if max_msg > 0 else all_rows
 
-            lc_history = _db_messages_to_lc(prior_rows)
+            lc_history = db_messages_to_langchain(prior_rows)
 
             # ── 2. Retrieval (sync Qdrant IO — offload to thread pool) ──────────
-            context, sources = await asyncio.to_thread(
-                retrieve, request.chat_input, current_user.kb_name
+            prepared = await prepare_rag_stream(
+                query=request.chat_input,
+                kb_name=current_user.kb_name,
             )
 
             # ── 3. Persist user message immediately ──────────────────────────
@@ -206,15 +195,14 @@ async def chat_stream(
                 )
 
             # ── Emit sources before text starts ──────────────────────────────
-            yield _sse_event({"type": "sources", "sources": sources})
+            yield _sse_event({"type": "sources", "sources": prepared.sources})
 
             # ── 4. Stream LLM generation ─────────────────────────────────────
             answer_parts: list[str] = []
-            async for text in stream_generate(
+            async for text in stream_rag_completion(
                 query=request.chat_input,
-                context=context,
-                sources=sources,
-                messages=lc_history,
+                prepared=prepared,
+                history=lc_history,
             ):
                 answer_parts.append(text)
                 yield _sse_event({"type": "chunk", "text": text})
@@ -229,7 +217,7 @@ async def chat_stream(
                     session_id=request.session_id,
                     role="assistant",
                     content=full_answer,
-                    sources_json=json.dumps(sources, ensure_ascii=False),
+                    sources_json=json.dumps(prepared.sources, ensure_ascii=False),
                 )
                 await session_repo.touch(
                     request.session_id,

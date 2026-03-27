@@ -10,7 +10,6 @@ from typing import AsyncGenerator
 
 import aiosqlite
 
-from docmind.core.config import settings
 from docmind.core.time import utc_now_iso
 from docmind.db.models import (
     ALL_INDEXES,
@@ -20,6 +19,9 @@ from docmind.db.models import (
     MIGRATE_KNOWLEDGE_BASES_CONFLUENCE_COLUMNS,
     MIGRATE_KNOWLEDGE_BASES_EMBEDDING_COLUMNS,
     MIGRATE_KNOWLEDGE_BASES_ROOT_PAGE_TITLE_COLUMN,
+)
+from docmind.services.system_settings_registry import (
+    get_runtime_setting_bootstrap_values,
 )
 
 _DEFAULT_DB_PATH = Path(__file__).resolve().parents[2] / "data" / "docmind.db"
@@ -75,17 +77,7 @@ def create_sync_connection() -> sqlite3.Connection:
 
 async def _bootstrap_system_settings(conn: aiosqlite.Connection) -> None:
     """Seed runtime-editable settings from env defaults when missing in SQLite."""
-    seeded_values = {
-        "chat_max_messages": str(settings.retrieval.max_messages),
-        "retrieval_top_k": str(settings.retrieval.top_k),
-    }
-    if settings.llm.base_url:
-        seeded_values["llm_base_url"] = settings.llm.base_url
-    if settings.llm.api_key:
-        seeded_values["llm_api_key"] = settings.llm.api_key
-    if settings.llm.model:
-        seeded_values["llm_model"] = settings.llm.model
-
+    seeded_values = get_runtime_setting_bootstrap_values()
     now = utc_now_iso()
     for key, value in seeded_values.items():
         await conn.execute(

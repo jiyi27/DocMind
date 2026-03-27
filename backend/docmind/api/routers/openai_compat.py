@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import json
 import time
 import uuid
@@ -17,8 +16,11 @@ from docmind.api.dependencies import resolve_user_from_api_key
 from docmind.api.response import err_message
 from docmind.auth.schemas import UserContext
 from docmind.core import logger
-from docmind.retrieval.graph import rag_graph
-from docmind.retrieval.nodes import retrieve, stream_generate
+from docmind.services.chat_execution import (
+    prepare_rag_stream,
+    run_rag_completion,
+    stream_rag_completion,
+)
 from docmind.services.system_settings import get_llm_runtime_settings
 
 router = APIRouter(prefix="/v1", tags=["openai-compat"])
@@ -200,13 +202,10 @@ async def chat_completions(
 
     if not body.stream:
         try:
-            result = await asyncio.to_thread(
-                rag_graph.invoke,
-                {
-                    "query": query,
-                    "kb_name": current_user.kb_name,
-                    "messages": history,
-                },
+            result = await run_rag_completion(
+                query=query,
+                kb_name=current_user.kb_name,
+                history=history,
             )
         except Exception as exc:
             logger.error(
@@ -228,14 +227,15 @@ async def chat_completions(
             completion_id=completion_id,
             created=created,
             model=runtime_model,
-            answer=result.get("answer", ""),
-            sources=result.get("sources", []),
+            answer=result.answer,
+            sources=result.sources,
         )
 
     async def event_generator():
         try:
-            context, sources = await asyncio.to_thread(
-                retrieve, query, current_user.kb_name
+            prepared = await prepare_rag_stream(
+                query=query,
+                kb_name=current_user.kb_name,
             )
 
             yield _chunk_payload(
@@ -243,14 +243,13 @@ async def chat_completions(
                 created=created,
                 model=runtime_model,
                 delta={"role": "assistant"},
-                sources=sources,
+                sources=prepared.sources,
             )
 
-            async for text in stream_generate(
+            async for text in stream_rag_completion(
                 query=query,
-                context=context,
-                sources=sources,
-                messages=history,
+                prepared=prepared,
+                history=history,
             ):
                 yield _chunk_payload(
                     completion_id=completion_id,

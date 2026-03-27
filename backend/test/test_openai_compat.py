@@ -85,12 +85,20 @@ def test_openai_compat_non_stream_completion(monkeypatch) -> None:
                 "docmind.api.routers.openai_compat.get_llm_runtime_settings",
                 lambda: type("Runtime", (), {"model": "runtime-model"})(),
             )
+
+            async def fake_run_rag_completion(**kwargs):
+                return type(
+                    "Result",
+                    (),
+                    {
+                        "answer": f"Answer: {kwargs['query']}",
+                        "sources": ["[1] Test Source"],
+                    },
+                )()
+
             monkeypatch.setattr(
-                "docmind.api.routers.openai_compat.rag_graph.invoke",
-                lambda payload: {
-                    "answer": f"Answer: {payload['query']}",
-                    "sources": ["[1] Test Source"],
-                },
+                "docmind.api.routers.openai_compat.run_rag_completion",
+                fake_run_rag_completion,
             )
 
             response = client.post(
@@ -135,19 +143,27 @@ def test_openai_compat_stream_completion(monkeypatch) -> None:
                 lambda: type("Runtime", (), {"model": "runtime-model"})(),
             )
 
-            def fake_retrieve(query: str, kb_name: str) -> tuple[str, list[str]]:
-                return ("retrieved context", ["[1] Stream Source"])
+            async def fake_prepare_rag_stream(**kwargs):
+                return type(
+                    "Prepared",
+                    (),
+                    {
+                        "context": "retrieved context",
+                        "sources": ["[1] Stream Source"],
+                    },
+                )()
 
-            async def fake_stream_generate(**kwargs):
+            async def fake_stream_rag_completion(**kwargs):
                 yield "hello "
                 yield "world"
 
             monkeypatch.setattr(
-                "docmind.api.routers.openai_compat.retrieve", fake_retrieve
+                "docmind.api.routers.openai_compat.prepare_rag_stream",
+                fake_prepare_rag_stream,
             )
             monkeypatch.setattr(
-                "docmind.api.routers.openai_compat.stream_generate",
-                fake_stream_generate,
+                "docmind.api.routers.openai_compat.stream_rag_completion",
+                fake_stream_rag_completion,
             )
 
             with client.stream(

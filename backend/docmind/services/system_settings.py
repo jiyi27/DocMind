@@ -4,25 +4,22 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import threading
+from typing import Any
 
-from docmind.core.config import settings
 from docmind.core.exceptions import ConfigError
 from docmind.db.database import create_sync_connection, get_db
 from docmind.db.repositories import SystemSettingsRepository
-
-LLM_BASE_URL_KEY = "llm_base_url"
-LLM_API_KEY_KEY = "llm_api_key"
-LLM_MODEL_KEY = "llm_model"
-CHAT_MAX_MESSAGES_KEY = "chat_max_messages"
-RETRIEVAL_TOP_K_KEY = "retrieval_top_k"
-
-_RUNTIME_SETTING_KEYS = [
-    LLM_BASE_URL_KEY,
-    LLM_API_KEY_KEY,
-    LLM_MODEL_KEY,
+from docmind.services.system_settings_registry import (
     CHAT_MAX_MESSAGES_KEY,
+    LLM_API_KEY_KEY,
+    LLM_BASE_URL_KEY,
+    LLM_MODEL_KEY,
     RETRIEVAL_TOP_K_KEY,
-]
+    RUNTIME_SETTING_KEYS,
+    RUNTIME_SETTING_SPECS,
+    get_runtime_setting_defaults,
+)
+
 _cache_lock = threading.Lock()
 _settings_cache: dict[str, str] | None = None
 
@@ -37,24 +34,15 @@ class LLMRuntimeSettings:
 def _read_runtime_settings_sync() -> dict[str, str]:
     conn = create_sync_connection()
     try:
-        placeholders = ",".join("?" for _ in _RUNTIME_SETTING_KEYS)
+        placeholders = ",".join("?" for _ in RUNTIME_SETTING_KEYS)
         query = f"SELECT key, value FROM system_settings WHERE key IN ({placeholders})"
-        rows = conn.execute(query, tuple(_RUNTIME_SETTING_KEYS)).fetchall()
+        rows = conn.execute(query, tuple(RUNTIME_SETTING_KEYS)).fetchall()
         values = {str(row["key"]): str(row["value"]) for row in rows}
     finally:
         conn.close()
 
-    return {
-        LLM_BASE_URL_KEY: values.get(LLM_BASE_URL_KEY, settings.llm.base_url),
-        LLM_API_KEY_KEY: values.get(LLM_API_KEY_KEY, settings.llm.api_key),
-        LLM_MODEL_KEY: values.get(LLM_MODEL_KEY, settings.llm.model),
-        CHAT_MAX_MESSAGES_KEY: values.get(
-            CHAT_MAX_MESSAGES_KEY, str(settings.retrieval.max_messages)
-        ),
-        RETRIEVAL_TOP_K_KEY: values.get(
-            RETRIEVAL_TOP_K_KEY, str(settings.retrieval.top_k)
-        ),
-    }
+    defaults = get_runtime_setting_defaults()
+    return {key: values.get(key, default) for key, default in defaults.items()}
 
 
 def _get_cached_runtime_settings() -> dict[str, str]:
@@ -75,19 +63,41 @@ def clear_runtime_settings_cache() -> None:
         _settings_cache = None
 
 
+def _require_string_setting(key: str) -> str:
+    value = _get_cached_runtime_settings().get(key, "").strip()
+    if not value:
+        raise ConfigError(
+            f"System setting '{key}' is missing. Please update it in admin settings."
+        )
+    return value
+
+
+def _require_int_setting(key: str, *, min_value: int | None = None) -> int:
+    raw = _get_cached_runtime_settings().get(key, "").strip()
+    try:
+        parsed = int(raw)
+    except (TypeError, ValueError):
+        raise ConfigError(
+            f"System setting '{key}' is invalid. Please update it in admin settings."
+        )
+
+    if min_value is not None and parsed < min_value:
+        comparator = (
+            "greater than 0"
+            if min_value == 1
+            else f"greater than or equal to {min_value}"
+        )
+        raise ConfigError(f"System setting '{key}' must be {comparator}.")
+    return parsed
+
+
 def get_llm_runtime_settings() -> LLMRuntimeSettings:
     values = _get_cached_runtime_settings()
-    base_url = values.get(LLM_BASE_URL_KEY, "").strip()
-    api_key = values.get(LLM_API_KEY_KEY, "").strip()
-    model = values.get(LLM_MODEL_KEY, "").strip()
 
     missing_fields: list[str] = []
-    if not base_url:
-        missing_fields.append("llm_base_url")
-    if not api_key:
-        missing_fields.append("llm_api_key")
-    if not model:
-        missing_fields.append("llm_model")
+    for key in (LLM_BASE_URL_KEY, LLM_API_KEY_KEY, LLM_MODEL_KEY):
+        if not values.get(key, "").strip():
+            missing_fields.append(key)
     if missing_fields:
         raise ConfigError(
             "LLM is not fully configured. Missing system settings: "
@@ -95,33 +105,19 @@ def get_llm_runtime_settings() -> LLMRuntimeSettings:
             + "."
         )
 
-    return LLMRuntimeSettings(base_url=base_url, api_key=api_key, model=model)
+    return LLMRuntimeSettings(
+        base_url=_require_string_setting(LLM_BASE_URL_KEY),
+        api_key=_require_string_setting(LLM_API_KEY_KEY),
+        model=_require_string_setting(LLM_MODEL_KEY),
+    )
 
 
 def get_chat_max_messages() -> int:
-    values = _get_cached_runtime_settings()
-    raw = values.get(CHAT_MAX_MESSAGES_KEY, "").strip()
-    try:
-        return max(int(raw), 0)
-    except (TypeError, ValueError):
-        raise ConfigError(
-            "System setting 'chat_max_messages' is invalid. Please update it in admin settings."
-        )
+    return _require_int_setting(CHAT_MAX_MESSAGES_KEY, min_value=0)
 
 
 def get_retrieval_top_k() -> int:
-    values = _get_cached_runtime_settings()
-    raw = values.get(RETRIEVAL_TOP_K_KEY, "").strip()
-    try:
-        parsed = int(raw)
-    except (TypeError, ValueError):
-        raise ConfigError(
-            "System setting 'retrieval_top_k' is invalid. Please update it in admin settings."
-        )
-
-    if parsed <= 0:
-        raise ConfigError("System setting 'retrieval_top_k' must be greater than 0.")
-    return parsed
+    return _require_int_setting(RETRIEVAL_TOP_K_KEY, min_value=1)
 
 
 def mask_secret(secret: str) -> str:
@@ -136,32 +132,23 @@ def mask_secret(secret: str) -> str:
 async def get_runtime_settings_payload() -> dict[str, dict[str, str | int]]:
     async with get_db() as db:
         repo = SystemSettingsRepository(db)
-        values = await repo.get_many(_RUNTIME_SETTING_KEYS)
+        values = await repo.get_many(RUNTIME_SETTING_KEYS)
 
-    llm_base_url = values.get(LLM_BASE_URL_KEY, settings.llm.base_url).strip()
-    llm_api_key = values.get(LLM_API_KEY_KEY, settings.llm.api_key).strip()
-    llm_model = values.get(LLM_MODEL_KEY, settings.llm.model).strip()
-    chat_max_messages = values.get(
-        CHAT_MAX_MESSAGES_KEY, str(settings.retrieval.max_messages)
-    ).strip()
-    retrieval_top_k = values.get(
-        RETRIEVAL_TOP_K_KEY, str(settings.retrieval.top_k)
-    ).strip()
+    merged_values = {**get_runtime_setting_defaults(), **values}
+    payload: dict[str, dict[str, Any]] = {"llm": {}, "chat": {}, "retrieval": {}}
+    for key, spec in RUNTIME_SETTING_SPECS.items():
+        raw_value = merged_values.get(key, "").strip()
+        if spec.sensitive:
+            payload[spec.group]["api_key_masked"] = mask_secret(raw_value)
+            payload[spec.group]["api_key_configured"] = bool(raw_value)
+            continue
 
-    return {
-        "llm": {
-            "base_url": llm_base_url,
-            "api_key_masked": mask_secret(llm_api_key),
-            "api_key_configured": bool(llm_api_key),
-            "model": llm_model,
-        },
-        "chat": {
-            "max_messages": int(chat_max_messages),
-        },
-        "retrieval": {
-            "top_k": int(retrieval_top_k),
-        },
-    }
+        if spec.value_type == "int":
+            payload[spec.group][spec.field_name] = int(raw_value)
+        else:
+            payload[spec.group][spec.field_name] = raw_value
+
+    return payload
 
 
 async def update_runtime_settings(
