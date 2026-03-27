@@ -21,7 +21,8 @@ from pydantic import BaseModel, Field
 from docmind.api.dependencies import require_super_admin
 from docmind.api.response import ok
 from docmind.auth.schemas import UserContext
-from docmind.core.config import settings
+from docmind.core.exceptions import ConfigError
+from docmind.core.runtime_settings import get_runtime_settings_statuses
 from docmind.core.embedding import EmbeddingParams
 from docmind.core.embedding_options import list_embedding_options
 from docmind.db.database import create_async_connection, get_db
@@ -30,6 +31,10 @@ from docmind.db.repositories import (
     KBRepository,
     SyncJobRepository,
     SyncRecordRepository,
+)
+from docmind.services.system_settings import (
+    get_confluence_runtime_settings,
+    get_runtime_settings,
 )
 from docmind.vectorstore.qdrant_store import create_kb_collection, delete_kb_collection
 
@@ -130,6 +135,8 @@ def _build_embedding_params(body: "EmbeddingOverride") -> EmbeddingParams:
 
 def _serialize_kb(kb: dict) -> dict:
     """Hide sensitive values and expose frontend-friendly embedding metadata."""
+    runtime = get_runtime_settings()
+    confluence_status = get_runtime_settings_statuses(runtime)["confluence"]
     return {k: v for k, v in kb.items() if k != "embedding_api_key"} | {
         "embedding_api_key_configured": bool(kb.get("embedding_api_key")),
         "embedding_base_url_source": (
@@ -138,11 +145,10 @@ def _serialize_kb(kb: dict) -> dict:
         "embedding_api_key_source": (
             "custom" if kb.get("embedding_api_key") else "default"
         ),
-        "confluence_capability_enabled": settings.confluence.enabled,
-        "confluence_capability_message": (
-            "Confluence integration is enabled on the backend."
-            if settings.confluence.enabled
-            else "Confluence integration is not enabled on the backend. Configure CONFLUENCE_BASE_URL and CONFLUENCE_PAT on the server."
+        "confluence_capability_enabled": bool(confluence_status["configured"]),
+        "confluence_capability_message": str(confluence_status["message"]),
+        "confluence_capability_missing_fields": list(
+            confluence_status["missing_fields"]
         ),
     }
 
@@ -190,10 +196,16 @@ def _validate_confluence_settings(
             detail="confluence.sync_interval_minutes must be at least 5",
         )
 
-    if bool(settings_payload["sync_enabled"]) and not settings.confluence.enabled:
+    if (
+        bool(settings_payload["sync_enabled"])
+        and not get_runtime_settings().confluence.enabled
+    ):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Confluence integration is not enabled on the backend",
+            detail=(
+                "Confluence system settings are incomplete. Configure both "
+                "Confluence Base URL and PAT in System Settings before enabling auto sync."
+            ),
         )
 
 
@@ -473,7 +485,7 @@ async def preview_confluence_sync(
     _: UserContext = Depends(require_super_admin),
 ):
     """Scan the Confluence tree and return the expected sync impact."""
-    if not settings.confluence.enabled:
+    if not get_runtime_settings().confluence.enabled:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Confluence integration is not configured",
@@ -530,7 +542,7 @@ async def trigger_confluence_sync(
     _: UserContext = Depends(require_super_admin),
 ):
     """Create a manual sync job and start processing in the background."""
-    if not settings.confluence.enabled:
+    if not get_runtime_settings().confluence.enabled:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Confluence integration is not configured",
@@ -640,7 +652,7 @@ async def resolve_confluence_page(
     _: UserContext = Depends(require_super_admin),
 ):
     """Parse a Confluence page URL and return its page ID and title."""
-    if not settings.confluence.enabled:
+    if not get_runtime_settings().confluence.enabled:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Confluence integration is not configured",
@@ -663,10 +675,12 @@ async def resolve_confluence_page(
 
     from docmind.integrations.confluence.client import ConfluenceClient
 
-    client = ConfluenceClient(
-        base_url=settings.confluence.base_url,
-        pat=settings.confluence.pat,
-    )
+    try:
+        confluence = get_confluence_runtime_settings()
+    except ConfigError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+
+    client = ConfluenceClient(base_url=confluence.base_url, pat=confluence.pat)
     try:
         page_id, title, source_url = await client.resolve_page_url(url)
     except ValueError as exc:

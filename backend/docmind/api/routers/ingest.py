@@ -23,7 +23,6 @@ from docmind.api.serializers import (
 from docmind.api.schemas import DocumentMetadata, IngestionOptions
 from docmind.api.response import ok
 from docmind.auth.schemas import UserContext
-from docmind.core.config import settings
 from docmind.db.database import get_db
 from docmind.db.repositories import (
     DocumentRepository,
@@ -39,6 +38,7 @@ from docmind.services.document_service import (
     delete_document_and_vectors,
     enqueue_ingestion_job,
 )
+from docmind.services.system_settings import get_runtime_settings
 from docmind.vectorstore.qdrant_store import get_chunks_by_doc_id
 
 router = APIRouter(prefix="/ingest", tags=["ingestion"])
@@ -62,11 +62,9 @@ async def ingest_document(
     retrieval_mode: str = Form(
         default=DEFAULT_RETRIEVAL_MODE, description="'chunk' or 'full_doc'"
     ),
-    chunk_size: int = Form(
-        default=settings.ingestion.chunk_size, description="Target chunk size"
-    ),
-    chunk_overlap: int = Form(
-        default=settings.ingestion.chunk_overlap,
+    chunk_size: int | None = Form(default=None, description="Target chunk size"),
+    chunk_overlap: int | None = Form(
+        default=None,
         description="Overlap budget between adjacent chunks",
     ),
     current_user: UserContext = Depends(get_current_user),
@@ -81,6 +79,8 @@ async def ingest_document(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Knowledge base not found"
         )
+
+    runtime = get_runtime_settings()
 
     if retrieval_mode not in RETRIEVAL_MODES:
         raise HTTPException(
@@ -97,8 +97,14 @@ async def ingest_document(
     )
     options = IngestionOptions(
         retrieval_mode=retrieval_mode,  # type: ignore[arg-type]
-        chunk_size=chunk_size,
-        chunk_overlap=chunk_overlap,
+        chunk_size=(
+            chunk_size if chunk_size is not None else runtime.ingestion.chunk_size
+        ),
+        chunk_overlap=(
+            chunk_overlap
+            if chunk_overlap is not None
+            else runtime.ingestion.chunk_overlap
+        ),
     )
 
     doc_id = str(uuid.uuid4())
@@ -126,7 +132,7 @@ async def ingest_document(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail=f"Failed to parse document: {exc}",
             )
-        max_chars = settings.retrieval.max_full_doc_chars
+        max_chars = runtime.retrieval.max_full_doc_chars
         if total_chars > max_chars:
             tmp_path.unlink(missing_ok=True)
             raise HTTPException(

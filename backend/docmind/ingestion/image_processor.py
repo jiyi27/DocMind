@@ -19,9 +19,9 @@ from urllib.parse import urlparse
 from langchain_core.messages import HumanMessage
 
 from docmind.core import logger
-from docmind.core.config import settings
 from docmind.core.llm import get_image_llm
 from docmind.ingestion.prompts import image_summarization_prompt
+from docmind.services.system_settings import get_runtime_settings
 
 
 class ImageFetchError(Exception):
@@ -161,16 +161,17 @@ def _fetch_image_bytes(url: str) -> bytes:
 def _build_request_headers(url: str) -> dict[str, str]:
     headers = {"User-Agent": "DocMind-ImageProcessor/1.0"}
     if _should_attach_confluence_auth(url):
-        headers["Authorization"] = f"Bearer {settings.confluence.pat}"
+        headers["Authorization"] = f"Bearer {get_runtime_settings().confluence.pat}"
     return headers
 
 
 def _should_attach_confluence_auth(url: str) -> bool:
-    if not settings.confluence.enabled:
+    confluence = get_runtime_settings().confluence
+    if not confluence.enabled:
         return False
 
     request_host = urlparse(url).netloc.lower()
-    confluence_host = urlparse(settings.confluence.base_url).netloc.lower()
+    confluence_host = urlparse(confluence.base_url).netloc.lower()
     return bool(request_host and confluence_host and request_host == confluence_host)
 
 
@@ -185,11 +186,10 @@ def get_image_processor() -> ImageProcessor:
     Config validation (missing vars, invalid mode) is enforced at startup via
     lifespan.py, so by the time this is called the settings are guaranteed valid.
     """
-    from docmind.core.config import settings
-
-    mode = settings.ingestion.image_processor
+    runtime = get_runtime_settings()
+    mode = runtime.ingestion.image_processor
     if mode == "multimodal":
-        vision = settings.ingestion.image_vision
+        vision = runtime.ingestion.image_vision
         logger.debug(
             "image_processor_init", {"mode": "multimodal", "model": vision.model}
         )

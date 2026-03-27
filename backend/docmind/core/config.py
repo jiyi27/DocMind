@@ -1,119 +1,51 @@
-"""Application configuration loaded from environment variables.
-
-All configuration values are required and must be provided via environment
-variables (or a .env file). There are no code-level defaults — missing
-variables are collected and reported at startup, then the process exits.
-"""
+"""Startup configuration loaded from environment variables."""
 
 from __future__ import annotations
 
 import os
 from dataclasses import dataclass
+from pathlib import Path
+
 from dotenv import load_dotenv
 
 load_dotenv()
 
-# ---------------------------------------------------------------------------
-# Internal helpers
-# ---------------------------------------------------------------------------
+_MISSING: list[str] = []
+_DEFAULT_DB_PATH = Path(__file__).resolve().parents[2] / "data" / "docmind.db"
+_VALID_LOG_LEVELS = {"debug", "info", "error"}
 
 
 def _require_str(env_var: str) -> str:
-    """Return the value of *env_var*, recording it as missing if absent/empty."""
     value = os.getenv(env_var, "").strip()
     if not value:
         _MISSING.append(env_var)
     return value
 
 
-def _require_int(env_var: str) -> int:
-    """Return *env_var* parsed as int, recording it as missing/invalid if needed."""
+def _optional_int(env_var: str, default: int) -> int:
     raw = os.getenv(env_var, "").strip()
     if not raw:
-        _MISSING.append(env_var)
-        return 0  # sentinel; process will exit before this value is used
+        return default
     try:
         return int(raw)
-    except (ValueError, TypeError):
+    except (TypeError, ValueError):
         _MISSING.append(f"{env_var} (value {raw!r} is not a valid integer)")
-        return 0
+        return default
 
 
-def _require_bool(env_var: str) -> bool:
-    """Return *env_var* parsed as bool, recording it as missing/invalid if needed."""
-    raw = os.getenv(env_var, "").strip().lower()
-    if not raw:
-        _MISSING.append(env_var)
-        return False  # sentinel; process will exit before this value is used
-    if raw in {"1", "true", "yes", "y", "on"}:
-        return True
-    if raw in {"0", "false", "no", "n", "off"}:
-        return False
-    _MISSING.append(f"{env_var} (value {raw!r} is not a valid boolean)")
-    return False
-
-
-# Accumulates names of missing / invalid env vars during module import.
-_MISSING: list[str] = []
-
-# ---------------------------------------------------------------------------
-# Config dataclasses — no defaults, every field reads from env
-# ---------------------------------------------------------------------------
-
-
-@dataclass(frozen=True)
-class QdrantConfig:
-    """Qdrant vector database configuration."""
-
-    url: str
-    collection: str
-
-
-@dataclass(frozen=True)
-class ImageVisionConfig:
-    """Vision LLM used for image summarization (multimodal mode only)."""
-
-    api_key: str
-    model: str
-    base_url: str
-
-
-@dataclass(frozen=True)
-class IngestionConfig:
-    """Document ingestion pipeline configuration."""
-
-    chunk_size: int
-    chunk_overlap: int
-    enable_code_summarization: bool
-    # Image processing backend: "multimodal" | "ocr" | "none"
-    image_processor: str
-    # Vision LLM settings — required when image_processor == "multimodal"
-    image_vision: ImageVisionConfig
-
-
-@dataclass(frozen=True)
-class RetrievalConfig:
-    """Retrieval pipeline configuration."""
-
-    top_k: int
-    max_messages: int  # Max number of messages to keep in conversation history (oldest are dropped first).
-    max_full_docs: int  # Max number of full-article documents to include in a single retrieval context.
-    max_full_doc_chars: int  # Max characters allowed per full-article document (upload validation + retrieval truncation).
+def _optional_str(env_var: str, default: str) -> str:
+    value = os.getenv(env_var, "").strip()
+    return value or default
 
 
 @dataclass(frozen=True)
 class LogConfig:
-    """Logging configuration."""
-
     dir: str
-    # Minimum level to write: "debug" | "info" | "error"
     level: str
 
 
 @dataclass(frozen=True)
 class JWTConfig:
-    """JWT authentication configuration."""
-
     secret_key: str
     algorithm: str
     expire_minutes: int
@@ -121,163 +53,72 @@ class JWTConfig:
 
 @dataclass(frozen=True)
 class AdminConfig:
-    """
-    Super-admin access control configuration.
-
-    super_admin_usernames: Comma-separated list of usernames that are granted
-        super-admin privileges (e.g. creating / deleting knowledge bases and
-        other privileged operations).  These users must still authenticate via
-        JWT — this list only controls *what* they are allowed to do after log in.
-
-        Example env value:  SUPER_ADMIN_USERNAMES=super_admin,alice,bob
-    """
-
     super_admin_usernames: frozenset[str]
 
 
 @dataclass(frozen=True)
 class CORSConfig:
-    """
-    CORS configuration.
-
-    allowed_origins: Comma-separated list of allowed origins.
-        Use "*" to allow all origins (not recommended for production).
-
-        Example env value:  CORS_ORIGINS=http://localhost:3000,https://app.example.com
-    """
-
     allowed_origins: list[str]
 
 
 @dataclass(frozen=True)
-class ConfluenceConfig:
-    """Confluence integration (optional).
-
-    If both base_url and pat are empty, integration is disabled.
-    If only one is set, startup fails fast with a clear error.
-    """
-
-    base_url: str
-    pat: str
-
-    @property
-    def enabled(self) -> bool:
-        return bool(self.base_url and self.pat)
+class DatabaseConfig:
+    path: str
 
 
 @dataclass(frozen=True)
 class Settings:
-    """Root settings aggregating all sub-configurations."""
-
-    qdrant: QdrantConfig
-    ingestion: IngestionConfig
-    retrieval: RetrievalConfig
     log: LogConfig
     jwt: JWTConfig
     admin: AdminConfig
     cors: CORSConfig
-    confluence: ConfluenceConfig
+    database: DatabaseConfig
 
     def validate(self) -> list[str]:
-        """Return the list of missing / invalid environment variables collected at import time."""
         return list(_MISSING)
 
 
-_VALID_IMAGE_PROCESSOR_MODES = {"multimodal", "ocr", "none"}
-
-
-def _load_image_processor_mode() -> str:
-    """Read and validate IMAGE_PROCESSOR; record in _MISSING if invalid."""
-    mode = os.getenv("IMAGE_PROCESSOR", "none").strip().lower()
-    if mode not in _VALID_IMAGE_PROCESSOR_MODES:
+def _load_log_config() -> LogConfig:
+    level = _optional_str("LOG_LEVEL", "INFO").strip()
+    if level.lower() not in _VALID_LOG_LEVELS:
         _MISSING.append(
-            f"IMAGE_PROCESSOR (value {mode!r} is not valid; must be one of: "
-            f"{sorted(_VALID_IMAGE_PROCESSOR_MODES)})"
+            f"LOG_LEVEL (value {level!r} is not valid; must be one of: "
+            f"{sorted(_VALID_LOG_LEVELS)})"
         )
-    return mode
-
-
-def _load_image_vision_config() -> "ImageVisionConfig":
-    """Read IMAGE_VISION_* vars; require all three when IMAGE_PROCESSOR=multimodal."""
-    mode = os.getenv("IMAGE_PROCESSOR", "none").strip().lower()
-    if mode == "multimodal":
-        return ImageVisionConfig(
-            api_key=_require_str("IMAGE_VISION_API_KEY"),
-            model=_require_str("IMAGE_VISION_MODEL"),
-            base_url=_require_str("IMAGE_VISION_BASE_URL"),
-        )
-    # For ocr / none, the vision fields are unused; store empty strings.
-    return ImageVisionConfig(api_key="", model="", base_url="")
-
-
-def _load_confluence_config() -> "ConfluenceConfig":
-    """Read Confluence env vars with optional semantics.
-
-    Both empty → integration disabled.
-    Only one set → record error in _MISSING for fail-fast at startup.
-    """
-    base_url = os.getenv("CONFLUENCE_BASE_URL", "").strip()
-    pat = os.getenv("CONFLUENCE_PAT", "").strip()
-
-    if bool(base_url) != bool(pat):
-        _MISSING.append(
-            "CONFLUENCE_BASE_URL and CONFLUENCE_PAT must both be set or both be empty"
-        )
-
-    return ConfluenceConfig(
-        base_url=base_url,
-        pat=pat,
+    return LogConfig(
+        dir=_optional_str("LOG_DIR", "logs"),
+        level=level,
     )
+
+
+def _load_admin_config() -> AdminConfig:
+    raw = _require_str("SUPER_ADMIN_USERNAMES")
+    usernames = frozenset(name.strip() for name in raw.split(",") if name.strip())
+    if not usernames:
+        _MISSING.append("SUPER_ADMIN_USERNAMES (must contain at least one username)")
+    return AdminConfig(super_admin_usernames=usernames)
 
 
 def _build_settings() -> Settings:
-    """Construct Settings by reading all required environment variables."""
     return Settings(
-        qdrant=QdrantConfig(
-            url=_require_str("QDRANT_URL"),
-            collection="docmind",  # base prefix; actual collections are docmind_{kb_name}
-        ),
+        log=_load_log_config(),
         jwt=JWTConfig(
             secret_key=_require_str("JWT_SECRET_KEY"),
-            algorithm=os.getenv("JWT_ALGORITHM", "HS256"),
-            expire_minutes=_require_int("JWT_EXPIRE_MINUTES"),
+            algorithm=_optional_str("JWT_ALGORITHM", "HS256"),
+            expire_minutes=_optional_int("JWT_EXPIRE_MINUTES", 1440),
         ),
-        ingestion=IngestionConfig(
-            chunk_size=_require_int("CHUNK_SIZE"),
-            chunk_overlap=_require_int("CHUNK_OVERLAP"),
-            enable_code_summarization=_require_bool("ENABLE_CODE_SUMMARIZATION"),
-            image_processor=_load_image_processor_mode(),
-            image_vision=_load_image_vision_config(),
-        ),
-        retrieval=RetrievalConfig(
-            top_k=_require_int("TOP_K"),
-            max_messages=_require_int("MAX_MESSAGES"),
-            max_full_docs=_require_int("MAX_FULL_DOCS"),
-            max_full_doc_chars=_require_int("MAX_FULL_DOC_CHARS"),
-        ),
-        log=LogConfig(
-            dir=_require_str("LOG_DIR"),
-            level=_require_str("LOG_LEVEL"),
-        ),
-        admin=AdminConfig(
-            super_admin_usernames=frozenset(
-                name.strip()
-                for name in os.getenv("SUPER_ADMIN_USERNAMES", "").split(",")
-                if name.strip()
-            ),
-        ),
+        admin=_load_admin_config(),
         cors=CORSConfig(
             allowed_origins=[
                 origin.strip()
-                for origin in os.getenv("CORS_ORIGINS", "*").split(",")
+                for origin in _optional_str("CORS_ORIGINS", "*").split(",")
                 if origin.strip()
             ],
         ),
-        confluence=_load_confluence_config(),
+        database=DatabaseConfig(
+            path=os.getenv("DOCMIND_DB_PATH", "").strip() or str(_DEFAULT_DB_PATH)
+        ),
     )
 
 
-# Singleton — import `settings` wherever needed.
-# Missing variables are recorded during construction; call settings.validate()
-# at startup and abort if the returned list is non-empty.
 settings = _build_settings()

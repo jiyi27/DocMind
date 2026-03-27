@@ -7,7 +7,6 @@ from typing import Callable, TypedDict
 
 from langchain_core.documents import Document
 
-from docmind.core.config import settings
 from docmind.core import logger
 from docmind.core.llm import get_llm
 from docmind.core.metadata import (
@@ -31,11 +30,17 @@ from docmind.ingestion.loaders import load_document
 from docmind.ingestion.state import IngestionState
 from docmind.ingestion.prompts import code_summarization_prompt
 from docmind.core.embedding import get_embedding_for_kb
+from docmind.services.system_settings import get_runtime_settings
 from docmind.vectorstore.qdrant_store import get_vector_store_for_kb
 
 FENCED_BLOCK_PATTERN = re.compile(r"```.*?```", flags=re.DOTALL)
 CODE_PLACEHOLDER_RE = re.compile(r"^__CODE_BLOCK_(\d+)__$")
 PLAIN_FENCED_PLACEHOLDER_RE = re.compile(r"__PLAIN_FENCED_BLOCK_(\d+)__")
+settings = None
+
+
+def _runtime_settings():
+    return settings or get_runtime_settings()
 
 
 def _halve_text(text: str, max_size: int) -> list[str]:
@@ -548,8 +553,9 @@ def split_text_node(state: IngestionState) -> dict:
     """Split documents into smaller chunks."""
     try:
         options = state.get("options", {})
-        target_size = options.get("chunk_size", settings.ingestion.chunk_size)
-        chunk_overlap = options.get("chunk_overlap", settings.ingestion.chunk_overlap)
+        runtime = _runtime_settings()
+        target_size = options.get("chunk_size", runtime.ingestion.chunk_size)
+        chunk_overlap = options.get("chunk_overlap", runtime.ingestion.chunk_overlap)
 
         final_chunks = []
 
@@ -578,7 +584,7 @@ def summarize_code_node(state: IngestionState) -> dict:
     chunks = state.get("chunks", [])
     if not chunks:
         return {"chunks": []}
-    if not settings.ingestion.enable_code_summarization:
+    if not _runtime_settings().ingestion.enable_code_summarization:
         # Global ingestion toggle: keep chunking behavior unchanged, only skip LLM summarization.
         return {"chunks": chunks}
 
@@ -678,7 +684,7 @@ def summarize_image_node(state: IngestionState) -> dict:
     if not chunks:
         return {"chunks": []}
 
-    mode = settings.ingestion.image_processor
+    mode = _runtime_settings().ingestion.image_processor
     if mode == "none":
         # Drop image chunks entirely — no image processing means no useful content to embed.
         return {

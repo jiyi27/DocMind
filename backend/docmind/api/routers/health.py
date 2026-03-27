@@ -7,7 +7,10 @@ import asyncio
 from fastapi import APIRouter
 
 from docmind.api.response import ok, err
-from docmind.services.system_settings import get_llm_runtime_settings
+from docmind.services.system_settings import (
+    get_llm_runtime_settings,
+    get_qdrant_runtime_settings,
+)
 
 router = APIRouter(tags=["health"])
 
@@ -19,9 +22,10 @@ async def health_check():
 
     # Check Qdrant connectivity (run in thread to avoid blocking the event loop)
     try:
-        from docmind.vectorstore.qdrant_store import get_vector_store
+        from docmind.vectorstore.qdrant_store import check_qdrant_connection
 
-        await asyncio.to_thread(get_vector_store)
+        get_qdrant_runtime_settings()
+        await asyncio.to_thread(check_qdrant_connection)
         checks["qdrant"] = "ok"
     except Exception as exc:
         checks["qdrant"] = f"error: {type(exc).__name__}"

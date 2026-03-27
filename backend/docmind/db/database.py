@@ -10,7 +10,9 @@ from typing import AsyncGenerator
 
 import aiosqlite
 
+from docmind.core.config import settings
 from docmind.core.time import utc_now_iso
+from docmind.core.runtime_settings import get_runtime_setting_bootstrap_values
 from docmind.db.models import (
     ALL_INDEXES,
     ALL_TABLES,
@@ -20,11 +22,7 @@ from docmind.db.models import (
     MIGRATE_KNOWLEDGE_BASES_EMBEDDING_COLUMNS,
     MIGRATE_KNOWLEDGE_BASES_ROOT_PAGE_TITLE_COLUMN,
 )
-from docmind.services.system_settings_registry import (
-    get_runtime_setting_bootstrap_values,
-)
 
-_DEFAULT_DB_PATH = Path(__file__).resolve().parents[2] / "data" / "docmind.db"
 _PRAGMAS = (
     "PRAGMA journal_mode = WAL;",
     "PRAGMA synchronous = NORMAL;",
@@ -38,7 +36,7 @@ def get_db_path() -> str:
     configured_path = os.getenv("DOCMIND_DB_PATH", "").strip()
     if configured_path:
         return configured_path
-    return str(_DEFAULT_DB_PATH)
+    return settings.database.path
 
 
 def _ensure_db_parent_dir(db_path: str) -> None:

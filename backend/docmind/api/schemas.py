@@ -4,8 +4,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from docmind.core.config import settings
 from docmind.ingestion.constants import DEFAULT_RETRIEVAL_MODE
+from docmind.services.system_settings import get_runtime_settings
 
 
 class DocumentMetadata(BaseModel):
@@ -23,11 +23,11 @@ class IngestionOptions(BaseModel):
         description="'chunk': retrieve individual chunks. 'full_doc': retrieve the full article when any chunk matches.",
     )
     chunk_size: int = Field(
-        default=settings.ingestion.chunk_size,
+        default_factory=lambda: get_runtime_settings().ingestion.chunk_size,
         description="Target chunk size for semantic merging.",
     )
     chunk_overlap: int = Field(
-        default=settings.ingestion.chunk_overlap,
+        default_factory=lambda: get_runtime_settings().ingestion.chunk_overlap,
         description="Overlap budget between adjacent chunks.",
     )
 

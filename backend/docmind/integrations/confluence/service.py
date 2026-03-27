@@ -15,7 +15,6 @@ from typing import Any
 import aiosqlite
 
 from docmind.core import logger
-from docmind.core.config import settings
 from docmind.core.time import utc_now_iso
 from docmind.db.repositories import (
     DocumentRepository,
@@ -36,6 +35,10 @@ from docmind.services.document_service import (
     create_pending_document,
     delete_document_and_vectors,
     enqueue_ingestion_job,
+)
+from docmind.services.system_settings import (
+    get_confluence_runtime_settings,
+    get_runtime_settings,
 )
 
 UPLOAD_DIR = Path("data/uploads")
@@ -63,10 +66,8 @@ async def plan_sync(
     if not root_page_id:
         return kb, None, None
 
-    client = ConfluenceClient(
-        base_url=settings.confluence.base_url,
-        pat=settings.confluence.pat,
-    )
+    confluence = get_confluence_runtime_settings()
+    client = ConfluenceClient(base_url=confluence.base_url, pat=confluence.pat)
 
     try:
         remote_pages = await client.walk_page_tree(root_page_id)
@@ -114,7 +115,7 @@ async def _apply_create(
 
         # Full-doc size guard
         if retrieval_mode == "full_doc":
-            max_chars = settings.retrieval.max_full_doc_chars
+            max_chars = get_runtime_settings().retrieval.max_full_doc_chars
             if len(md_content) > max_chars:
                 await record_repo.create(
                     job_id=job_id,
@@ -152,8 +153,8 @@ async def _apply_create(
             metadata={"title": title, "url": source_url},
             options={
                 "retrieval_mode": retrieval_mode,
-                "chunk_size": settings.ingestion.chunk_size,
-                "chunk_overlap": settings.ingestion.chunk_overlap,
+                "chunk_size": get_runtime_settings().ingestion.chunk_size,
+                "chunk_overlap": get_runtime_settings().ingestion.chunk_overlap,
             },
             user_id="",
             kb_name=kb_name,
@@ -215,7 +216,7 @@ async def _apply_update(
 
         # Full-doc size guard — keep old doc if new content is too large
         if retrieval_mode == "full_doc":
-            max_chars = settings.retrieval.max_full_doc_chars
+            max_chars = get_runtime_settings().retrieval.max_full_doc_chars
             if len(md_content) > max_chars:
                 await record_repo.create(
                     job_id=job_id,
@@ -257,8 +258,8 @@ async def _apply_update(
             metadata={"title": title, "url": source_url},
             options={
                 "retrieval_mode": retrieval_mode,
-                "chunk_size": settings.ingestion.chunk_size,
-                "chunk_overlap": settings.ingestion.chunk_overlap,
+                "chunk_size": get_runtime_settings().ingestion.chunk_size,
+                "chunk_overlap": get_runtime_settings().ingestion.chunk_overlap,
             },
             user_id="",
             kb_name=kb_name,
@@ -388,10 +389,8 @@ async def execute_sync(db: aiosqlite.Connection, kb_id: str, job_id: str) -> Non
             },
         )
 
-        client = ConfluenceClient(
-            base_url=settings.confluence.base_url,
-            pat=settings.confluence.pat,
-        )
+        confluence = get_confluence_runtime_settings()
+        client = ConfluenceClient(base_url=confluence.base_url, pat=confluence.pat)
 
         for page in plan.to_create:
             await _apply_create(

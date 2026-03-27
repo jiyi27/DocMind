@@ -26,23 +26,20 @@ async def lifespan(app: FastAPI):
     # Initialize SQLite database (creates tables if they don't exist)
     from docmind.db.database import close_db, init_db
     from docmind.ingestion.worker import IngestionQueueWorker
+    from docmind.integrations.confluence.worker import ConfluenceSyncWorker
+    from docmind.services.system_settings import initialize_runtime_settings_cache
 
     await init_db()
+    initialize_runtime_settings_cache()
     worker = IngestionQueueWorker()
     worker.start()
 
-    # Start Confluence sync worker only if configured
-    confluence_worker = None
-    if settings.confluence.enabled:
-        from docmind.integrations.confluence.worker import ConfluenceSyncWorker
-
-        confluence_worker = ConfluenceSyncWorker()
-        confluence_worker.start()
+    confluence_worker = ConfluenceSyncWorker()
+    confluence_worker.start()
 
     yield  # App is running
 
     # Cleanup resources on shutdown
-    if confluence_worker is not None:
-        confluence_worker.stop()
+    confluence_worker.stop()
     worker.stop()
     await close_db()

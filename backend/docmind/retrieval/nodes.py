@@ -8,7 +8,6 @@ from typing import AsyncGenerator
 from langchain_core.messages import AnyMessage, HumanMessage
 
 from docmind.core import logger
-from docmind.core.config import settings
 from docmind.core.metadata import (
     CHUNK_TYPE_CODE_BLOCK,
     DEFAULT_RETRIEVAL_MODE,
@@ -28,7 +27,7 @@ from docmind.retrieval.resolvers import (
 )
 from docmind.retrieval.state import RAGState
 from docmind.core.embedding import get_embedding_for_kb
-from docmind.services.system_settings import get_retrieval_top_k
+from docmind.services.system_settings import get_retrieval_top_k, get_runtime_settings
 from docmind.vectorstore.qdrant_store import get_vector_store_for_kb
 
 _SEARCH_OVERSAMPLE_FACTOR = 2
@@ -65,8 +64,9 @@ def _resolve_chat_hits(
     results: list[tuple[Document, float]], kb_name: str
 ) -> dict[str, list[ContextItem] | list[Document] | str | list[str]]:
     """Convert raw hits into chat-ready context with full-doc limits applied."""
-    max_full_docs = settings.retrieval.max_full_docs
-    max_full_doc_chars = settings.retrieval.max_full_doc_chars
+    runtime = get_runtime_settings()
+    max_full_docs = runtime.retrieval.max_full_docs
+    max_full_doc_chars = runtime.retrieval.max_full_doc_chars
 
     context_items: list[ContextItem] = []
     retrieved_docs = []

@@ -9,10 +9,12 @@ import threading
 
 from langchain_openai import ChatOpenAI
 
-from docmind.core.config import settings
 from docmind.core import logger
 from docmind.core.exceptions import ConfigError
-from docmind.services.system_settings import get_llm_runtime_settings
+from docmind.services.system_settings import (
+    get_image_vision_runtime_settings,
+    get_llm_runtime_settings,
+)
 
 _llm_instances: dict[tuple[str, str, str], ChatOpenAI] = {}
 _image_llm_instance: ChatOpenAI | None = None
@@ -67,6 +69,8 @@ def get_llm() -> ChatOpenAI:
 def clear_llm_cache() -> None:
     with _lock:
         _llm_instances.clear()
+        global _image_llm_instance
+        _image_llm_instance = None
 
 
 def get_image_llm() -> ChatOpenAI:
@@ -86,15 +90,15 @@ def get_image_llm() -> ChatOpenAI:
         if _image_llm_instance is not None:
             return _image_llm_instance
 
-        vision = settings.ingestion.image_vision
+        vision = get_image_vision_runtime_settings()
         if not vision.api_key:
             logger.error(
                 "image_llm_init_failed",
-                {"reason": "IMAGE_VISION_API_KEY is not configured"},
+                {"reason": "ingestion_image_vision_api_key is not configured"},
             )
             raise ConfigError(
-                "IMAGE_VISION_API_KEY is not configured. "
-                "Please set it in your environment."
+                "ingestion_image_vision_api_key is not configured. "
+                "Please update it in admin settings."
             )
 
         _image_llm_instance = ChatOpenAI(

@@ -1,7 +1,8 @@
 """Background Confluence sync worker.
 
 Periodically scans for KBs with ``confluence_sync_enabled = 1`` and
-triggers sync for each. Only starts when Confluence is configured.
+triggers sync for each. Runtime Confluence configuration is validated
+when KB sync is enabled and again when a sync actually runs.
 """
 
 from __future__ import annotations

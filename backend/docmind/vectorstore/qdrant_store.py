@@ -13,11 +13,11 @@ from langchain_qdrant import QdrantVectorStore
 from qdrant_client import QdrantClient
 from qdrant_client.http.models import Distance, VectorParams
 
-from docmind.core.config import settings
 from docmind.core import logger
 from docmind.core.embedding import EmbeddingParams, get_embedding_model
 from docmind.core.exceptions import VectorStoreError
 from docmind.core.metadata import META_DOC_ID, META_KB_NAME, META_USER_ID
+from docmind.services.system_settings import get_qdrant_runtime_settings
 
 # Qdrant payload path for the doc_id filter field.
 # langchain-qdrant serialises Document.metadata under a "metadata" key in the
@@ -28,6 +28,10 @@ _DISTANCE = Distance.COSINE
 
 _store_cache: dict[str, QdrantVectorStore] = {}
 _lock = threading.Lock()
+
+
+def _qdrant_url() -> str:
+    return get_qdrant_runtime_settings().url
 
 
 def _make_client() -> QdrantClient:
@@ -45,7 +49,7 @@ def _make_client() -> QdrantClient:
     to reach, this setting must be revisited and an explicit proxy URL should be
     added to settings instead of relying on the system environment.
     """
-    return QdrantClient(url=settings.qdrant.url, trust_env=False)
+    return QdrantClient(url=_qdrant_url(), trust_env=False)
 
 
 # Re-export so external imports of VectorStoreError from this module still work.
@@ -94,7 +98,7 @@ def _ensure_collection(client: QdrantClient, col: str, embeddings: Embeddings) -
         logger.debug(
             "vectorstore_collection_exists",
             {
-                "qdrant_url": settings.qdrant.url,
+                "qdrant_url": _qdrant_url(),
                 "collection": col,
             },
         )
@@ -109,7 +113,7 @@ def _ensure_collection(client: QdrantClient, col: str, embeddings: Embeddings) -
     logger.info(
         "vectorstore_collection_created",
         {
-            "qdrant_url": settings.qdrant.url,
+            "qdrant_url": _qdrant_url(),
             "collection": col,
             "vector_size": vector_size,
             "distance": str(_DISTANCE),
@@ -154,7 +158,7 @@ async def create_kb_collection(
             logger.info(
                 "vectorstore_collection_created",
                 {
-                    "qdrant_url": settings.qdrant.url,
+                    "qdrant_url": _qdrant_url(),
                     "collection": col,
                     "vector_size": vector_size,
                     "distance": str(_DISTANCE),
@@ -164,7 +168,7 @@ async def create_kb_collection(
         else:
             logger.debug(
                 "vectorstore_collection_exists",
-                {"qdrant_url": settings.qdrant.url, "collection": col},
+                {"qdrant_url": _qdrant_url(), "collection": col},
             )
             # Probe dimension from existing collection
             info = client.get_collection(col)
@@ -339,7 +343,7 @@ def get_vector_store(
             store = QdrantVectorStore.from_existing_collection(
                 embedding=emb,
                 collection_name=col,
-                url=settings.qdrant.url,
+                url=_qdrant_url(),
             )
         except VectorStoreError:
             raise
@@ -347,14 +351,14 @@ def get_vector_store(
             logger.error(
                 "vectorstore_connect_failed",
                 {
-                    "qdrant_url": settings.qdrant.url,
+                    "qdrant_url": _qdrant_url(),
                     "collection": col,
                     "error_type": type(exc).__name__,
                     "error": str(exc),
                 },
             )
             raise VectorStoreError(
-                f"Failed to connect to Qdrant at {settings.qdrant.url} "
+                f"Failed to connect to Qdrant at {_qdrant_url()} "
                 f"(collection={col!r}): {exc}"
             ) from exc
 
@@ -363,7 +367,7 @@ def get_vector_store(
         logger.debug(
             "vectorstore_connected",
             {
-                "qdrant_url": settings.qdrant.url,
+                "qdrant_url": _qdrant_url(),
                 "collection": col,
             },
         )
@@ -374,3 +378,9 @@ def reset_store_cache() -> None:
     """Clear the cached vector store instances (useful for testing)."""
     with _lock:
         _store_cache.clear()
+
+
+def check_qdrant_connection() -> None:
+    """Verify that the configured Qdrant endpoint is reachable."""
+    client = _make_client()
+    client.get_collections()

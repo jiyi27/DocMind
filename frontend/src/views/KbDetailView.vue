@@ -284,10 +284,19 @@
 
         <el-form-item label="Auto Sync">
           <div class="switch-field">
-            <el-switch v-model="confluenceForm.sync_enabled" />
+            <el-switch
+              v-model="confluenceForm.sync_enabled"
+              :disabled="!kbDetail?.confluence_capability_enabled"
+            />
             <div class="switch-field-copy">
               <div class="form-hint form-hint--spacious">
                 Automatically sync content from the configured Confluence page tree.
+              </div>
+              <div
+                v-if="!kbDetail?.confluence_capability_enabled"
+                class="form-hint form-hint--spacious"
+              >
+                Configure Confluence Base URL and PAT in System Settings first.
               </div>
             </div>
           </div>
@@ -804,6 +813,12 @@ async function submitConfluenceForm() {
   if (!valid) return
 
   const url = confluenceForm.value.root_page_url.trim()
+
+  if (confluenceForm.value.sync_enabled && !kbDetail.value?.confluence_capability_enabled) {
+    ElMessage.error('Configure Confluence Base URL and PAT in System Settings before enabling auto sync')
+    return
+  }
+
   confluenceSaving.value = true
 
   try {
