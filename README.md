@@ -48,6 +48,18 @@ A robust, multi-tenant RAG (Retrieval-Augmented Generation) Knowledge Base syste
 - **CSS**: Tailwind CSS
 - **Package Manager**: pnpm
 
+### Background Workers & Job Flow
+
+DocMind runs two long-lived backend workers. `ConfluenceSyncWorker` operates at the knowledge-base level: it scans KBs with Confluence sync enabled, supports both scheduled sync and manual `Sync Now` triggers, and creates a `kb_sync_job` for each full sync run.
+
+While executing a `kb_sync_job`, `ConfluenceSyncWorker` traverses the configured Confluence page tree, compares remote pages with locally tracked Confluence documents, and determines whether each page should be created, updated, or deleted. For created and updated pages, it fetches the latest content, writes the local source file, updates or rebuilds the `documents` record, and creates downstream `ingestion_jobs`. For deleted pages, it removes the corresponding local and vector data.
+
+`IngestionQueueWorker` is the worker that performs document-level ingestion work. It continuously scans `ingestion_jobs` and runs the full ingest pipeline for each pending document: reading the file, splitting it into chunks, generating embeddings, writing vectors to Qdrant, and updating document and job status.
+
+In practice, `kb_sync_job` represents a knowledge-base-level sync run, while `ingestion_job` represents a document-level ingest run. `ingestion_jobs` are created either when a user uploads a document manually or when a Confluence sync detects that a page must be created or refreshed.
+
+For more detail, see [docs/backend_workers_and_jobs_overview.zh-CN.md](docs/backend_workers_and_jobs_overview.zh-CN.md).
+
 ## Advanced Ingestion & Preprocessing Pipeline
 
 DocMind features a highly optimized, LangGraph-orchestrated document ingestion pipeline that addresses critical pain points in standard RAG architectures.

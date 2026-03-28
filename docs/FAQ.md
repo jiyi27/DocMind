@@ -31,13 +31,13 @@
 
 ### Q: Code block, blockquote, table, image 超过 `CHUNK_SIZE` 会被切开吗
 
-| Block 类型                      | 保护机制                                                    | 超过 CHUNK_SIZE 的行为                  |
+| Block 类型 | 保护机制 | 超过 CHUNK_SIZE 的行为 |
 | ------------------------------- | ----------------------------------------------------------- | --------------------------------------- |
-| **Code block**(\`\`\`...\`\`\`) | 切割前替换为 `__CODE_BLOCK_N__` 占位符                      | **整体保留, 不切割**, 单独占一个 chunk  |
-| **Blockquote**(`>` 开头)        | 切割前替换为 `__BLOCKQUOTE_N__` 占位符                      | **整体保留, 不切割**, 单独占一个 chunk  |
-| **Table**(pipe 语法)            | 切割前替换为 `__TABLE_N__` 占位符 (转为 `key: value` prose) | **整体保留, 不切割**, 单独占一个 chunk  |
-| **Image**(`![alt](url)`)        | 单独 emit 一个 Document, 不参与 pack 逻辑                   | **独立成一个 chunk**, 不受大小控制      |
-| **普通段落 (prose)**            | 直接参与大小判断                                            | **超过则被 `_halve_text` 递归二分切割** |
+| **Code block**(\`\`\`...\`\`\`) | 切割前替换为 `__CODE_BLOCK_N__` 占位符 | **整体保留, 不切割**, 单独占一个 chunk |
+| **Blockquote**(`>` 开头) | 切割前替换为 `__BLOCKQUOTE_N__` 占位符 | **整体保留, 不切割**, 单独占一个 chunk |
+| **Table**(pipe 语法) | 切割前替换为 `__TABLE_N__` 占位符 (转为 `key: value` prose) | **整体保留, 不切割**, 单独占一个 chunk |
+| **Image**(`![alt](url)`) | 单独 emit 一个 Document, 不参与 pack 逻辑 | **独立成一个 chunk**, 不受大小控制 |
+| **普通段落 (prose)** | 直接参与大小判断 | **超过则被 `_halve_text` 递归二分切割** |
 
 ### Q: 普通段落超过 `CHUNK_SIZE` 是怎么切的
 
@@ -67,7 +67,7 @@
 
 **限制只在 `full_doc` 检索模式下生效**, `chunk` 模式没有大小限制, 文档会被正常切片入库
 
-`full_doc` 模式下, 控制参数是 `MAX_FULL_DOC_CHARS`, 有三处地方会用到它:
+`full_doc` 模式下, 控制参数是 `MAX_FULL_DOC_CHARS`, 有三处地方会用到它
 
 **手动上传**
 

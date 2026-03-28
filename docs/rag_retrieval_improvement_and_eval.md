@@ -224,8 +224,8 @@ Retrieval Eval 的作用就是
 
 ```json
 {
-  "query": "Confluence 同步失败怎么排查？",
-  "kb_name": "product_docs",
+  "query": "Confluence 同步失败怎么排查? ", 
+  "kb_name": "product_docs", 
   "gold_doc_ids": ["doc_123"]
 }
 ```
@@ -344,8 +344,8 @@ Retrieval Eval 的作用就是
 建议的样本格式如下
 
 ```json
-{"query":"Confluence 同步失败怎么排查？","kb_name":"product_docs","gold_doc_ids":["doc_123"]}
-{"query":"如何配置 embedding 模型","kb_name":"product_docs","gold_doc_ids":["doc_456"]}
+{"query":"Confluence 同步失败怎么排查? ", "kb_name":"product_docs", "gold_doc_ids":["doc_123"]}
+{"query":"如何配置 embedding 模型", "kb_name":"product_docs", "gold_doc_ids":["doc_456"]}
 ```
 
 脚本逻辑大致分为这几步
