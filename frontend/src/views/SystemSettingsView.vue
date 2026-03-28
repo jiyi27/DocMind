@@ -87,37 +87,67 @@
             <el-form-item label="Chunk Overlap">
               <el-input-number v-model="form.ingestion.chunk_overlap" :min="0" :max="2000" />
             </el-form-item>
-            <el-form-item label="Image Processor">
-              <el-select v-model="form.ingestion.image_processor">
-                <el-option label="None" value="none" />
-                <el-option label="OCR" value="ocr" />
-                <el-option label="Multimodal" value="multimodal" />
-              </el-select>
-              <div v-if="requiresMultimodalVision" class="field-hint field-hint--warning">
-                Multimodal requires Vision Base URL, Vision Model, and Vision API Key.
+            <div class="full-span settings-subgroup">
+              <div class="subgroup-title">Code Blocks</div>
+              <div class="toggle-list">
+                <div class="toggle-panel">
+                  <div class="toggle-copy">
+                    <div class="toggle-title">Code Summarization</div>
+                    <div class="toggle-desc">
+                      Summarize dedicated code chunks instead of storing only the raw
+                      code content.
+                    </div>
+                  </div>
+                  <el-switch v-model="form.ingestion.enable_code_summarization" />
+                </div>
+                <div class="toggle-panel">
+                  <div class="toggle-copy">
+                    <div class="toggle-title">Ignore Code Blocks</div>
+                    <div class="toggle-desc">
+                      Skip fenced code blocks during ingestion instead of storing them as
+                      dedicated code chunks.
+                    </div>
+                  </div>
+                  <el-switch v-model="form.ingestion.ignore_code_blocks" />
+                </div>
               </div>
-            </el-form-item>
-            <el-form-item label="Code Summarization">
-              <el-switch v-model="form.ingestion.enable_code_summarization" />
-            </el-form-item>
-            <el-form-item label="Vision Base URL">
-              <el-input
-                v-model="form.ingestion.image_vision_base_url"
-                placeholder="https://api.openai.com/v1"
-              />
-            </el-form-item>
-            <el-form-item label="Vision Model">
-              <el-input v-model="form.ingestion.image_vision_model" placeholder="gpt-4.1-mini" />
-            </el-form-item>
-            <el-form-item class="full-span" label="Vision API Key">
-              <el-input
-                v-model="form.ingestion.image_vision_api_key"
-                type="password"
-                show-password
-                placeholder="Vision API key"
-              />
-              <div class="field-hint">Leave empty and save to clear the stored key.</div>
-            </el-form-item>
+            </div>
+            <div class="full-span settings-subgroup">
+              <div class="subgroup-title">Image Processing</div>
+              <div class="subgroup-grid">
+                <el-form-item label="Image Processor">
+                  <el-select v-model="form.ingestion.image_processor">
+                    <el-option label="None" value="none" />
+                    <el-option label="OCR" value="ocr" />
+                    <el-option label="Multimodal" value="multimodal" />
+                  </el-select>
+                  <div v-if="requiresMultimodalVision" class="field-hint field-hint--warning">
+                    Multimodal requires Vision Base URL, Vision Model, and Vision API Key.
+                  </div>
+                </el-form-item>
+                <el-form-item label="Vision Base URL">
+                  <el-input
+                    v-model="form.ingestion.image_vision_base_url"
+                    placeholder="https://api.openai.com/v1"
+                  />
+                </el-form-item>
+                <el-form-item label="Vision Model">
+                  <el-input
+                    v-model="form.ingestion.image_vision_model"
+                    placeholder="gpt-4.1-mini"
+                  />
+                </el-form-item>
+                <el-form-item label="Vision API Key">
+                  <el-input
+                    v-model="form.ingestion.image_vision_api_key"
+                    type="password"
+                    show-password
+                    placeholder="Vision API key"
+                  />
+                  <div class="field-hint">Leave empty and save to clear the stored key.</div>
+                </el-form-item>
+              </div>
+            </div>
           </div>
         </section>
 
@@ -214,6 +244,7 @@ const settings = reactive({
     chunk_size: 500,
     chunk_overlap: 50,
     enable_code_summarization: false,
+    ignore_code_blocks: false,
     image_processor: 'none',
     image_vision_api_key: '',
     image_vision_base_url: '',
@@ -263,6 +294,7 @@ const form = reactive({
     chunk_size: 500,
     chunk_overlap: 50,
     enable_code_summarization: false,
+    ignore_code_blocks: false,
     image_processor: 'none',
     image_vision_base_url: '',
     image_vision_model: '',
@@ -301,6 +333,7 @@ function syncForms(data) {
   form.ingestion.chunk_size = data.ingestion?.chunk_size ?? 500
   form.ingestion.chunk_overlap = data.ingestion?.chunk_overlap ?? 50
   form.ingestion.enable_code_summarization = Boolean(data.ingestion?.enable_code_summarization)
+  form.ingestion.ignore_code_blocks = Boolean(data.ingestion?.ignore_code_blocks)
   form.ingestion.image_processor = data.ingestion?.image_processor || 'none'
   form.ingestion.image_vision_api_key = data.ingestion?.image_vision_api_key || ''
   form.ingestion.image_vision_base_url = data.ingestion?.image_vision_base_url || ''
@@ -371,6 +404,7 @@ async function saveSettings() {
         chunk_size: form.ingestion.chunk_size,
         chunk_overlap: form.ingestion.chunk_overlap,
         enable_code_summarization: form.ingestion.enable_code_summarization,
+        ignore_code_blocks: form.ingestion.ignore_code_blocks,
         image_processor: form.ingestion.image_processor,
         image_vision_base_url: form.ingestion.image_vision_base_url.trim(),
         image_vision_model: form.ingestion.image_vision_model.trim(),
@@ -486,6 +520,59 @@ onMounted(loadSettings)
   grid-column: 1 / -1;
 }
 
+.settings-subgroup {
+  padding: 16px 18px;
+  border-radius: 18px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  background: rgba(248, 250, 252, 0.82);
+}
+
+.subgroup-title {
+  margin-bottom: 14px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--dm-text);
+}
+
+.subgroup-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.toggle-list {
+  display: grid;
+  gap: 12px;
+}
+
+.toggle-panel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.toggle-copy {
+  min-width: 0;
+}
+
+.toggle-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--dm-text);
+}
+
+.toggle-desc {
+  margin-top: 6px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--dm-text-soft);
+}
+
 .field-hint {
   margin-top: 8px;
   font-size: 12px;
@@ -503,8 +590,14 @@ onMounted(loadSettings)
 
 @media (max-width: 900px) {
   .settings-status,
-  .settings-form-grid {
+  .settings-form-grid,
+  .subgroup-grid {
     grid-template-columns: 1fr;
+  }
+
+  .toggle-panel {
+    align-items: flex-start;
+    flex-direction: column;
   }
 }
 </style>
