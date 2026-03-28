@@ -74,43 +74,6 @@ For detailed chunking behavior — including how `CHUNK_SIZE` and `CHUNK_OVERLAP
 * **Pain Point**: Raw code lacks natural language characteristics, causing semantic dilution when vectorized — users querying in natural language often miss the right code snippets.
 * **Solution**: A dedicated LangGraph node intercepts chunks containing code, generates a keyword-dense natural language summary via LLM, and uses the summary for embedding while storing the original code in Qdrant metadata payload. Retrieval matches the summary vector but returns the intact original code to the LLM.
 
-### 3. Graceful Degradation & Fault Tolerance
-* **Pain Point**: External LLM calls during ingestion can fail due to rate limits or timeouts.
-* **Solution**: The summarization step falls back to standard text embedding for any chunk where the LLM call fails, without disrupting the rest of the ingestion process.
-
-## Project Structure
-
-```text
-DocMind/
-├── backend/                  # Backend application
-│   ├── docmind/
-│   │   ├── api/              # FastAPI routers (auth, chat, chats, ingest, kb) + middleware
-│   │   ├── auth/             # JWT authentication and RBAC
-│   │   ├── core/             # Config, logging, LLM/embedding clients, exception handling
-│   │   ├── db/               # SQLite setup, DDL models, repositories
-│   │   ├── ingestion/        # LangGraph ingestion workflow (chunking, summarization, vectorization)
-│   │   ├── retrieval/        # LangGraph retrieval workflow (RAG, streaming, session titles)
-│   │   └── vectorstore/      # Qdrant abstraction layer
-│   ├── scripts/              # Database migration and ingestion utility scripts
-│   ├── data/                 # SQLite and Qdrant volume data
-│   ├── logs/                 # Application rotating logs
-│   ├── Makefile              # Helper commands
-│   ├── docker-compose.yml    # Infrastructure (Qdrant & Ollama)
-│   └── pyproject.toml        # Python dependencies
-└── frontend/                 # Vue 3 frontend application
-    ├── src/
-    │   ├── api/              # Axios API modules (auth, kb, ingest, chats)
-    │   ├── components/       # UI components (auth, chat, ingestion, kb, layout)
-    │   ├── stores/           # Pinia stores (auth, kb)
-    │   ├── views/            # Page views (Dashboard, Chat, KB detail, Document detail, etc.)
-    │   └── router/           # Vue Router configuration with navigation guards
-    └── package.json
-```
-
-## Logging Note
-
-Exception logs keep both the raw Python `traceback` and a structured summary (`origin`, `trigger`, `call_chain`, etc.). The raw `traceback` is the final debugging source of truth and should not be removed. The structured summary depends on the current backend source-tree layout to distinguish app frames from external frames, so if you move `backend/docmind/core/logger.py`, split backend code across additional roots, or run internal code from outside the current backend project tree, review the frame-classification logic in `backend/docmind/core/logger.py`. See [docs/exception_logging_design.zh-CN.md](docs/exception_logging_design.zh-CN.md) for the detailed design notes.
-
 ## Quick Start
 
 ### 1. Prerequisites
@@ -119,7 +82,9 @@ Exception logs keep both the raw Python `traceback` and a structured summary (`o
 - [uv](https://github.com/astral-sh/uv) — Python package manager
 - [pnpm](https://pnpm.io/) — frontend package manager
 
-If you plan to set `IMAGE_PROCESSOR=ocr`, install the Tesseract OCR binary as well. DocMind's OCR path uses `pytesseract`, which shells out to the system `tesseract` executable, and the current OCR configuration expects the `eng` and `chi_sim` language packs to be available.
+If you plan to set `IMAGE_PROCESSOR=ocr`, install the Tesseract OCR binary as well. DocMind's OCR path uses `pytesseract`, which shells out to the system `tesseract` executable, and the current OCR configuration expects the `eng` and `chi_sim` language packs to be available. If you don't need OCR feature, you can skip this step.
+
+**Note:** This step is only required if you plan to use IMAGE_PROCESSOR=ocr.
 
 Common installation examples:
 
