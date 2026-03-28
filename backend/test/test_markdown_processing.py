@@ -12,7 +12,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from docmind.core.metadata import (  # noqa: E402
     CHUNK_TYPE_CODE_BLOCK,
     CHUNK_TYPE_TEXT,
-    META_CODE_LANGUAGE,
     META_ORIGINAL_CONTENT,
 )
 from docmind.ingestion import nodes as ingestion_nodes  # noqa: E402
@@ -111,7 +110,7 @@ class TestMarkdownFlow:
             in chunks_with_overlap[1].page_content
         )
 
-    def test_language_code_block_becomes_dedicated_code_chunk(self) -> None:
+    def test_fenced_code_block_becomes_dedicated_code_chunk(self) -> None:
         chunks = _split_markdown("atomic_blocks.md", chunk_size=120)
 
         code_chunks = [
@@ -130,10 +129,8 @@ class TestMarkdownFlow:
 
         assert len(code_chunks) == 1
         assert code_chunks[0].metadata["chunk_type"] == CHUNK_TYPE_CODE_BLOCK
-        assert code_chunks[0].metadata[META_CODE_LANGUAGE] == "python"
-        assert "```python" in code_chunks[0].page_content
+        assert "```" not in code_chunks[0].page_content
         assert "return message.upper()" in code_chunks[0].page_content
-        assert code_chunks[0].page_content.count("```") == 2
         assert "DocMind Guide / Reference" not in code_chunks[0].page_content
 
         assert len(quote_chunks) == 1
@@ -148,7 +145,7 @@ class TestMarkdownFlow:
         assert "Feature: Search, Value: Enabled" in table_chunks[0].page_content
         assert "Feature: Chunk Size, Value: 400" in table_chunks[0].page_content
 
-    def test_plain_fenced_block_is_restored_as_text_without_fences(self) -> None:
+    def test_plain_fenced_block_becomes_dedicated_code_chunk(self) -> None:
         chunks = split_text_node(
             _build_markdown_state(
                 (
@@ -165,14 +162,18 @@ class TestMarkdownFlow:
             )
         )["chunks"]
 
-        assert len(chunks) == 1
-        assert chunks[0].metadata.get("chunk_type", CHUNK_TYPE_TEXT) == CHUNK_TYPE_TEXT
-        assert "```" not in chunks[0].page_content
-        assert "line one\nline two" in chunks[0].page_content
+        assert len(chunks) == 3
+        code_chunks = [
+            chunk
+            for chunk in chunks
+            if chunk.metadata.get("chunk_type") == CHUNK_TYPE_CODE_BLOCK
+        ]
 
-    def test_oversized_language_code_block_splits_into_multiple_code_chunks(
-        self,
-    ) -> None:
+        assert len(code_chunks) == 1
+        assert code_chunks[0].page_content == "line one\nline two"
+        assert all("```" not in chunk.page_content for chunk in code_chunks)
+
+    def test_oversized_code_block_stays_as_single_chunk(self) -> None:
         code_lines = "\n".join(
             f'print("line {idx} with enough content to force splitting")'
             for idx in range(1, 9)
@@ -191,17 +192,47 @@ class TestMarkdownFlow:
             if chunk.metadata.get("chunk_type") == CHUNK_TYPE_CODE_BLOCK
         ]
 
-        assert len(code_chunks) >= 2
+        assert len(code_chunks) == 1
+        assert code_chunks[0].page_content == code_lines
+
+    def test_ignore_code_blocks_setting_skips_fenced_blocks(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(
+            ingestion_nodes,
+            "settings",
+            SimpleNamespace(
+                ingestion=SimpleNamespace(
+                    chunk_size=500,
+                    chunk_overlap=50,
+                    ignore_code_blocks=True,
+                    enable_code_summarization=False,
+                )
+            ),
+        )
+
+        chunks = split_text_node(
+            _build_markdown_state(
+                (
+                    "# Notes\n\n"
+                    "Intro text before sample.\n\n"
+                    "```python\n"
+                    "print('skip me')\n"
+                    "```\n\n"
+                    "Closing paragraph."
+                ),
+                file_name="ignore_code.md",
+                chunk_size=200,
+            )
+        )["chunks"]
+
+        assert len(chunks) == 1
         assert all(
-            chunk.page_content.startswith("```python\n") for chunk in code_chunks
+            chunk.metadata.get("chunk_type", CHUNK_TYPE_TEXT) != CHUNK_TYPE_CODE_BLOCK
+            for chunk in chunks
         )
-        assert all(chunk.page_content.endswith("\n```") for chunk in code_chunks)
-        assert {chunk.metadata["code_part_count"] for chunk in code_chunks} == {
-            len(code_chunks)
-        }
-        assert [chunk.metadata["code_part_index"] for chunk in code_chunks] == list(
-            range(1, len(code_chunks) + 1)
-        )
+        assert "skip me" not in chunks[0].page_content
+        monkeypatch.setattr(ingestion_nodes, "settings", None)
 
     def test_oversized_markdown_block_is_split_instead_of_failing(self) -> None:
         chunks = _split_markdown(
@@ -271,18 +302,8 @@ class TestMarkdownHelpers:
         assert "```python" not in protected_text
         assert "```sql" not in protected_text
         assert fenced_blocks == [
-            {
-                "raw": "```python\nprint('hello')\n```",
-                "language": "python",
-                "content": "print('hello')",
-                "is_language_fenced": True,
-            },
-            {
-                "raw": "```sql\nSELECT 1;\n```",
-                "language": "sql",
-                "content": "SELECT 1;",
-                "is_language_fenced": True,
-            },
+            "print('hello')",
+            "SELECT 1;",
         ]
 
     def test_halve_text_prefers_newline_and_respects_max_size(self) -> None:
@@ -312,9 +333,7 @@ class TestMarkdownHelpers:
 
 class _FakeCodeChain:
     def invoke(self, payload: dict) -> SimpleNamespace:
-        return SimpleNamespace(
-            content=f"summary for {payload['language']} in {payload['headers']}"
-        )
+        return SimpleNamespace(content=f"summary in {payload['headers']}")
 
 
 class _FakeCodePrompt:
@@ -350,7 +369,12 @@ class TestSummarizeCodeNode:
         monkeypatch.setattr(
             ingestion_nodes,
             "settings",
-            SimpleNamespace(ingestion=SimpleNamespace(enable_code_summarization=True)),
+            SimpleNamespace(
+                ingestion=SimpleNamespace(
+                    enable_code_summarization=True,
+                    ignore_code_blocks=False,
+                )
+            ),
         )
 
         processed = summarize_code_node({"chunks": chunks})["chunks"]
@@ -366,7 +390,7 @@ class TestSummarizeCodeNode:
         ]
 
         assert len(code_chunks) == 1
-        assert code_chunks[0].page_content.startswith("summary for python")
-        assert code_chunks[0].metadata[META_ORIGINAL_CONTENT].startswith("```python\n")
+        assert code_chunks[0].page_content.startswith("summary in")
+        assert code_chunks[0].metadata[META_ORIGINAL_CONTENT] == long_code
         assert "Lead paragraph before code." in text_chunks[0].page_content
         assert "Trailing explanation." in text_chunks[-1].page_content

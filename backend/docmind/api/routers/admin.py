@@ -48,6 +48,7 @@ class IngestionSettingsUpdateRequest(BaseModel):
     chunk_size: OptionalPositiveInt = None
     chunk_overlap: OptionalNonNegativeInt = None
     enable_code_summarization: bool | None = None
+    ignore_code_blocks: bool | None = None
     image_processor: str | None = None
     image_vision_api_key: str | None = None
     image_vision_model: str | None = None
@@ -106,6 +107,7 @@ async def put_runtime_settings(
         ingestion_chunk_size=ingestion.get("chunk_size"),
         ingestion_chunk_overlap=ingestion.get("chunk_overlap"),
         ingestion_enable_code_summarization=ingestion.get("enable_code_summarization"),
+        ingestion_ignore_code_blocks=ingestion.get("ignore_code_blocks"),
         ingestion_image_processor=ingestion.get("image_processor"),
         ingestion_image_vision_api_key=ingestion.get("image_vision_api_key"),
         ingestion_image_vision_model=ingestion.get("image_vision_model"),

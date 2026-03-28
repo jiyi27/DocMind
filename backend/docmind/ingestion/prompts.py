@@ -8,7 +8,6 @@ code_summarization_prompt = PromptTemplate.from_template(
 
 【上下文信息】
 所在文档章节：{headers}
-代码语言：{language}
 
 【代码块】
 ```

@@ -28,6 +28,7 @@ IMAGE_PROCESSOR_VALUES = frozenset(
 DEFAULT_INGESTION_CHUNK_SIZE = 500
 DEFAULT_INGESTION_CHUNK_OVERLAP = 50
 DEFAULT_INGESTION_ENABLE_CODE_SUMMARIZATION = False
+DEFAULT_INGESTION_IGNORE_CODE_BLOCKS = False
 DEFAULT_INGESTION_IMAGE_PROCESSOR = IMAGE_PROCESSOR_NONE
 DEFAULT_RETRIEVAL_TOP_K = 3
 DEFAULT_CHAT_MAX_MESSAGES = 20
@@ -41,6 +42,7 @@ LLM_MODEL_KEY = "llm_model"
 INGESTION_CHUNK_SIZE_KEY = "ingestion_chunk_size"
 INGESTION_CHUNK_OVERLAP_KEY = "ingestion_chunk_overlap"
 INGESTION_ENABLE_CODE_SUMMARIZATION_KEY = "ingestion_enable_code_summarization"
+INGESTION_IGNORE_CODE_BLOCKS_KEY = "ingestion_ignore_code_blocks"
 INGESTION_IMAGE_PROCESSOR_KEY = "ingestion_image_processor"
 INGESTION_IMAGE_VISION_API_KEY_KEY = "ingestion_image_vision_api_key"
 INGESTION_IMAGE_VISION_MODEL_KEY = "ingestion_image_vision_model"
@@ -91,6 +93,7 @@ class IngestionRuntimeSettings:
     chunk_size: int
     chunk_overlap: int
     enable_code_summarization: bool
+    ignore_code_blocks: bool
     image_processor: str
     image_vision: ImageVisionRuntimeSettings
 
@@ -181,7 +184,17 @@ RUNTIME_SETTING_SPECS: dict[str, RuntimeSettingSpec] = {
         field_name="enable_code_summarization",
         value_type="bool",
         category="runtime-defaulted",
-        default_value="false",
+        default_value=(
+            "true" if DEFAULT_INGESTION_ENABLE_CODE_SUMMARIZATION else "false"
+        ),
+    ),
+    INGESTION_IGNORE_CODE_BLOCKS_KEY: RuntimeSettingSpec(
+        key=INGESTION_IGNORE_CODE_BLOCKS_KEY,
+        group="ingestion",
+        field_name="ignore_code_blocks",
+        value_type="bool",
+        category="runtime-defaulted",
+        default_value="true" if DEFAULT_INGESTION_IGNORE_CODE_BLOCKS else "false",
     ),
     INGESTION_IMAGE_PROCESSOR_KEY: RuntimeSettingSpec(
         key=INGESTION_IMAGE_PROCESSOR_KEY,
@@ -377,6 +390,7 @@ def build_runtime_settings(raw_values: Mapping[str, str]) -> RuntimeSettings:
             enable_code_summarization=bool(
                 parsed[INGESTION_ENABLE_CODE_SUMMARIZATION_KEY]
             ),
+            ignore_code_blocks=bool(parsed[INGESTION_IGNORE_CODE_BLOCKS_KEY]),
             image_processor=image_processor,
             image_vision=ImageVisionRuntimeSettings(
                 api_key=str(parsed[INGESTION_IMAGE_VISION_API_KEY_KEY]),
@@ -498,6 +512,7 @@ def runtime_settings_to_payload(
             "chunk_size": settings.ingestion.chunk_size,
             "chunk_overlap": settings.ingestion.chunk_overlap,
             "enable_code_summarization": settings.ingestion.enable_code_summarization,
+            "ignore_code_blocks": settings.ingestion.ignore_code_blocks,
             "image_processor": settings.ingestion.image_processor,
             "image_vision_api_key": settings.ingestion.image_vision.api_key,
             "image_vision_base_url": settings.ingestion.image_vision.base_url,

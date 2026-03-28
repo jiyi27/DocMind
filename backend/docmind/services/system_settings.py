@@ -13,6 +13,7 @@ from docmind.core.runtime_settings import (
     INGESTION_CHUNK_OVERLAP_KEY,
     INGESTION_CHUNK_SIZE_KEY,
     INGESTION_ENABLE_CODE_SUMMARIZATION_KEY,
+    INGESTION_IGNORE_CODE_BLOCKS_KEY,
     INGESTION_IMAGE_PROCESSOR_KEY,
     INGESTION_IMAGE_VISION_API_KEY_KEY,
     INGESTION_IMAGE_VISION_BASE_URL_KEY,
@@ -210,6 +211,7 @@ async def update_runtime_settings(
     ingestion_chunk_size: int | None = None,
     ingestion_chunk_overlap: int | None = None,
     ingestion_enable_code_summarization: bool | None = None,
+    ingestion_ignore_code_blocks: bool | None = None,
     ingestion_image_processor: str | None = None,
     ingestion_image_vision_api_key: str | None = None,
     ingestion_image_vision_model: str | None = None,
@@ -240,6 +242,8 @@ async def update_runtime_settings(
         raw_updates[INGESTION_ENABLE_CODE_SUMMARIZATION_KEY] = (
             ingestion_enable_code_summarization
         )
+    if ingestion_ignore_code_blocks is not None:
+        raw_updates[INGESTION_IGNORE_CODE_BLOCKS_KEY] = ingestion_ignore_code_blocks
     if ingestion_image_processor is not None:
         raw_updates[INGESTION_IMAGE_PROCESSOR_KEY] = ingestion_image_processor
     if ingestion_image_vision_api_key is not None:
@@ -272,6 +276,9 @@ async def update_runtime_settings(
         INGESTION_CHUNK_OVERLAP_KEY: str(current.ingestion.chunk_overlap),
         INGESTION_ENABLE_CODE_SUMMARIZATION_KEY: (
             "true" if current.ingestion.enable_code_summarization else "false"
+        ),
+        INGESTION_IGNORE_CODE_BLOCKS_KEY: (
+            "true" if current.ingestion.ignore_code_blocks else "false"
         ),
         INGESTION_IMAGE_PROCESSOR_KEY: current.ingestion.image_processor,
         INGESTION_IMAGE_VISION_API_KEY_KEY: current.ingestion.image_vision.api_key,

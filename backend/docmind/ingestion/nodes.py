@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from typing import Callable, TypedDict
+from typing import Callable
 
 from langchain_core.documents import Document
 
@@ -15,7 +15,6 @@ from docmind.core.metadata import (
     CHUNK_TYPE_TEXT,
     DEFAULT_RETRIEVAL_MODE,
     META_ALT_TEXT,
-    META_CODE_LANGUAGE,
     META_CHUNK_TYPE,
     META_DOC_ID,
     META_FILE_PATH,
@@ -35,7 +34,6 @@ from docmind.vectorstore.qdrant_store import get_vector_store_for_kb
 
 FENCED_BLOCK_PATTERN = re.compile(r"```.*?```", flags=re.DOTALL)
 CODE_PLACEHOLDER_RE = re.compile(r"^__CODE_BLOCK_(\d+)__$")
-PLAIN_FENCED_PLACEHOLDER_RE = re.compile(r"__PLAIN_FENCED_BLOCK_(\d+)__")
 settings = None
 
 
@@ -81,24 +79,8 @@ def _collect_overlap_blocks(blocks: list[str], overlap: int) -> tuple[list[str],
     return list(reversed(kept_reversed)), kept_len
 
 
-# (?P<language>[a-zA-Z0-9_+-]+) and (?P<content>.*?): Named Capturing Group
-# Assigns a unique label to the captured sub-pattern,
-# allowing for retrieval via the variable name rather than a numeric index.
-LANGUAGE_FENCED_BLOCK_PATTERN = re.compile(
-    r"```(?P<language>[a-zA-Z0-9_+-]+)[ \t]*\n(?P<content>.*?)```",
-    flags=re.DOTALL,
-)
 BLOCKQUOTE_PATTERN = re.compile(r"(?:^[ \t]*>[ \t]?.*\n?)+", flags=re.MULTILINE)
 TABLE_PATTERN = re.compile(r"(?:^[ \t]*\|.+\|[ \t]*\n)+", flags=re.MULTILINE)
-
-
-class ProtectedFencedBlock(TypedDict):
-    """Captured fenced block metadata used during markdown splitting."""
-
-    raw: str
-    language: str
-    content: str
-    is_language_fenced: bool
 
 
 def load_document_node(state: IngestionState) -> dict:
@@ -145,58 +127,23 @@ def load_document_node(state: IngestionState) -> dict:
     return {"documents": docs}
 
 
-def _protect_fenced_blocks(text: str) -> tuple[str, list[ProtectedFencedBlock]]:
-    """Replace fenced blocks with placeholders so paragraph splitting stays stable.
+def _extract_fenced_block_content(raw: str) -> str:
+    lines = raw.splitlines()
+    if len(lines) >= 2 and lines[-1].strip() == "```":
+        return "\n".join(lines[1:-1]).strip("\n")
+    return raw.strip("\n")
 
-    Language-fenced code blocks become dedicated code placeholders that later
-    produce standalone code chunks. Plain fenced blocks become content
-    placeholders and are restored as regular prose without the markdown fences.
-    """
-    fenced_blocks: list[ProtectedFencedBlock] = []
+
+def _protect_fenced_blocks(text: str) -> tuple[str, list[str]]:
+    """Replace fenced blocks with code placeholders and keep their raw content."""
+    fenced_blocks: list[str] = []
 
     def replacer(match: re.Match[str]) -> str:
-        raw = match.group(0)
-        language_match = LANGUAGE_FENCED_BLOCK_PATTERN.fullmatch(raw)
-        if language_match:
-            fenced_blocks.append(
-                {
-                    "raw": raw,
-                    "language": language_match.group("language").strip().lower(),
-                    "content": language_match.group("content").strip("\n"),
-                    "is_language_fenced": True,
-                }
-            )
-            return f"__CODE_BLOCK_{len(fenced_blocks) - 1}__"
-
-        plain_match = re.match(
-            r"^```[ \t]*\n(?P<content>.*?)```$", raw, flags=re.DOTALL
-        )
-        fenced_blocks.append(
-            {
-                "raw": raw,
-                "language": "",
-                "content": (plain_match.group("content") if plain_match else raw).strip(
-                    "\n"
-                ),
-                "is_language_fenced": False,
-            }
-        )
-        return f"__PLAIN_FENCED_BLOCK_{len(fenced_blocks) - 1}__"
+        fenced_blocks.append(_extract_fenced_block_content(match.group(0)))
+        return f"__CODE_BLOCK_{len(fenced_blocks) - 1}__"
 
     text_without_fenced_blocks = FENCED_BLOCK_PATTERN.sub(replacer, text)
     return text_without_fenced_blocks, fenced_blocks
-
-
-def _restore_plain_fenced_placeholders(
-    text: str, fenced_blocks: list[ProtectedFencedBlock]
-) -> str:
-    """Restore plain fenced placeholders as regular content without markdown fences."""
-
-    def restore(match: re.Match[str]) -> str:
-        block = fenced_blocks[int(match.group(1))]
-        return block["content"] if not block["is_language_fenced"] else block["raw"]
-
-    return PLAIN_FENCED_PLACEHOLDER_RE.sub(restore, text)
 
 
 def _protect_blockquotes(text: str) -> tuple[str, list[str]]:
@@ -260,15 +207,8 @@ def _restore_table_placeholders(text: str, blocks: list[str]) -> str:
     return re.sub(r"__TABLE_(\d+)__", lambda m: blocks[int(m.group(1))], text)
 
 
-def _iter_language_fenced_blocks(text: str) -> list[re.Match[str]]:
-    """Return only fenced blocks that declare a language after opening backticks."""
-    # finditer 是“迭代匹配”：它会在文本中不断搜索直到没有更多匹配项，
-    # 相比 findall，它保留了匹配结果的完整内部状态（如起始索引、结束索引、命名捕获组数据）
-    return list(LANGUAGE_FENCED_BLOCK_PATTERN.finditer(text))
-
-
 def _custom_split_markdown(
-    doc: Document, target_size: int, overlap: int
+    doc: Document, target_size: int, overlap: int, ignore_code_blocks: bool
 ) -> list[Document]:
     """Split Markdown while preserving headers, code blocks, blockquotes, tables, and paragraphs.
 
@@ -290,15 +230,15 @@ def _custom_split_markdown(
 
     # --- Helpers (restore, breadcrumb, overlap) ---
 
-    def _restore_non_code_placeholders(s: str) -> str:
-        """Restore non-code placeholders back to their original content.
+    def _restore_placeholders(s: str) -> str:
+        """Restore placeholders that should flow back into prose chunks.
 
-        Code placeholders are intentionally excluded here because language-fenced
-        code blocks are emitted as dedicated chunks rather than merged into prose.
+        Fenced code blocks are not restored here: they were already separated
+        into dedicated code chunks during block dispatch, so only tables and
+        blockquotes need to be expanded back into paragraph content.
         """
         s = _restore_table_placeholders(s, table_blocks)
         s = _restore_blockquote_placeholders(s, bq_blocks)
-        s = _restore_plain_fenced_placeholders(s, code_blocks)
         return s
 
     def build_breadcrumb(headers: dict) -> str:
@@ -347,7 +287,7 @@ def _custom_split_markdown(
         current_len += n + (2 if len(current_texts) > 1 else 0)
 
     def append_content_block(block: str) -> None:
-        restored = _restore_non_code_placeholders(block)
+        restored = _restore_placeholders(block)
         pieces = (
             _halve_text(restored, target_size)
             if len(restored) > target_size
@@ -356,57 +296,16 @@ def _custom_split_markdown(
         for piece in pieces:
             _pack(piece)
 
-    def _split_code_content_by_budget(content: str, max_size: int) -> list[str]:
-        """Split code content by char budget, preferring newlines near midpoint."""
-        if len(content) <= max_size:
-            return [content]
-        mid = len(content) // 2
-        split_pos = content.rfind("\n", max(0, mid - 100), mid + 100)
-        if split_pos == -1:
-            split_pos = content.find("\n", mid, min(len(content), mid + 100))
-        if split_pos == -1:
-            split_pos = mid
-
-        result: list[str] = []
-        left = content[:split_pos].strip("\n")
-        right = content[split_pos:].strip("\n")
-        for part in (left, right):
-            if part:
-                result.extend(_split_code_content_by_budget(part, max_size))
-        return result
-
-    def _wrap_fenced_code(language: str, content: str) -> str:
-        return f"```{language}\n{content.strip('\n')}\n```"
-
-    def _build_code_chunk_docs(index: int) -> list[Document]:
-        """Turn a protected language-fenced block into one or more code chunks."""
-        block = code_blocks[index]
-        language = block["language"]
-        content = block["content"]
-        overhead = len(f"```{language}\n\n```")
-        code_budget = max(1, target_size - overhead)
-        pieces = (
-            _split_code_content_by_budget(content, code_budget)
-            if len(content) > code_budget
-            else [content]
+    def _build_code_chunk_doc(index: int) -> Document:
+        """Turn a protected fenced block into a single standalone code chunk."""
+        return Document(
+            page_content=code_blocks[index],
+            metadata={
+                **base_meta,
+                **current_headers,
+                META_CHUNK_TYPE: CHUNK_TYPE_CODE_BLOCK,
+            },
         )
-        part_count = len(pieces)
-        docs_to_add: list[Document] = []
-        for part_index, piece in enumerate(pieces, start=1):
-            docs_to_add.append(
-                Document(
-                    page_content=_wrap_fenced_code(language, piece),
-                    metadata={
-                        **base_meta,
-                        **current_headers,
-                        META_CHUNK_TYPE: CHUNK_TYPE_CODE_BLOCK,
-                        META_CODE_LANGUAGE: language,
-                        "code_part_index": part_index,
-                        "code_part_count": part_count,
-                    },
-                )
-            )
-        return docs_to_add
 
     # --- 4. Block classifier + typed handlers ---
     _HEADER_RE = re.compile(r"^(#{1,6})\s+(.*)")
@@ -466,8 +365,10 @@ def _custom_split_markdown(
         match = CODE_PLACEHOLDER_RE.match(block)
         if not match:
             return
+        if ignore_code_blocks:
+            return
         flush_chunk()
-        docs.extend(_build_code_chunk_docs(int(match.group(1))))
+        docs.append(_build_code_chunk_doc(int(match.group(1))))
 
     def _handle_content(block: str) -> None:
         # Regular paragraph / prose block — pack into the current chunk.
@@ -479,9 +380,7 @@ def _custom_split_markdown(
         if _IMAGE_RE.match(block) or _LINKED_IMAGE_RE.match(block):
             return "image"
         if CODE_PLACEHOLDER_RE.match(block):
-            code_index = int(CODE_PLACEHOLDER_RE.match(block).group(1))
-            if code_blocks[code_index]["is_language_fenced"]:
-                return "code"
+            return "code"
         return "content"
 
     handlers: dict[str, Callable[[str], None]] = {
@@ -556,6 +455,7 @@ def split_text_node(state: IngestionState) -> dict:
         runtime = _runtime_settings()
         target_size = options.get("chunk_size", runtime.ingestion.chunk_size)
         chunk_overlap = options.get("chunk_overlap", runtime.ingestion.chunk_overlap)
+        ignore_code_blocks = runtime.ingestion.ignore_code_blocks
 
         final_chunks = []
 
@@ -563,7 +463,11 @@ def split_text_node(state: IngestionState) -> dict:
             # PDFs are now converted to Markdown by pymupdf4llm at load time,
             # so all supported formats go through the Markdown splitter which
             # understands headings, tables, code blocks, and blockquotes.
-            final_chunks.extend(_custom_split_markdown(doc, target_size, chunk_overlap))
+            final_chunks.extend(
+                _custom_split_markdown(
+                    doc, target_size, chunk_overlap, ignore_code_blocks
+                )
+            )
 
     except Exception as exc:
         logger.error(
@@ -604,34 +508,14 @@ def summarize_code_node(state: IngestionState) -> dict:
             processed_chunks.append(chunk)
             continue
 
-        match = LANGUAGE_FENCED_BLOCK_PATTERN.fullmatch(text)
-        if not match:
-            logger.warning(
-                "code_chunk_invalid_fence",
-                {
-                    "doc_id": chunk.metadata.get("doc_id"),
-                    "snippet": text[:80],
-                },
-            )
-            processed_chunks.append(chunk)
-            continue
-
         headers = []
         for k, v in chunk.metadata.items():
             if k.startswith("header_"):
                 headers.append(f"{k}: {v}")
         headers_str = " > ".join(headers) if headers else "无明确章节"
 
-        language = str(
-            chunk.metadata.get(META_CODE_LANGUAGE)
-            or match.group("language").strip().lower()
-        )
-        code_content = match.group("content").strip()
-
         try:
-            result = chain.invoke(
-                {"headers": headers_str, "language": language, "code": code_content}
-            )
+            result = chain.invoke({"headers": headers_str, "code": text})
 
             content = getattr(result, "content", str(result))
             if isinstance(content, list):
@@ -646,7 +530,6 @@ def summarize_code_node(state: IngestionState) -> dict:
                 "code_summarized",
                 {
                     "doc_id": chunk.metadata.get("doc_id"),
-                    "language": language,
                     "original_len": len(text),
                     "summary_len": len(summary),
                 },
