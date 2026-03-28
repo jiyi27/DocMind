@@ -43,14 +43,23 @@ _settings_cache: RuntimeSettings | None = None
 
 
 def _read_runtime_settings_sync() -> RuntimeSettings:
+    # Use a sync connection because this may be called from non-async contexts
+    # (e.g. background threads, app startup) where await is not available.
     conn = create_sync_connection()
     try:
+        # RUNTIME_SETTING_KEYS = ["llm.model", "llm.api_key", "qdrant.url"]
+        # "?" for _ in RUNTIME_SETTING_KEYS: ["?", "?", "?"]
+        # placeholders = "?,?,?"
         placeholders = ",".join("?" for _ in RUNTIME_SETTING_KEYS)
+        # e.g. SELECT key, value FROM system_settings WHERE key IN (?,?)
         query = f"SELECT key, value FROM system_settings WHERE key IN ({placeholders})"
+        # rows: [{"key": "llm.model", "value": "gpt-4o"}, ...]
         rows = conn.execute(query, tuple(RUNTIME_SETTING_KEYS)).fetchall()
+        # values: {"llm.model": "gpt-4o", "qdrant.url": "http://localhost:6333", ...}
         values = {str(row["key"]): str(row["value"]) for row in rows}
     finally:
         conn.close()
+    # Assemble the flat dict into a structured RuntimeSettings object.
     return build_runtime_settings(values)
 
 
