@@ -76,11 +76,16 @@ class ConfluenceClient:
             )
             resp.raise_for_status()
             data = resp.json()
+            # Each response only contains one page of children; accumulate them
+            # into a single list so callers always receive the full child set.
             results.extend(data.get("results", []))
-            # Check if there are more pages
+            # ``size`` is the number of items returned in this response, not the
+            # running total. A short page means we reached the end of pagination.
             size = data.get("size", 0)
             if size < limit:
                 break
+            # Advance to the next page of Confluence results using offset-based
+            # pagination.
             start += limit
         return results
 

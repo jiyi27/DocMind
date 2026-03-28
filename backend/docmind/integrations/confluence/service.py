@@ -2,7 +2,7 @@
 
 1. Walks the remote page tree via ``ConfluenceClient``.
 2. Builds a sync plan via ``build_sync_plan``.
-3. Applies create/update/delete operations using ``document_service``.
+3. Applies to create/update/delete operations using ``document_service``.
 4. Records each operation in ``kb_sync_records``.
 """
 
@@ -87,7 +87,7 @@ async def plan_sync(
 
 
 def _save_markdown(doc_id: str, page_id: str, content: str) -> Path:
-    """Write Markdown content to the uploads directory."""
+    """Write Markdown content to the uploads' directory."""
     UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
     file_path = UPLOAD_DIR / f"{doc_id}_{page_id}.md"
     file_path.write_text(content, encoding="utf-8")
@@ -368,6 +368,7 @@ async def execute_sync(db: aiosqlite.Connection, kb_id: str, job_id: str) -> Non
 
     kb_name = kb["name"]
     retrieval_mode = kb.get("confluence_retrieval_mode", "chunk")
+    client: ConfluenceClient | None = None
 
     await job_repo.update_status(job_id, "running")
 
@@ -428,5 +429,5 @@ async def execute_sync(db: aiosqlite.Connection, kb_id: str, job_id: str) -> Non
         )
 
     finally:
-        if "client" in locals():
+        if client is not None:
             await client.close()
