@@ -81,12 +81,21 @@
             </div>
           </div>
           <div class="settings-form-grid">
-            <el-form-item label="Chunk Size">
-              <el-input-number v-model="form.ingestion.chunk_size" :min="1" :max="5000" />
-            </el-form-item>
-            <el-form-item label="Chunk Overlap">
-              <el-input-number v-model="form.ingestion.chunk_overlap" :min="0" :max="2000" />
-            </el-form-item>
+            <div class="full-span settings-subgroup">
+              <div class="subgroup-title">Chunking</div>
+              <div class="subgroup-grid">
+                <el-form-item label="Chunk Size">
+                  <el-input-number v-model="form.ingestion.chunk_size" :min="1" :max="5000" />
+                </el-form-item>
+                <el-form-item label="Chunk Overlap">
+                  <el-input-number
+                    v-model="form.ingestion.chunk_overlap"
+                    :min="0"
+                    :max="2000"
+                  />
+                </el-form-item>
+              </div>
+            </div>
             <div class="full-span settings-subgroup">
               <div class="subgroup-title">Code Blocks</div>
               <div class="toggle-list">
