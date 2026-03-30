@@ -12,12 +12,6 @@
     </section>
 
     <section class="documents-shell">
-      <div class="shell-head">
-        <div>
-          <h2 class="shell-title">Uploaded Documents</h2>
-          <p class="shell-desc">This keeps document management separate from account and API key settings.</p>
-        </div>
-      </div>
       <div class="doc-list-wrap">
         <DocumentList mode="profile" />
       </div>
@@ -38,9 +32,10 @@ function goToProfile() {
 
 <style scoped>
 .my-documents-view {
-  max-width: 1240px;
+  max-width: 1160px;
   width: 100%;
   margin: 0 auto;
+  padding-top: 28px;
   display: flex;
   flex-direction: column;
   gap: 20px;
@@ -77,29 +72,11 @@ function goToProfile() {
 }
 
 .documents-shell {
-  padding: 24px;
+  padding: 20px 24px 24px;
   border-radius: 28px;
   background: rgba(255, 255, 255, 0.84);
   border: 1px solid var(--dm-border);
   box-shadow: var(--dm-shadow-md);
-}
-
-.shell-head {
-  margin-bottom: 18px;
-}
-
-.shell-title {
-  margin: 0 0 6px;
-  font-size: 22px;
-  line-height: 1.1;
-  font-weight: 800;
-  color: var(--dm-text);
-}
-
-.shell-desc {
-  margin: 0;
-  font-size: 14px;
-  color: var(--dm-text-soft);
 }
 
 .doc-list-wrap {

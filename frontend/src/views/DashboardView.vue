@@ -1,24 +1,8 @@
 <template>
   <div class="dashboard">
-    <section class="dashboard-toolbar">
-      <div class="toolbar-copy">
-        <div class="toolbar-title-row">
-          <h1 class="page-title">Knowledge Bases</h1>
-          <el-tag type="info" effect="plain" round>{{ kbStore.kbCount }}</el-tag>
-        </div>
-        <div class="toolbar-meta">
-          <span class="meta-pill">
-            <span class="meta-label">Accessible</span>
-            <strong>{{ accessibleCount }}</strong>
-          </span>
-          <span class="meta-pill">
-            <span class="meta-label">Scope</span>
-            <strong>{{ isSuperAdmin ? 'All workspaces' : 'Assigned only' }}</strong>
-          </span>
-        </div>
-      </div>
-
+    <section v-if="isSuperAdmin || kbStore.kbCount > 0" class="dashboard-toolbar">
       <div class="toolbar-actions">
+        <span class="workspace-count">{{ kbStore.kbCount }} workspaces</span>
         <el-button
           v-if="isSuperAdmin"
           type="primary"
@@ -78,11 +62,6 @@ const kbStore = useKbStore()
 
 const createDialogRef = ref(null)
 const isSuperAdmin = computed(() => authStore.isSuperAdmin)
-const accessibleCount = computed(() => {
-  if (isSuperAdmin.value) return kbStore.kbCount
-  return kbStore.kbList.filter((kb) => authStore.canAccessKb(kb.id)).length
-})
-
 onMounted(() => {
   kbStore.fetchKbs()
 })
@@ -104,71 +83,42 @@ async function handleDeleteKb(kbId) {
 
 <style scoped>
 .dashboard {
-  max-width: 1400px;
+  max-width: 1380px;
   width: 100%;
   margin: 0 auto;
+  padding-top: 28px;
 }
 
 .dashboard-toolbar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 20px;
+  gap: 12px;
+  margin-bottom: 18px;
   padding: 4px 2px;
 }
 
-.toolbar-copy {
-  min-width: 0;
-}
-
-.toolbar-title-row {
+.toolbar-actions {
   display: flex;
   align-items: center;
   gap: 12px;
   flex-wrap: wrap;
 }
 
-.page-title {
-  margin: 0;
-  font-size: 30px;
-  line-height: 1.1;
-  font-weight: 800;
-  letter-spacing: -0.03em;
-  color: var(--dm-text);
-}
-
-.toolbar-meta {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-  margin-top: 10px;
-}
-
-.meta-pill {
+.workspace-count {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  min-height: 34px;
-  padding: 0 12px;
+  min-height: 36px;
+  padding: 0 14px;
   border-radius: 999px;
   border: 1px solid var(--dm-border);
-  background: rgba(255, 255, 255, 0.86);
-  color: var(--dm-text);
+  background: rgba(255, 255, 255, 0.82);
+  color: var(--dm-text-muted);
   font-size: 13px;
-}
-
-.meta-label {
-  color: var(--dm-text-soft);
-}
-
-.toolbar-actions {
-  flex-shrink: 0;
+  font-weight: 700;
 }
 
 .create-button {
-  min-width: 188px;
+  min-width: 176px;
 }
 
 .loading-panel,
@@ -189,15 +139,6 @@ async function handleDeleteKb(kbId) {
 }
 
 @media (max-width: 960px) {
-  .dashboard-toolbar {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .toolbar-meta {
-    gap: 8px;
-  }
-
   .create-button {
     width: 100%;
   }

@@ -1,34 +1,5 @@
 <template>
   <div class="user-profile">
-    <section class="profile-toolbar">
-      <div class="profile-header">
-        <el-avatar :size="72" class="profile-avatar">
-          {{ userInitial }}
-        </el-avatar>
-        <div class="profile-details">
-          <div class="profile-title-row">
-            <h1 class="profile-name">{{ username }}</h1>
-            <el-tag v-if="isSuperAdmin" type="danger" effect="plain" round>Super Admin</el-tag>
-            <el-tag v-else type="info" effect="plain" round>User</el-tag>
-          </div>
-          <div class="profile-meta">
-            <span class="meta-pill">
-              <span class="meta-label">Username</span>
-              <strong>{{ username }}</strong>
-            </span>
-            <span class="meta-pill">
-              <span class="meta-label">Role</span>
-              <strong>{{ isSuperAdmin ? 'Super Admin' : 'User' }}</strong>
-            </span>
-            <span class="meta-pill">
-              <span class="meta-label">Knowledge Base</span>
-              <strong>{{ kbLabel }}</strong>
-            </span>
-          </div>
-        </div>
-      </div>
-    </section>
-
     <div class="profile-grid">
       <section class="profile-panel profile-panel-overview">
         <div class="section-head">
@@ -164,8 +135,6 @@ const router = useRouter()
 const authStore = useAuthStore()
 const kbStore = useKbStore()
 
-const username = computed(() => authStore.user?.username || 'User')
-const userInitial = computed(() => username.value.charAt(0).toUpperCase())
 const isSuperAdmin = computed(() => authStore.isSuperAdmin)
 const {
   apiKeys,
@@ -207,72 +176,10 @@ onMounted(() => {
   max-width: 1240px;
   width: 100%;
   margin: 0 auto;
+  padding-top: 28px;
   display: flex;
   flex-direction: column;
   gap: 20px;
-}
-
-.profile-toolbar {
-  padding: 4px 2px;
-}
-
-.profile-header {
-  display: flex;
-  align-items: center;
-  gap: 18px;
-}
-
-.profile-avatar {
-  background: linear-gradient(135deg, #2563eb 0%, #60a5fa 100%);
-  color: #ffffff;
-  font-size: 28px;
-  font-weight: 700;
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.22);
-}
-
-.profile-details {
-  min-width: 0;
-}
-
-.profile-title-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
-.profile-name {
-  margin: 0;
-  font-size: 28px;
-  line-height: 1.1;
-  font-weight: 800;
-  letter-spacing: -0.03em;
-  color: var(--dm-text);
-}
-
-.profile-meta {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-  margin-top: 10px;
-}
-
-.meta-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  min-height: 34px;
-  padding: 0 12px;
-  border-radius: 999px;
-  border: 1px solid var(--dm-border);
-  background: rgba(255, 255, 255, 0.86);
-  color: var(--dm-text);
-  font-size: 13px;
-}
-
-.meta-label {
-  color: var(--dm-text-soft);
 }
 
 .profile-grid {

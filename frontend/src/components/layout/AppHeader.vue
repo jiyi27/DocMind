@@ -1,6 +1,10 @@
 <template>
   <el-header class="app-header-shell">
     <nav class="main-nav">
+      <router-link to="/" class="brand-link" :aria-label="`${brandName} home`">
+        <BrandLogo size="sm" tone="muted" />
+      </router-link>
+
       <router-link
         v-for="item in navItems"
         :key="item.name"
@@ -41,6 +45,8 @@
 import { computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import BrandLogo from '@/components/brand/BrandLogo.vue'
+import { branding } from '@/config/branding'
 import {
   ArrowDown,
   Setting,
@@ -56,6 +62,7 @@ const router = useRouter()
 const route = useRoute()
 const authStore = useAuthStore()
 
+const brandName = branding.name
 const username = computed(() => authStore.user?.username || 'User')
 const userInitial = computed(() => username.value.charAt(0).toUpperCase())
 const isSuperAdmin = computed(() => authStore.isSuperAdmin)
@@ -99,6 +106,14 @@ function handleCommand(command) {
   max-width: 100%;
   box-shadow: 0 10px 28px rgba(15, 23, 42, 0.06);
   backdrop-filter: blur(14px);
+}
+
+.brand-link {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 8px 6px 10px;
+  border-radius: 12px;
+  text-decoration: none;
 }
 
 .nav-link {
@@ -165,6 +180,10 @@ function handleCommand(command) {
 @media (max-width: 720px) {
   .app-header-shell {
     padding: 12px 12px 6px;
+  }
+
+  .brand-link {
+    padding-right: 4px;
   }
 
   .nav-link span {

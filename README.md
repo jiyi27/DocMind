@@ -98,13 +98,7 @@ sudo apt install tesseract-ocr tesseract-ocr-chi-sim
 
 ### 2. Start Infrastructure
 
-All backend commands should be run from the `backend/` directory:
-
-```bash
-cd backend
-```
-
-**First time only** (creates containers and pulls the embedding model):
+**First time only** (creates containers, pulls the embedding model, and syncs Python dependencies):
 ```bash
 make infra-init
 ```
@@ -144,6 +138,33 @@ Edit `.env` and set the two required values:
 All other `.env` values have safe defaults. See `backend/.env.example` for the full list.
 
 LLM endpoints, retrieval parameters, Confluence integration, and image processing are configured at runtime via the super-admin settings page — not through `.env`.
+
+### 3.1 Configure Frontend Branding
+
+If you want to customize the frontend product name, header logo, or browser favicon:
+
+```bash
+cd frontend
+cp .env.example .env
+```
+
+Then edit `frontend/.env` as needed:
+
+| Variable                  | Description                                                                                   |
+| ------------------------- | --------------------------------------------------------------------------------------------- |
+| `VITE_BRAND_NAME`         | Product name shown in the UI and browser title. Defaults to `DocMind` if unset.               |
+| `VITE_BRAND_LOGO_PATH`    | Optional logo image path for the app header and auth pages, usually under `frontend/public/`. |
+| `VITE_BRAND_FAVICON_PATH` | Optional favicon path, usually under `frontend/public/`. Defaults to `/favicon.svg`.          |
+
+Example:
+
+```env
+VITE_BRAND_NAME=KBMind
+VITE_BRAND_LOGO_PATH=/brand-logo.svg
+VITE_BRAND_FAVICON_PATH=/brand-favicon.svg
+```
+
+If `VITE_BRAND_LOGO_PATH` is empty, the app falls back to the built-in SVG logo.
 
 ### Runtime System Settings
 
@@ -185,24 +206,23 @@ When creating a knowledge base, you can choose the embedding provider and model 
 - Embedding settings must now be entered explicitly when creating a knowledge base. The backend returns provider-specific field metadata, including placeholders and help text, via `GET /kb/embedding-options`.
 - DocMind no longer silently falls back to global embedding environment variables when a KB is missing persisted embedding config. Misconfigured KBs now fail fast to avoid vector/model drift.
 
-### 4. Run the Backend
+### 4. Run the App
 
+Start both backend and frontend together:
 ```bash
-cd backend
 make dev
 ```
 
-The API server will be available at `http://localhost:8000`.
-Interactive API docs: `http://localhost:8000/docs`
-
-### 5. Run the Frontend
-
+Or start them independently:
 ```bash
-cd frontend
-pnpm install
-pnpm dev
+make dev-backend   # API server only
+make dev-frontend  # frontend only (requires pnpm install first)
 ```
 
+> **First time frontend setup**: run `cd frontend && pnpm install` before starting the frontend.
+
+The API server will be available at `http://localhost:8000`.
+Interactive API docs: `http://localhost:8000/docs`
 The frontend will be available at `http://localhost:5173`. It connects to the backend at `http://localhost:8000` by default (configure via `VITE_API_URL` if needed).
 
 ## API Reference
@@ -258,15 +278,17 @@ DocMind exposes a minimal OpenAI-compatible `POST /v1/chat/completions` endpoint
 
 ## Utility Commands
 
-| Command                                           | Description                                              |
-| ------------------------------------------------- | -------------------------------------------------------- |
-| `make dev`                                        | Start API server with hot reload                         |
-| `make infra-init`                                 | **First time**: create containers + pull embedding model |
-| `make infra-up`                                   | Start existing containers                                |
-| `make infra-down`                                 | Stop containers (keeps data volumes)                     |
-| `make ingest FILE=path/to/file.md TITLE="My Doc"` | Ingest a file via CLI script                             |
-| `docker compose ps`                               | Check container status                                   |
-| `docker compose down -v`                          | Stop containers and delete volumes (data loss)           |
+| Command                                           | Description                                            |
+| ------------------------------------------------- | ------------------------------------------------------ |
+| `make dev`                                        | Start backend and frontend together                    |
+| `make dev-backend`                                | Start API server only                                  |
+| `make dev-frontend`                               | Start frontend only                                    |
+| `make infra-init`                                 | **First time**: create containers, pull model, uv sync |
+| `make infra-up`                                   | Start existing containers                              |
+| `make infra-down`                                 | Stop containers (keeps data volumes)                   |
+| `make ingest FILE=path/to/file.md TITLE="My Doc"` | Ingest a file via CLI script                           |
+| `docker compose ps`                               | Check container status                                 |
+| `docker compose down -v`                          | Stop containers and delete volumes (data loss)         |
 
 ## Current Scope
 

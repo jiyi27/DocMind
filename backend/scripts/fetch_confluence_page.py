@@ -7,7 +7,7 @@ Usage (run from the backend/ directory):
     uv run python scripts/fetch_confluence_page.py <confluence_url>
 
 Example:
-    uv run python scripts/fetch_confluence_page.py "https://docs.surfin-cn.com/pages/viewpage.action?pageId=49593131"
+    uv run python scripts/fetch_confluence_page.py "https://docs.example.com/pages/viewpage.action?pageId=49593131"
 
 Output:
     Markdown file saved to backend/data/confluence_preview/<page_id>_<title>.md
