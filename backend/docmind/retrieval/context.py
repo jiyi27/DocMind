@@ -15,7 +15,12 @@ from typing import Literal
 
 @dataclass
 class Citation:
-    """Structured citation metadata returned to API clients."""
+    """Structured citation metadata returned to API clients.
+
+    ``index`` is the 1-based marker that the model may reference as ``[1]``.
+    Clients should render the source list from these objects instead of trying
+    to reconstruct links from the generated answer text.
+    """
 
     index: int
     title: str
@@ -23,6 +28,7 @@ class Citation:
     source_label: str
 
     def to_dict(self) -> dict[str, int | str]:
+        """Expose API field names exactly as returned over HTTP."""
         payload = asdict(self)
         payload["sourceLabel"] = payload.pop("source_label")
         return payload

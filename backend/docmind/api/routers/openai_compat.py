@@ -85,6 +85,7 @@ def _message_text(message: OpenAIChatMessage) -> str:
 def _build_langchain_history(
     messages: list[OpenAIChatMessage],
 ) -> tuple[str, list[HumanMessage | AIMessage | SystemMessage]]:
+    """Use the last user message as the active query and earlier turns as history."""
     last_user_index = -1
     for index, message in enumerate(messages):
         if message.role == "user":
@@ -120,6 +121,8 @@ def _completion_response(
     answer: str,
     citations: list[dict[str, int | str]],
 ) -> JSONResponse:
+    # ``citations`` is structured retrieval metadata returned alongside the
+    # assistant text so clients can render sources without parsing the answer.
     return JSONResponse(
         status_code=200,
         content={
@@ -153,6 +156,8 @@ def _chunk_payload(
     finish_reason: str | None = None,
     citations: list[dict[str, int | str]] | None = None,
 ) -> str:
+    # Streaming sends citations once on the initial chunk; later chunks only
+    # carry incremental answer text.
     payload: dict[str, Any] = {
         "id": completion_id,
         "object": "chat.completion.chunk",
@@ -207,6 +212,11 @@ async def chat_completions(
     body: OpenAIChatCompletionsRequest,
     request: Request,
 ):
+    """OpenAI-style chat endpoint backed by DocMind retrieval.
+
+    The response keeps the standard ``choices`` envelope and adds a top-level
+    ``citations`` field containing structured source metadata.
+    """
     try:
         current_user = await _authenticate_request(request)
     except HTTPException as exc:

@@ -50,6 +50,10 @@ async def chat(
     3. Persist the new user message and assistant answer to SQLite
     4. If this is the first turn, schedule async LLM title generation
     5. Return the answer and citations
+
+    ``citations`` is structured source metadata for rendering. The answer may
+    contain ``[1]`` style references, but clients should use ``citations`` as
+    the source of truth for titles and URLs.
     """
     async with get_db() as db:
         session_repo = ChatSessionRepository(db)
@@ -142,6 +146,9 @@ async def chat_stream(
     - ``data: {"type": "chunk",   "text": "..."}``       — one per LLM token chunk
     - ``data: {"type": "done",    "session_id": "..."}`` — sent after final token
     - ``data: {"type": "error",   "message": "..."}``    — on unexpected failure
+
+    The citations event is emitted once and represents the full source list for
+    the whole answer rather than per-token annotations.
 
     Flow
     ----
