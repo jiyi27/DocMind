@@ -208,12 +208,7 @@ When creating a knowledge base, you can choose the embedding provider and model 
 
 ### 4. Run the App
 
-Start both backend and frontend together:
-```bash
-make dev
-```
-
-Or start them independently:
+Start backend and frontend independently:
 ```bash
 make dev-backend   # API server only
 make dev-frontend  # frontend only (requires pnpm install first)
@@ -258,7 +253,7 @@ DocMind exposes a complete RESTful API. Key endpoints:
 | `GET`    | `/api-keys`                              | List the current user's API keys                         |
 | `POST`   | `/api-keys`                              | Create a new API key for the current user                |
 | `DELETE` | `/api-keys/{key_id}`                     | Revoke an API key                                        |
-| `POST`   | `/v1/chat/completions`                   | Stateless OpenAI-compatible chat completions             |
+| `POST`   | `/api/v1/chat/completions`               | Stateless OpenAI-compatible chat completions             |
 | `POST`   | `/search`                                | Run pure vector search without LLM generation            |
 | `GET`    | `/chats`                                 | List chat sessions                                       |
 | `POST`   | `/chats`                                 | Create a chat session                                    |
@@ -278,17 +273,15 @@ DocMind exposes a minimal OpenAI-compatible `POST /v1/chat/completions` endpoint
 
 ## Utility Commands
 
-| Command                                           | Description                                            |
-| ------------------------------------------------- | ------------------------------------------------------ |
-| `make dev`                                        | Start backend and frontend together                    |
-| `make dev-backend`                                | Start API server only                                  |
-| `make dev-frontend`                               | Start frontend only                                    |
-| `make infra-init`                                 | **First time**: create containers, pull model, uv sync |
-| `make infra-up`                                   | Start existing containers                              |
-| `make infra-down`                                 | Stop containers (keeps data volumes)                   |
-| `make ingest FILE=path/to/file.md TITLE="My Doc"` | Ingest a file via CLI script                           |
-| `docker compose ps`                               | Check container status                                 |
-| `docker compose down -v`                          | Stop containers and delete volumes (data loss)         |
+| Command                  | Description                                            |
+| ------------------------ | ------------------------------------------------------ |
+| `make dev-backend`       | Start API server only                                  |
+| `make dev-frontend`      | Start frontend only                                    |
+| `make infra-init`        | **First time**: create containers, pull model, uv sync |
+| `make infra-up`          | Start existing containers                              |
+| `make infra-down`        | Stop containers (keeps data volumes)                   |
+| `docker compose ps`      | Check container status                                 |
+| `docker compose down -v` | Stop containers and delete volumes (data loss)         |
 
 ## Current Scope
 
