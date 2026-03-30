@@ -9,8 +9,23 @@ requiring shared mutable state or ad-hoc string parsing.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from typing import Literal
+
+
+@dataclass
+class Citation:
+    """Structured citation metadata returned to API clients."""
+
+    index: int
+    title: str
+    url: str
+    source_label: str
+
+    def to_dict(self) -> dict[str, int | str]:
+        payload = asdict(self)
+        payload["sourceLabel"] = payload.pop("source_label")
+        return payload
 
 
 @dataclass

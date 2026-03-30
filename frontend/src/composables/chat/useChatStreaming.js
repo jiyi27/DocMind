@@ -66,7 +66,7 @@ export function useChatStreaming({ activeChatId, chatList, getConversationById, 
     const assistantMessage = {
       role: 'assistant',
       content: '',
-      sources: [],
+      citations: [],
       id: Date.now() + 1,
       streaming: true,
     }
@@ -80,12 +80,12 @@ export function useChatStreaming({ activeChatId, chatList, getConversationById, 
     activeStreamSessionId = sessionId
 
     try {
-      let pendingSources = []
+      let pendingCitations = []
 
       await sendChatMessageStream(sessionId, input, {
         signal: controller.signal,
-        onSources(sources) {
-          pendingSources = sources
+        onCitations(citations) {
+          pendingCitations = citations
         },
         onChunk(text) {
           assistantMessage.content += text
@@ -93,7 +93,7 @@ export function useChatStreaming({ activeChatId, chatList, getConversationById, 
         },
         onDone() {
           assistantMessage.streaming = false
-          assistantMessage.sources = pendingSources
+          assistantMessage.citations = pendingCitations
           syncActiveConversation(sessionId, conversation)
 
           const sidebarItem = chatList.value.find((item) => item.id === sessionId)

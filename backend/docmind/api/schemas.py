@@ -45,7 +45,7 @@ class ChatSessionCreate(BaseModel):
 class ChatMessageCreate(BaseModel):
     role: Literal["user", "assistant"]
     content: str
-    sources: list[str] = Field(default_factory=list)
+    citations: list[dict[str, int | str]] = Field(default_factory=list)
     model_name: str = ""
     token_count: int = 0
 

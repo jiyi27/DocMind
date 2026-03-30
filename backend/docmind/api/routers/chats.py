@@ -24,12 +24,22 @@ from docmind.db.repositories import ChatSessionRepository, ChatMessageRepository
 router = APIRouter(prefix="/chats", tags=["chat-history"])
 
 
-def _parse_sources(raw: str) -> list[str]:
+def _parse_citations(raw: str) -> list[dict[str, int | str]]:
     if not raw:
         return []
     try:
         payload = json.loads(raw)
-        return payload if isinstance(payload, list) else []
+        if not isinstance(payload, list):
+            return []
+        return [
+            item
+            for item in payload
+            if isinstance(item, dict)
+            and isinstance(item.get("index"), int)
+            and isinstance(item.get("title"), str)
+            and isinstance(item.get("url"), str)
+            and isinstance(item.get("sourceLabel"), str)
+        ]
     except json.JSONDecodeError:
         return []
 
@@ -74,7 +84,7 @@ async def get_chat_session(
 
         messages = await message_repo.list_by_session(session_id)
         for msg in messages:
-            msg["sources"] = _parse_sources(msg.pop("sources_json", ""))
+            msg["citations"] = _parse_citations(msg.pop("sources_json", ""))
 
     return ok(data={"session": session, "messages": messages})
 
@@ -139,7 +149,7 @@ async def create_chat_message(
             session_id=session_id,
             role=body.role,
             content=body.content,
-            sources_json=json.dumps(body.sources),
+            sources_json=json.dumps(body.citations),
             model_name=body.model_name,
             token_count=body.token_count,
         )
@@ -148,7 +158,7 @@ async def create_chat_message(
             session_id, message_count_delta=1, last_message_preview=preview
         )
 
-        message["sources"] = body.sources
+        message["citations"] = body.citations
         message.pop("sources_json", None)
 
     return ok(data=message, message="Message created")

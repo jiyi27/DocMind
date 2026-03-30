@@ -43,7 +43,7 @@ def cmd_retrieve(kb_name: str, query: str) -> None:
         )
 
     # 2. Call the real production retrieve() — identical to what the API does
-    context, sources = retrieve(query, kb_name)
+    context, citations = retrieve(query, kb_name)
 
     print(f"\n{SEPARATOR}")
     print("Context sent to LLM (via production retrieve()):")
@@ -66,7 +66,7 @@ def cmd_retrieve(kb_name: str, query: str) -> None:
 
     print(f"\n{SEPARATOR}")
     print(f"Total context: {len(context):,} chars")
-    print(f"Sources: {sources}")
+    print(f"Citations: {citations}")
 
 
 def cmd_chunks(kb_name: str, doc_id: str) -> None:

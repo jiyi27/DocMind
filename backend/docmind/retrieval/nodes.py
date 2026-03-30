@@ -17,7 +17,7 @@ from docmind.core.metadata import (
     META_RETRIEVAL_MODE,
 )
 from docmind.core.llm import get_llm
-from docmind.retrieval.context import ContextItem, SearchHit
+from docmind.retrieval.context import Citation, ContextItem, SearchHit
 from docmind.retrieval.prompts import rag_prompt
 from docmind.retrieval.resolvers import (
     FullDocResolver,
@@ -62,7 +62,7 @@ def retrieve_raw_hits(
 
 def _resolve_chat_hits(
     results: list[tuple[Document, float]], kb_name: str
-) -> dict[str, list[ContextItem] | list[Document] | str | list[str]]:
+) -> dict[str, list[ContextItem] | list[Document] | str | list[dict[str, int | str]]]:
     """Convert raw hits into chat-ready context with full-doc limits applied."""
     runtime = get_runtime_settings()
     max_full_docs = runtime.retrieval.max_full_docs
@@ -115,7 +115,15 @@ def _resolve_chat_hits(
         "context_items": context_items,
         # Compatibility shim: flat string for stream_generate and rag_graph.
         "context": _build_context_string(context_items),
-        "sources": [it.source_label for it in context_items],
+        "citations": [
+            Citation(
+                index=it.index,
+                title=it.title,
+                url=it.url,
+                source_label=it.source_label,
+            ).to_dict()
+            for it in context_items
+        ],
     }
 
 
@@ -206,7 +214,12 @@ def generate_node(state: RAGState) -> dict:
         result = chain.invoke(
             {
                 "context": state.get("context", ""),
-                "sources": "\n".join(state.get("sources", [])),
+                "citations": "\n".join(
+                    citation["sourceLabel"]
+                    for citation in state.get("citations", [])
+                    if isinstance(citation, dict)
+                    and isinstance(citation.get("sourceLabel"), str)
+                ),
                 "messages": messages,
             }
         )
@@ -224,21 +237,21 @@ def generate_node(state: RAGState) -> dict:
     return {"answer": result.content}
 
 
-def retrieve(query: str, kb_name: str) -> tuple[str, list[str]]:
-    """Run retrieval synchronously and return (context, sources).
+def retrieve(query: str, kb_name: str) -> tuple[str, list[dict[str, int | str]]]:
+    """Run retrieval synchronously and return (context, citations).
 
     Extracted as a standalone function for use by the streaming chat endpoint,
     which bypasses the LangGraph graph and drives retrieval + generation directly.
     """
     state: RAGState = {"query": query, "kb_name": kb_name}
     result = retrieve_node(state)
-    return result["context"], result["sources"]
+    return result["context"], result["citations"]
 
 
 async def stream_generate(
     query: str,
     context: str,
-    sources: list[str],
+    citations: list[dict[str, int | str]],
     messages: list[AnyMessage],
 ) -> AsyncGenerator[str, None]:
     """Stream LLM token chunks for the given query + RAG context.
@@ -252,8 +265,8 @@ async def stream_generate(
         The current user question.
     context:
         Formatted retrieval context assembled by ``retrieve()``.
-    sources:
-        Source citation strings assembled by ``retrieve()``.
+    citations:
+        Structured citation metadata assembled by ``retrieve()``.
     messages:
         Prior conversation history (LangChain message objects), already
         truncated by the caller to MAX_MESSAGES.
@@ -268,7 +281,12 @@ async def stream_generate(
         async for chunk in chain.astream(
             {
                 "context": context,
-                "sources": "\n".join(sources),
+                "citations": "\n".join(
+                    citation["sourceLabel"]
+                    for citation in citations
+                    if isinstance(citation, dict)
+                    and isinstance(citation.get("sourceLabel"), str)
+                ),
                 "messages": lc_messages,
             }
         ):

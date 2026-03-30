@@ -92,7 +92,14 @@ def test_openai_compat_non_stream_completion(monkeypatch) -> None:
                     (),
                     {
                         "answer": f"Answer: {kwargs['query']}",
-                        "sources": ["[1] Test Source"],
+                        "citations": [
+                            {
+                                "index": 1,
+                                "title": "Test Source",
+                                "url": "",
+                                "sourceLabel": "[1] Test Source",
+                            }
+                        ],
                     },
                 )()
 
@@ -102,7 +109,7 @@ def test_openai_compat_non_stream_completion(monkeypatch) -> None:
             )
 
             response = client.post(
-                "/v1/chat/completions",
+                "/api/v1/chat/completions",
                 headers={"Authorization": f"Bearer {RAW_API_KEY}"},
                 json={
                     "model": "ignored-by-runtime",
@@ -119,7 +126,72 @@ def test_openai_compat_non_stream_completion(monkeypatch) -> None:
         assert body["model"] == "runtime-model"
         assert body["choices"][0]["message"]["role"] == "assistant"
         assert body["choices"][0]["message"]["content"] == "Answer: What is DocMind?"
-        assert body["sources"] == ["[1] Test Source"]
+        assert body["citations"] == [
+            {
+                "index": 1,
+                "title": "Test Source",
+                "url": "",
+                "sourceLabel": "[1] Test Source",
+            }
+        ]
+    finally:
+        os.environ.pop("DOCMIND_DB_PATH", None)
+        if db_path.exists():
+            db_path.unlink()
+
+
+def test_openai_compat_models_requires_api_key() -> None:
+    db_path = (
+        Path(__file__).resolve().parents[1] / "data" / "test-openai-models-auth.db"
+    )
+    if db_path.exists():
+        db_path.unlink()
+
+    os.environ["DOCMIND_DB_PATH"] = str(db_path)
+    try:
+        with TestClient(app, raise_server_exceptions=False) as client:
+            _seed_data(db_path)
+            response = client.get("/api/v1/models")
+
+        assert response.status_code == 401
+        body = response.json()
+        assert body["error"]["type"] == "authentication_error"
+        assert body["error"]["message"] == "API key is required"
+    finally:
+        os.environ.pop("DOCMIND_DB_PATH", None)
+        if db_path.exists():
+            db_path.unlink()
+
+
+def test_openai_compat_lists_runtime_model_via_api_prefix(monkeypatch) -> None:
+    db_path = Path(__file__).resolve().parents[1] / "data" / "test-openai-models-api.db"
+    if db_path.exists():
+        db_path.unlink()
+
+    os.environ["DOCMIND_DB_PATH"] = str(db_path)
+    try:
+        with TestClient(app, raise_server_exceptions=False) as client:
+            _seed_data(db_path)
+
+            monkeypatch.setattr(
+                "docmind.api.routers.openai_compat.get_llm_runtime_settings",
+                lambda: type("Runtime", (), {"model": "runtime-model"})(),
+            )
+
+            response = client.get(
+                "/api/v1/models",
+                headers={"Authorization": f"Bearer {RAW_API_KEY}"},
+            )
+
+        assert response.status_code == 200
+        assert response.json() == {
+            "data": [
+                {
+                    "id": "runtime-model",
+                    "name": "runtime-model",
+                }
+            ]
+        }
     finally:
         os.environ.pop("DOCMIND_DB_PATH", None)
         if db_path.exists():
@@ -149,7 +221,14 @@ def test_openai_compat_stream_completion(monkeypatch) -> None:
                     (),
                     {
                         "context": "retrieved context",
-                        "sources": ["[1] Stream Source"],
+                        "citations": [
+                            {
+                                "index": 1,
+                                "title": "Stream Source",
+                                "url": "",
+                                "sourceLabel": "[1] Stream Source",
+                            }
+                        ],
                     },
                 )()
 
@@ -168,7 +247,7 @@ def test_openai_compat_stream_completion(monkeypatch) -> None:
 
             with client.stream(
                 "POST",
-                "/v1/chat/completions",
+                "/api/v1/chat/completions",
                 headers={"Authorization": f"Bearer {RAW_API_KEY}"},
                 json={
                     "model": "ignored-by-runtime",
@@ -183,7 +262,10 @@ def test_openai_compat_stream_completion(monkeypatch) -> None:
         assert '"role": "assistant"' in body
         assert '"content": "hello "' in body
         assert '"content": "world"' in body
-        assert '"sources": ["[1] Stream Source"]' in body
+        assert (
+            '"citations": [{"index": 1, "title": "Stream Source", "url": "", "sourceLabel": "[1] Stream Source"}]'
+            in body
+        )
         assert "data: [DONE]" in body
     finally:
         os.environ.pop("DOCMIND_DB_PATH", None)
@@ -204,7 +286,7 @@ def test_openai_compat_rejects_missing_user_message() -> None:
             _seed_data(db_path)
 
             response = client.post(
-                "/v1/chat/completions",
+                "/api/v1/chat/completions",
                 headers={"Authorization": f"Bearer {RAW_API_KEY}"},
                 json={
                     "model": "runtime-model",

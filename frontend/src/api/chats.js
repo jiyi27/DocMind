@@ -23,7 +23,7 @@ export function deleteChatSession(sessionId) {
  *
  * @param {string} sessionId - UUID of the active chat session
  * @param {string} chatInput - The user's current question
- * @returns {Promise<{answer: string, sources: string[], session_id: string, kb_name: string, is_first_turn: boolean}>}
+ * @returns {Promise<{answer: string, citations: Array<{index: number, title: string, url: string, sourceLabel: string}>, session_id: string, kb_name: string, is_first_turn: boolean}>}
  */
 export function sendChatMessage(sessionId, chatInput) {
   return http.post(
@@ -38,7 +38,7 @@ export function sendChatMessage(sessionId, chatInput) {
  *
  * Calls POST /chat/stream and reads the response body as a stream.
  * Invokes callbacks as events arrive:
- *   onSources(sources: string[])         — fired once before text starts
+ *   onCitations(citations: object[])     — fired once before text starts
  *   onChunk(text: string)                — fired for each token chunk
  *   onDone(sessionId: string)            — fired when generation is complete
  *   onError(message: string)             — fired on server-side error event
@@ -48,9 +48,9 @@ export function sendChatMessage(sessionId, chatInput) {
  *
  * @param {string} sessionId
  * @param {string} chatInput
- * @param {{ onSources, onChunk, onDone, onError, signal }} callbacks
+ * @param {{ onCitations, onChunk, onDone, onError, signal }} callbacks
  */
-export async function sendChatMessageStream(sessionId, chatInput, { onSources, onChunk, onDone, onError, signal } = {}) {
+export async function sendChatMessageStream(sessionId, chatInput, { onCitations, onChunk, onDone, onError, signal } = {}) {
   const baseURL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
   const token = getAuthToken()
 
@@ -96,7 +96,7 @@ export async function sendChatMessageStream(sessionId, chatInput, { onSources, o
         continue
       }
 
-      if (event.type === 'sources') onSources?.(event.sources)
+      if (event.type === 'citations') onCitations?.(event.citations)
       else if (event.type === 'chunk') onChunk?.(event.text)
       else if (event.type === 'done') onDone?.(event.session_id)
       else if (event.type === 'error') onError?.(event.message)

@@ -28,20 +28,20 @@
           <div v-if="message.status === 'error'" class="msg-error-hint">
             Send failed, please try again.
           </div>
-          <div v-if="message.sources && message.sources.length" class="chat-sources">
-            <div class="sources-label">Sources</div>
+          <div v-if="message.citations && message.citations.length" class="chat-sources">
+            <div class="sources-label">Citations</div>
             <div class="sources-list">
               <a
-                v-for="(src, i) in parseChatSources(message.sources)"
-                :key="i"
-                :href="src.url || undefined"
-                :target="src.url ? '_blank' : undefined"
-                :rel="src.url ? 'noopener noreferrer' : undefined"
+                v-for="citation in message.citations"
+                :key="citation.sourceLabel"
+                :href="citation.url || undefined"
+                :target="citation.url ? '_blank' : undefined"
+                :rel="citation.url ? 'noopener noreferrer' : undefined"
                 class="source-item"
-                :class="{ 'source-item--no-link': !src.url }"
+                :class="{ 'source-item--no-link': !citation.url }"
               >
-                <span class="source-index">{{ src.index }}</span>
-                <span class="source-title">{{ src.title }}</span>
+                <span class="source-index">{{ citation.index }}</span>
+                <span class="source-title">{{ citation.title }}</span>
               </a>
             </div>
           </div>
@@ -73,7 +73,6 @@
 
 <script setup>
 import { computed, nextTick, ref, watch } from 'vue'
-import { parseChatSources } from '@/utils/chat/sources'
 
 const props = defineProps({
   conversation: {

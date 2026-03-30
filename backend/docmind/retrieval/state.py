@@ -32,8 +32,8 @@ class RAGState(TypedDict, total=False):
         Compatibility shim: flat text context derived from ``context_items``.
         Kept so that ``stream_generate`` (which accepts a plain string) does
         not require a signature change in Step 1.
-    sources : list[str]
-        Formatted source references for citation, derived from ``context_items``.
+    citations : list[dict[str, int | str]]
+        Structured citation metadata derived from ``context_items``.
     messages : list[AnyMessage]
         Full conversation history (prior turns) injected by the caller.
         The generate node appends the current HumanMessage before invoking
@@ -50,6 +50,6 @@ class RAGState(TypedDict, total=False):
     retrieved_docs: list
     context_items: list[ContextItem]
     context: str  # compatibility shim derived from context_items
-    sources: list[str]
+    citations: list[dict[str, int | str]]
     messages: list[AnyMessage]
     answer: str

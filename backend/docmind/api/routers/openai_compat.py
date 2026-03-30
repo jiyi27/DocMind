@@ -23,7 +23,7 @@ from docmind.services.chat_execution import (
 )
 from docmind.services.system_settings import get_llm_runtime_settings
 
-router = APIRouter(prefix="/v1", tags=["openai-compat"])
+router = APIRouter(prefix="/api/v1", tags=["openai-compat"])
 
 
 class OpenAIChatMessage(BaseModel):
@@ -118,7 +118,7 @@ def _completion_response(
     created: int,
     model: str,
     answer: str,
-    sources: list[str],
+    citations: list[dict[str, int | str]],
 ) -> JSONResponse:
     return JSONResponse(
         status_code=200,
@@ -139,7 +139,7 @@ def _completion_response(
                 "completion_tokens": 0,
                 "total_tokens": 0,
             },
-            "sources": sources,
+            "citations": citations,
         },
     )
 
@@ -151,7 +151,7 @@ def _chunk_payload(
     model: str,
     delta: dict[str, Any],
     finish_reason: str | None = None,
-    sources: list[str] | None = None,
+    citations: list[dict[str, int | str]] | None = None,
 ) -> str:
     payload: dict[str, Any] = {
         "id": completion_id,
@@ -166,9 +166,40 @@ def _chunk_payload(
             }
         ],
     }
-    if sources is not None:
-        payload["sources"] = sources
+    if citations is not None:
+        payload["citations"] = citations
     return f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
+
+
+async def _list_models_response(request: Request) -> JSONResponse:
+    try:
+        await _authenticate_request(request)
+        runtime_model = get_llm_runtime_settings().model
+    except HTTPException as exc:
+        return _openai_error_response(
+            message=str(exc.detail),
+            status_code=exc.status_code,
+            error_type="invalid_request_error"
+            if exc.status_code == 400
+            else "authentication_error",
+        )
+
+    return JSONResponse(
+        status_code=200,
+        content={
+            "data": [
+                {
+                    "id": runtime_model,
+                    "name": runtime_model,
+                }
+            ]
+        },
+    )
+
+
+@router.get("/models", summary="OpenAI-Compatible Models")
+async def list_models(request: Request):
+    return await _list_models_response(request)
 
 
 @router.post("/chat/completions", summary="OpenAI-Compatible Chat Completions")
@@ -228,7 +259,7 @@ async def chat_completions(
             created=created,
             model=runtime_model,
             answer=result.answer,
-            sources=result.sources,
+            citations=result.citations,
         )
 
     async def event_generator():
@@ -243,7 +274,7 @@ async def chat_completions(
                 created=created,
                 model=runtime_model,
                 delta={"role": "assistant"},
-                sources=prepared.sources,
+                citations=prepared.citations,
             )
 
             async for text in stream_rag_completion(

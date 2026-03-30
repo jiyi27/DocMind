@@ -75,7 +75,14 @@ def test_chat_stream_returns_sse_error_when_retrieval_fails(monkeypatch) -> None
             (),
             {
                 "context": "retrieved context",
-                "sources": ["[1] Test Source"],
+                "citations": [
+                    {
+                        "index": 1,
+                        "title": "Test Source",
+                        "url": "",
+                        "sourceLabel": "[1] Test Source",
+                    }
+                ],
             },
         )()
 
@@ -104,7 +111,7 @@ def test_chat_stream_returns_sse_error_when_retrieval_fails(monkeypatch) -> None
                 body = "".join(response.iter_text())
 
         assert response.status_code == 200
-        assert '"type": "sources"' in body
+        assert '"type": "citations"' in body
         assert '"type": "chunk"' in body
         assert '"type": "error"' in body
         assert "Embedding model is unavailable." in body

@@ -49,7 +49,7 @@ async def chat(
     2. Convert DB rows → LangChain messages and invoke the RAG graph
     3. Persist the new user message and assistant answer to SQLite
     4. If this is the first turn, schedule async LLM title generation
-    5. Return the answer and sources
+    5. Return the answer and citations
     """
     async with get_db() as db:
         session_repo = ChatSessionRepository(db)
@@ -85,7 +85,7 @@ async def chat(
     )
 
     answer = result.answer
-    sources = result.sources
+    citations = result.citations
 
     # 3. Persist both turns and update session metadata
     async with get_db() as db:
@@ -101,7 +101,7 @@ async def chat(
             session_id=request.session_id,
             role="assistant",
             content=answer,
-            sources_json=json.dumps(sources, ensure_ascii=False),
+            sources_json=json.dumps(citations, ensure_ascii=False),
         )
         await session_repo.touch(
             request.session_id,
@@ -121,7 +121,7 @@ async def chat(
     return ok(
         {
             "answer": answer,
-            "sources": sources,
+            "citations": citations,
             "session_id": request.session_id,
             "kb_name": current_user.kb_name,
             "is_first_turn": is_first_turn,
@@ -138,7 +138,7 @@ async def chat_stream(
 
     SSE event types
     ---------------
-    - ``data: {"type": "sources", "sources": [...]}``    — sent first, before text
+    - ``data: {"type": "citations", "citations": [...]}`` — sent first, before text
     - ``data: {"type": "chunk",   "text": "..."}``       — one per LLM token chunk
     - ``data: {"type": "done",    "session_id": "..."}`` — sent after final token
     - ``data: {"type": "error",   "message": "..."}``    — on unexpected failure
@@ -146,9 +146,9 @@ async def chat_stream(
     Flow
     ----
     1. Load session + history from SQLite
-    2. Run retrieval (sync) to get context + sources
+    2. Run retrieval (sync) to get context + citations
     3. Immediately persist the user message to SQLite
-    4. Emit a ``sources`` event, then stream LLM chunks via SSE
+    4. Emit a ``citations`` event, then stream LLM chunks via SSE
     5. After stream ends, persist the full assistant answer and trigger title
     """
 
@@ -194,8 +194,8 @@ async def chat_stream(
                     content=request.chat_input,
                 )
 
-            # ── Emit sources before text starts ──────────────────────────────
-            yield _sse_event({"type": "sources", "sources": prepared.sources})
+            # ── Emit citations before text starts ────────────────────────────
+            yield _sse_event({"type": "citations", "citations": prepared.citations})
 
             # ── 4. Stream LLM generation ─────────────────────────────────────
             answer_parts: list[str] = []
@@ -217,7 +217,7 @@ async def chat_stream(
                     session_id=request.session_id,
                     role="assistant",
                     content=full_answer,
-                    sources_json=json.dumps(prepared.sources, ensure_ascii=False),
+                    sources_json=json.dumps(prepared.citations, ensure_ascii=False),
                 )
                 await session_repo.touch(
                     request.session_id,

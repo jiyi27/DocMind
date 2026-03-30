@@ -15,13 +15,13 @@ from docmind.retrieval.nodes import retrieve, stream_generate
 @dataclass(frozen=True)
 class ChatCompletionResult:
     answer: str
-    sources: list[str]
+    citations: list[dict[str, int | str]]
 
 
 @dataclass(frozen=True)
 class PreparedStreamResult:
     context: str
-    sources: list[str]
+    citations: list[dict[str, int | str]]
 
 
 def db_messages_to_langchain(rows: list[dict]) -> list[AnyMessage]:
@@ -51,13 +51,13 @@ async def run_rag_completion(
     )
     return ChatCompletionResult(
         answer=result.get("answer", ""),
-        sources=result.get("sources", []),
+        citations=result.get("citations", []),
     )
 
 
 async def prepare_rag_stream(*, query: str, kb_name: str) -> PreparedStreamResult:
-    context, sources = await asyncio.to_thread(retrieve, query, kb_name)
-    return PreparedStreamResult(context=context, sources=sources)
+    context, citations = await asyncio.to_thread(retrieve, query, kb_name)
+    return PreparedStreamResult(context=context, citations=citations)
 
 
 async def stream_rag_completion(
@@ -69,7 +69,7 @@ async def stream_rag_completion(
     async for text in stream_generate(
         query=query,
         context=prepared.context,
-        sources=prepared.sources,
+        citations=prepared.citations,
         messages=history,
     ):
         yield text
