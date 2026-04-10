@@ -273,15 +273,17 @@ DocMind exposes a minimal OpenAI-compatible `POST /v1/chat/completions` endpoint
 
 ## Utility Commands
 
-| Command                  | Description                                            |
-| ------------------------ | ------------------------------------------------------ |
-| `make dev-backend`       | Start API server only                                  |
-| `make dev-frontend`      | Start frontend only                                    |
-| `make infra-init`        | **First time**: create containers, pull model, uv sync |
-| `make infra-up`          | Start existing containers                              |
-| `make infra-down`        | Stop containers (keeps data volumes)                   |
-| `docker compose ps`      | Check container status                                 |
-| `docker compose down -v` | Stop containers and delete volumes (data loss)         |
+| Command                             | Description                                            |
+| ----------------------------------- | ------------------------------------------------------ |
+| `make dev-backend`                  | Start API server only                                  |
+| `make dev-frontend`                 | Start frontend only                                    |
+| `make infra-init`                   | **First time**: create containers, pull model, uv sync |
+| `make infra-up`                     | Start existing containers                              |
+| `make infra-down`                   | Stop containers (keeps data volumes)                   |
+| `make clean-orphans`                | Dry-run orphan document cleanup (all KBs, or `KB_ID=<id>`) |
+| `make clean-orphans-apply`          | Apply orphan document cleanup (all KBs, or `KB_ID=<id>`)   |
+| `docker compose ps`                 | Check container status                                 |
+| `docker compose down -v`            | Stop containers and delete volumes (data loss)         |
 
 ## Current Scope
 
