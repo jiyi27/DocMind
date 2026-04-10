@@ -1,4 +1,4 @@
-.PHONY: dev-backend dev-frontend infra-init infra-up infra-down
+.PHONY: dev-backend dev-frontend infra-init infra-up infra-down clean-orphans clean-orphans-apply
 
 ## Start only the backend API server
 dev-backend:
@@ -21,3 +21,11 @@ infra-up:
 ## Stop infrastructure (keeps containers and volumes intact)
 infra-down:
 	docker compose stop
+
+## Dry-run orphan document cleanup across all KBs, or one KB via KB_ID=<id>
+clean-orphans:
+	cd backend && uv run python scripts/cleanup_orphan_documents.py $(if $(KB_ID),--kb-id $(KB_ID),--all)
+
+## Apply orphan document cleanup across all KBs, or one KB via KB_ID=<id>
+clean-orphans-apply:
+	cd backend && uv run python scripts/cleanup_orphan_documents.py $(if $(KB_ID),--kb-id $(KB_ID),--all) --apply
